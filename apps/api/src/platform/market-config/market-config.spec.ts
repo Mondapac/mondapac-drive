@@ -33,6 +33,15 @@ const DELIVERY = {
   scheduling: { minLeadMinutes: 60, maxDaysAhead: 7, minWindowMinutes: 60 },
 };
 
+const DISPATCH = {
+  offerTimeoutSeconds: 30,
+  waveSize: 1,
+  maxRounds: 5,
+  scheduledLeadMinutes: 45,
+  searchRadiusMetres: 8000,
+  candidateLimit: 20,
+};
+
 const VALID = {
   code: 'QQ',
   status: 'active',
@@ -45,6 +54,7 @@ const VALID = {
   requestLimits: { anonymousIdentityPerMinute: 20, defaultPerMinute: 300 },
   tax: { defaultRateBps: 1500 },
   delivery: DELIVERY,
+  dispatch: DISPATCH,
 };
 
 function directoryWith(files: Record<string, unknown>): string {
@@ -139,6 +149,13 @@ describe('loadMarketConfigs', () => {
     ['no tax section', { tax: undefined }, /tax/],
     ['a tax rate above 50 %', { tax: { defaultRateBps: 5001 } }, /tax\.defaultRateBps/],
     ['no delivery section', { delivery: undefined }, /delivery/],
+    ['no dispatch section', { dispatch: undefined }, /dispatch/],
+    [
+      'an offer timeout under 5 s',
+      { dispatch: { ...DISPATCH, offerTimeoutSeconds: 2 } },
+      /dispatch\.offerTimeoutSeconds/,
+    ],
+    ['an empty wave', { dispatch: { ...DISPATCH, waveSize: 0 } }, /dispatch\.waveSize/],
     [
       'a rate card with no vehicle',
       delivery({ rateCard: { ...DELIVERY.rateCard, vehicles: {} } }),

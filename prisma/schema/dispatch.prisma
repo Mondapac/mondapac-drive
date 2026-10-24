@@ -1,0 +1,110 @@
+// The dispatch module's tables. Every model carries marketId and tenantId, which the platform's
+// market guard pins on every query. A delivery and a courier are referenced by id only (they
+// live in other modules' schemas). Offers are kept after they are answered: they are the record
+// of who was asked, when, and what they said.
+
+/// One delivery's search for a courier. (market_id, delivery_id) is unique: one job per delivery.
+model DispatchJob {
+  id                 String    @id @db.Uuid
+  marketId           String    @map("market_id") @db.VarChar(8)
+  tenantId           String    @map("tenant_id")
+  deliveryId         String    @map("delivery_id") @db.Uuid
+  status             String    @db.VarChar(16)
+  serviceAreaCode    String    @map("service_area_code") @db.VarChar(64)
+  pickupLat          Float     @map("pickup_lat")
+  pickupLng          Float     @map("pickup_lng")
+  minimumVehicle     String    @map("minimum_vehicle") @db.VarChar(16)
+  weightGrams        Int       @map("weight_grams")
+  volumeLitres       Int       @map("volume_litres")
+  temperature        String    @db.VarChar(8)
+  opensAt            DateTime  @map("opens_at") @db.Timestamptz(6)
+  round              Int
+  /// When the sweep next has work on this job; null once it is assigned, exhausted or cancelled.
+  nextActionAt       DateTime? @map("next_action_at") @db.Timestamptz(6)
+  assignedCourierId  String?   @map("assigned_courier_id") @db.Uuid
+  assignedVehicle    String?   @map("assigned_vehicle") @db.VarChar(16)
+  assignmentMethod   String?   @map("assignment_method") @db.VarChar(8)
+  assignedAt         DateTime? @map("assigned_at") @db.Timestamptz(6)
+  /// Couriers who dropped the delivery and are never offered it again.
+  excludedCourierIds String[]  @map("excluded_courier_ids") @db.Uuid
+  createdAt          DateTime  @map("created_at") @db.Timestamptz(6)
+  version            Int
+
+  offers DispatchOffer[]
+
+  @@unique([marketId, id])
+  @@unique([marketId, deliveryId])
+  @@index([marketId, nextActionAt])
+  @@map("jobs")
+  @@schema("dispatch")
+}
+
+/// One offer of a delivery to one courier, in one round of its job.
+model DispatchOffer {
+  id         String    @id @db.Uuid
+  marketId   String    @map("market_id") @db.VarChar(8)
+  tenantId   String    @map("tenant_id")
+  jobId      String    @map("job_id") @db.Uuid
+  /// The offer's place in its job, from 1: the order couriers were ranked and asked in.
+  sequence   Int
+  courierId  String    @map("courier_id") @db.Uuid
+  vehicle    String    @db.VarChar(16)
+  round      Int
+  status     String    @db.VarChar(16)
+  sentAt     DateTime  @map("sent_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz(6)
+
+  job DispatchJob @relation(fields: [marketId, jobId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([marketId, id])
+  @@unique([marketId, jobId, sequence])
+  @@index([marketId, courierId, status])
+  @@map("offers")
+  @@schema("dispatch")
+}
+
+/// Events of the dispatch module, appended in the transaction of the change and published by the
+/// relay (platform persistence design 5). The columns are the platform's outbox contract.
+model DispatchOutbox {
+  /// UUIDv7 stamped by the outbox writer.
+  eventId          String    @id @map("event_id") @db.Uuid
+  /// "dispatch.<subject>-<verb>.v<N>"; the CHECK refuses another module's type.
+  type             String
+  /// The instant the use case took from Clock (UTC).
+  occurredAt       DateTime  @map("occurred_at") @db.Timestamptz(6)
+  /// Market of the unit that wrote the event; stamped by the writer.
+  marketId         String    @map("market_id") @db.VarChar(8)
+  /// Tenant seam; stamped by the writer, no database default.
+  tenantId         String    @map("tenant_id")
+  aggregateType    String    @map("aggregate_type")
+  aggregateId      String    @map("aggregate_id") @db.Uuid
+  /// The aggregate's version after the change; unique per aggregate.
+  aggregateVersion Int       @map("aggregate_version")
+  correlationId    String    @map("correlation_id")
+  /// The consumed event that caused this one, or null.
+  causationId      String?   @map("causation_id") @db.Uuid
+  payload          Json      @db.JsonB
+  /// Set by the relay when the event was handed to the bus; the only column that changes.
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@unique([marketId, aggregateId, aggregateVersion])
+  @@map("outbox")
+  @@schema("dispatch")
+}
+
+/// The events a dispatch subscriber has handled (platform persistence design 6.4): `runOnce`
+/// inserts (event_id, handler) in the handler's own unit and skips the work when the row exists.
+/// Written only by platform/persistence/outbox/.
+model DispatchInbox {
+  eventId     String   @map("event_id") @db.Uuid
+  /// The subscriber's name, "dispatch.<handler>".
+  handler     String
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@id([eventId, handler])
+  @@map("inbox")
+  @@schema("dispatch")
+}
