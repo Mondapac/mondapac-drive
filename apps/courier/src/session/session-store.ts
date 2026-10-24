@@ -22,6 +22,8 @@ export async function loadSession(): Promise<CourierSession | null> {
   const stored = await secureStorage.get(SESSION_KEY);
   if (!stored) {
     current = null;
+    // A job left behind by an interrupted sign-out is not the next courier's.
+    await activeJobMemory.forget();
     return null;
   }
   const parsed = courierSession.safeParse(safeJson(stored));
@@ -48,6 +50,8 @@ export const activeJobMemory: ActiveJobMemory = {
 };
 
 export async function saveSession(session: CourierSession): Promise<void> {
+  // A new session starts without an accepted delivery.
+  await activeJobMemory.forget();
   await secureStorage.set(SESSION_KEY, JSON.stringify(session));
   current = session;
 }

@@ -52,6 +52,14 @@ describe('session store', () => {
     expect(activeJobMemory.current()).toBeNull();
     await expect(SecureStore.getItemAsync('mondapac.courier.active-job')).resolves.toBeNull();
   });
+
+  it('starts a new session without the previous courier’s delivery', async () => {
+    await SecureStore.setItemAsync('mondapac.courier.active-job', 'd-left-behind');
+    await saveSession(session);
+    expect(activeJobMemory.current()).toBeNull();
+    await loadSession();
+    expect(activeJobMemory.current()).toBeNull();
+  });
 });
 
 describe('build settings', () => {

@@ -99,11 +99,10 @@ export function createHttpCourierApi(options: Options): CourierApi {
       }
       return loaded;
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.status === 404 &&
-        activeJob?.current() === deliveryId
-      ) {
+      // 404: not (or no longer) the courier's; id.invalid: an id the API never issued.
+      const gone =
+        error instanceof ApiError && (error.status === 404 || error.code === 'id.invalid');
+      if (gone && activeJob?.current() === deliveryId) {
         await activeJob.forget();
       }
       throw error;

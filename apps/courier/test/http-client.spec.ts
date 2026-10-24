@@ -275,6 +275,12 @@ describe('the accepted delivery while fleet reports none', () => {
     ).rejects.toMatchObject({ status: 404 });
     expect(taken.forget).toHaveBeenCalled();
 
+    const malformed = memory('../x');
+    await expect(api(respond(), malformed).job('../x')).rejects.toMatchObject({
+      code: 'id.invalid',
+    });
+    expect(malformed.forget).toHaveBeenCalled();
+
     const ongoing = memory('d-1');
     await api(respond({ body: job }), ongoing).job('d-1');
     expect(ongoing.forget).not.toHaveBeenCalled();
