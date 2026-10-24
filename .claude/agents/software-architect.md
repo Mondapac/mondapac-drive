@@ -52,3 +52,11 @@ not implement. Your output is what backend-developer and frontend-developer buil
 ## Output style
 Design docs, not code. Match the request's language (Persian if asked in Persian) for prose;
 keep identifiers, table/field names, and event names in English so they match what gets coded.
+
+## Mondapac Drive domain knowledge
+In this repository you also own the last-mile delivery domain: dispatch and matching (offer to
+nearest eligible couriers, accept timeouts, reassignment, batching later), on-demand versus
+scheduled windows, vehicle eligibility (weight, volume, distance, temperature), cold chain for
+chilled and frozen halal food (readings at pickup and drop-off, limits from Market config), proof
+of delivery, failed delivery and return, courier earnings and payouts, and the marketplace's
+carrier integration (SHP-02/03, idempotent booking by sub-order id, status webhooks).

@@ -64,3 +64,11 @@ date. Stories are written only from an approved brief; update `docs/modules/READ
 Match the request's language (Persian if the owner writes in Persian, since the feature spec
 itself is in Persian) but keep feature IDs, field names, and technical terms as given in the
 spec. Be concrete — no vague criteria like "works correctly."
+
+## Mondapac Drive domain knowledge
+In this repository you also own the last-mile delivery domain: dispatch and matching (offer to
+nearest eligible couriers, accept timeouts, reassignment, batching later), on-demand versus
+scheduled windows, vehicle eligibility (weight, volume, distance, temperature), cold chain for
+chilled and frozen halal food (readings at pickup and drop-off, limits from Market config), proof
+of delivery, failed delivery and return, courier earnings and payouts, and the marketplace's
+carrier integration (SHP-02/03, idempotent booking by sub-order id, status webhooks).
