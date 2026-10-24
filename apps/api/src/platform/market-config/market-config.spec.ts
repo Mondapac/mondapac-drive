@@ -304,6 +304,21 @@ describe('loadMarketConfigs', () => {
       { fleet: { documents: [{ ...FLEET.documents[0], employmentTypes: ['volunteer'] }] } },
       /fleet\.documents\.0\.employmentTypes/,
     ],
+    [
+      'a business-id document the Market does not list',
+      { fleet: { ...FLEET, businessIdDocumentType: 'abn' } },
+      /fleet\.businessIdDocumentType/,
+    ],
+    [
+      'a business-id document of a vehicle',
+      {
+        fleet: {
+          documents: [{ ...FLEET.documents[0], perVehicle: true }],
+          businessIdDocumentType: 'licence',
+        },
+      },
+      /fleet\.businessIdDocumentType/,
+    ],
   ])('rejects %s', (_case, overrides, message) => {
     const directory = directoryWith({ 'QQ.json': { ...VALID, ...overrides } });
 

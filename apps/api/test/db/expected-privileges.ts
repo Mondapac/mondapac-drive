@@ -214,12 +214,24 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     // The fleet module (20261025050000): no row is deleted; a courier changes its standing, shift
     // and the terms an operator confirms, a vehicle its active flag, a document its review and
-    // the expiry the operator confirmed; the outbox envelope is immutable.
+    // the expiry the operator confirmed; the outbox envelope is immutable. 20261026030000: a
+    // courier's idle time and tax registration, and a vehicle's capacity an operator overrides.
     'fleet.couriers': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['cold_chain_capable', 'employment_type', 'shift', 'status', 'version'],
+      columnUpdate: [
+        'cold_chain_capable',
+        'employment_type',
+        'idle_since',
+        'shift',
+        'status',
+        'tax_registered',
+        'version',
+      ],
     },
-    'fleet.vehicles': { table: ['INSERT', 'SELECT'], columnUpdate: ['active'] },
+    'fleet.vehicles': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['active', 'max_volume_litres', 'max_weight_grams'],
+    },
     'fleet.documents': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
