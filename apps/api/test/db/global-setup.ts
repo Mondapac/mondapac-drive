@@ -52,6 +52,7 @@ export default async function globalSetup(): Promise<void> {
   await createCopy(name, 'LOCKING');
   await createCopy(name, 'RELAY');
   await createCopy(name, 'DELIVERY');
+  await createCopy(name, 'AUDIT');
 }
 
 /**
@@ -62,9 +63,14 @@ export default async function globalSetup(): Promise<void> {
  *   so it never publishes a row another file wrote and still reads as unpublished;
  * - `delivery`: event-delivery.db-spec.ts (event delivery, not the delivery module) relays and dispatches every pending row of a Market
  *   with test subscriptions, so it never claims a row another file wrote;
+ * - `audit`: platform-audit-chain.db-spec.ts seals every row of a Market, tampers with the chain
+ *   as the owner and resets it between cases, so no other file's audit rows live there.
  * Copied before any test connects, since a template must have no other session.
  */
-async function createCopy(template: string, kind: 'LOCKING' | 'RELAY' | 'DELIVERY'): Promise<void> {
+async function createCopy(
+  template: string,
+  kind: 'LOCKING' | 'RELAY' | 'DELIVERY' | 'AUDIT',
+): Promise<void> {
   const name = `${template}_${kind.toLowerCase()}`;
   const admin = new Client({ connectionString: migrationDatabaseUrl() });
   await admin.connect();
