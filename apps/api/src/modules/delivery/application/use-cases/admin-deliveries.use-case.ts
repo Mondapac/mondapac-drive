@@ -15,6 +15,9 @@ import type { DeliveryFailure } from '../failure';
 import type { DeliverySummary } from '../ports';
 import type { CancelInput, DeliveryRef } from './merchant-deliveries.use-case';
 
+/** The list row, for the presentation layer (which reaches application only through use cases). */
+export type { DeliverySummary };
+
 /** The events of dispatch. */
 export const DISPATCH_EVENT_TYPES: readonly DeliveryEventType[] = Object.freeze([
   'dispatch_opened',

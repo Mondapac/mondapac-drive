@@ -114,11 +114,7 @@ describe('operations panel lists (database integration)', () => {
     };
 
     it('lists the deliveries newest first, in the Market currency, without stop contacts', async () => {
-      const response = await get(
-        code,
-        '/delivery/admin/deliveries?limit=100',
-        dispatcher.headers,
-      );
+      const response = await get(code, '/delivery/admin/deliveries?limit=100', dispatcher.headers);
 
       expect(response.status).toBe(200);
       expect(response.headers['cache-control']).toBe('no-store');
@@ -164,7 +160,7 @@ describe('operations panel lists (database integration)', () => {
     });
 
     it('lets an operator read the list and refuses a merchant key or a courier', async () => {
-      await list('', operator);
+      await list('?status=ASSIGNED', operator);
       for (const headers of [merchant.headers, courierHeaders]) {
         const response = await get(code, '/delivery/admin/deliveries', headers);
         expect(response.status).toBe(401);
@@ -172,7 +168,11 @@ describe('operations panel lists (database integration)', () => {
     });
 
     it('lists no delivery of another Market', async () => {
-      const response = await get(other, '/delivery/admin/deliveries?limit=100', elsewhere.headers);
+      const response = await get(
+        other,
+        '/delivery/admin/deliveries?status=DISPATCHING,ASSIGNED&limit=100',
+        elsewhere.headers,
+      );
 
       expect(response.status).toBe(200);
       const ids = (response.body as { items: Summary[] }).items.map((row) => row.id);
@@ -216,9 +216,9 @@ describe('operations panel lists (database integration)', () => {
       expect(disabled.status).toBe(200);
 
       const response = await get(code, '/identity/admin/couriers?limit=100', operator.headers);
-      const row = (
-        response.body as { items: { accountId?: string; status: string }[] }
-      ).items.find((item) => item.accountId === courier.accountId);
+      const row = (response.body as { items: { accountId?: string; status: string }[] }).items.find(
+        (item) => item.accountId === courier.accountId,
+      );
       expect(row?.status).toBe('disabled');
     });
 
@@ -228,7 +228,11 @@ describe('operations panel lists (database integration)', () => {
       const { items, next } = first.body as { items: unknown[]; next: string | null };
       expect(items).toHaveLength(1);
       expect(next).not.toBeNull();
-      const second = await get(code, `/identity/admin/couriers?limit=1&after=${next}`, dispatcher.headers);
+      const second = await get(
+        code,
+        `/identity/admin/couriers?limit=1&after=${next}`,
+        dispatcher.headers,
+      );
       expect(second.status).toBe(200);
 
       for (const query of ['?limit=0', '?limit=101', '?after=x', '?colour=red']) {

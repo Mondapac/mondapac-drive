@@ -31,6 +31,7 @@ import {
   DispatchDelivery,
   ListDeliveries,
   ViewDelivery,
+  type DeliverySummary,
 } from '../application/use-cases/admin-deliveries.use-case';
 import { BookDelivery } from '../application/use-cases/book-delivery.use-case';
 import {
@@ -42,7 +43,6 @@ import {
   QuoteDelivery,
   type DeliveryFailure,
 } from '../application/use-cases/quote-delivery.use-case';
-import type { DeliverySummary } from '../application/ports';
 import type { DeliveryState } from '../domain/delivery';
 import type { DeliveryQuote } from '../domain/pricing';
 import {
@@ -276,7 +276,7 @@ export class AdminDeliveryController {
   @ApiOperation({
     summary: 'The deliveries of the Market, newest first',
     description:
-      'Summaries without the stops\' addresses or contacts. Filters: `status` (comma-separated), ' +
+      "Summaries without the stops' addresses or contacts. Filters: `status` (comma-separated), " +
       '`merchantId`, `courierId`; paged with `before` (the `next` of the previous page) and ' +
       `\`limit\` (1 to 100, default ${DEFAULT_DELIVERY_PAGE}). Not cached.`,
   })

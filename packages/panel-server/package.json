@@ -1,0 +1,27 @@
+{
+  "name": "@mondapac-drive/panel-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Server-only helpers shared by the panel BFFs and the storefront: the signed client-address header of ADR-0037. Consumed as source by the Next.js apps.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./signer": "./src/client-address.ts",
+    "./wrapper": "./src/wrapper.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "eslint": "^10.11.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^4.0.0"
+  }
+}

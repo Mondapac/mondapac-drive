@@ -9,11 +9,7 @@ import {
 import type { Prisma } from '../../../generated/prisma/client';
 import type { PrismaService } from '../../../platform/persistence/prisma.service';
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
-import type {
-  DeliveryListFilter,
-  DeliveryRepository,
-  DeliverySummary,
-} from '../application/ports';
+import type { DeliveryListFilter, DeliveryRepository, DeliverySummary } from '../application/ports';
 import type {
   DeliveryHistoryEntry,
   DeliveryState,
