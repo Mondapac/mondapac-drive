@@ -8,7 +8,7 @@ import type { MarketContext, MarketId } from './market-context';
  * Who is acting, as identifiers (ADR-0018 decision 4; platform-foundations design 3.4;
  * identity design 4). A closed union on `kind`: anonymous is an explicit value, never
  * `undefined` or `null`, and no kind is a default. Every kind carries the Market it was
- * established in. Roles, permissions, the seller's access state, second-factor status, an
+ * established in. Roles, permissions, the merchant's state, second-factor status, an
  * email, a name, a token, an address or a user agent never travel in it: `identity` reads
  * them on each check.
  *
@@ -30,8 +30,12 @@ export interface SystemActor extends Minted<'SystemActor'> {
   readonly marketId: MarketId;
 }
 
-/** The populations of identity design 4. `seller` means Seller Owner and Staff. */
-export const POPULATIONS = ['customer', 'seller', 'admin'] as const;
+/**
+ * The populations of Drive (marketplace identity design 4, adapted): `admin` is Mondapac's
+ * operators and dispatchers, `merchant` a business that books deliveries (today through its API
+ * keys), `courier` a person who carries them.
+ */
+export const POPULATIONS = ['admin', 'merchant', 'courier'] as const;
 export type Population = (typeof POPULATIONS)[number];
 
 /**
@@ -44,16 +48,16 @@ export interface AuthenticatedActor extends Minted<'AuthenticatedActor'> {
   readonly marketId: MarketId;
   readonly population: Population;
   readonly accountId: Id<'Account'>;
-  /** An id, never the token. */
+  /** An id, never the token. A merchant API key is a session too. */
   readonly sessionId: Id<'Session'>;
-  /** Set if and only if `population` is `seller`: the seller of the active membership. */
-  readonly sellerId: Id<'Seller'> | null;
+  /** Set if and only if `population` is `merchant`: the merchant of the active membership. */
+  readonly merchantId: Id<'Merchant'> | null;
 }
 
 /** The fields of an authenticated actor other than its kind and Market. */
 export type AuthenticatedActorFields = Pick<
   AuthenticatedActor,
-  'population' | 'accountId' | 'sessionId' | 'sellerId'
+  'population' | 'accountId' | 'sessionId' | 'merchantId'
 >;
 
 function marketOf(market: MarketContext, constructor: string): MarketId {
@@ -78,24 +82,24 @@ export function systemActor(market: MarketContext): SystemActor {
  * (identity slice 2), for the one file of `identity` that builds actors from a session, its
  * `Authenticator` (foundations 3.7), and called by the `/testing` builders. Every field is
  * checked again at run time: the brands are compile-time only, and the constructor throws when
- * `sellerId` and `population` disagree. Only the declared fields are copied.
+ * `merchantId` and `population` disagree. Only the declared fields are copied.
  */
 export function mintAuthenticatedActor(
   market: MarketContext,
   fields: AuthenticatedActorFields,
 ): AuthenticatedActor {
   const marketId = marketOf(market, 'authenticatedActor');
-  const { population, accountId, sessionId, sellerId } = fields;
+  const { population, accountId, sessionId, merchantId } = fields;
   if (!(POPULATIONS as readonly unknown[]).includes(population)) {
     throw new TypeError('authenticatedActor: unknown population');
   }
   if (!parseId(accountId).ok || !parseId(sessionId).ok) {
     throw new TypeError('authenticatedActor: the account id and session id must be parsed ids');
   }
-  const isSeller = population === 'seller';
-  if (isSeller ? sellerId === null || !parseId(sellerId).ok : sellerId !== null) {
+  const isMerchant = population === 'merchant';
+  if (isMerchant ? merchantId === null || !parseId(merchantId).ok : merchantId !== null) {
     throw new TypeError(
-      'authenticatedActor: a seller id is set if and only if the population is seller',
+      'authenticatedActor: a merchant id is set if and only if the population is merchant',
     );
   }
   return mint<AuthenticatedActor>({
@@ -104,6 +108,6 @@ export function mintAuthenticatedActor(
     population,
     accountId,
     sessionId,
-    sellerId,
+    merchantId,
   });
 }

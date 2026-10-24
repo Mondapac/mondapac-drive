@@ -1,0 +1,371 @@
+// The identity module (schema "identity"), copied from the marketplace
+// (Mondapac/mondapac-marketplace-platform at a87dd54f, its docs/design/data/identity.md) and
+// adapted to Drive's populations: admin (operators and dispatchers), merchant (a business that
+// books deliveries, today through its API keys) and courier. Every model is named
+// Identity<Name> and mapped to its table with @@map. The CHECKs, partial indexes and grants are
+// hand-written in the migration.
+
+/// Events of the identity module, written only by the platform OutboxWriter in the unit of the
+/// state change, read and marked only by the relay. Payloads hold identifiers and codes only.
+model IdentityOutbox {
+  eventId          String    @id @map("event_id") @db.Uuid
+  type             String
+  occurredAt       DateTime  @map("occurred_at") @db.Timestamptz(6)
+  marketId         String    @map("market_id") @db.VarChar(8)
+  tenantId         String    @map("tenant_id")
+  aggregateType    String    @map("aggregate_type")
+  aggregateId      String    @map("aggregate_id") @db.Uuid
+  aggregateVersion Int       @map("aggregate_version")
+  correlationId    String    @map("correlation_id")
+  causationId      String?   @map("causation_id") @db.Uuid
+  payload          Json      @db.JsonB
+  /// Set by the relay when the event was handed to the bus; the only column that changes.
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@unique([marketId, aggregateId, aggregateVersion])
+  @@map("outbox")
+  @@schema("identity")
+}
+
+/// An account of one population in one Market. There is no global user: the same address may
+/// hold an admin, a merchant and a courier account, and accounts in other Markets. Email and
+/// display name are personal data; the account id is also the subject id of its data key.
+model IdentityAccount {
+  id                 String                       @id @db.Uuid
+  marketId           String                       @map("market_id") @db.VarChar(8)
+  tenantId           String                       @map("tenant_id")
+  /// admin | merchant | courier; never changes.
+  population         String
+  /// Personal. As typed, trimmed.
+  email              String
+  /// Personal. Trimmed, NFC, lower-cased: the uniqueness and lookup value.
+  emailNormalized    String                       @map("email_normalized")
+  /// Personal. Required for every population.
+  displayName        String                       @map("display_name")
+  /// The holder's IANA time zone for showing times; NULL = the panel's own rule.
+  timezone           String?                      @db.VarChar(64)
+  /// The holder's panel language, a language code; NULL = the Market's language.
+  locale             String?                      @db.VarChar(16)
+  /// active | disabled.
+  status             String
+  /// NULL while the email is unverified.
+  emailVerifiedAt    DateTime?                    @map("email_verified_at") @db.Timestamptz(6)
+  signedUpAt         DateTime                     @map("signed_up_at") @db.Timestamptz(6)
+  version            Int
+  createdAt          DateTime                     @map("created_at") @db.Timestamptz(6)
+  passwordCredential IdentityPasswordCredential?
+  sessions           IdentitySession[]
+  oneTimeLinks       IdentityOneTimeLink[]
+  merchantMembership IdentityMerchantMembership[]
+  roleAssignments    IdentityRoleAssignment[]
+  secondFactor       IdentitySecondFactor?
+  signInChallenges   IdentitySignInChallenge[]
+
+  @@unique([marketId, population, emailNormalized])
+  @@unique([marketId, id])
+  @@map("accounts")
+  @@schema("identity")
+}
+
+/// The password of an account: a PHC string (argon2id). A merchant's integration account holds
+/// the hash of a random secret nobody knows: it never signs in with a password.
+model IdentityPasswordCredential {
+  marketId     String          @map("market_id") @db.VarChar(8)
+  tenantId     String          @map("tenant_id")
+  accountId    String          @map("account_id") @db.Uuid
+  passwordHash String          @map("password_hash")
+  changedAt    DateTime        @map("changed_at") @db.Timestamptz(6)
+  account      IdentityAccount @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([marketId, accountId])
+  @@map("password_credentials")
+  @@schema("identity")
+}
+
+/// A session: an admin's browser (cookie), a courier's app (bearer) or a merchant API key
+/// (api-key). Only the SHA-256 of the token is stored. No version: revocation is a set-based
+/// update and expiry is decided at read time.
+model IdentitySession {
+  id                 String            @id @db.Uuid
+  marketId           String            @map("market_id") @db.VarChar(8)
+  tenantId           String            @map("tenant_id")
+  accountId          String            @map("account_id") @db.Uuid
+  population         String
+  /// Set if and only if the population is merchant.
+  merchantId         String?           @map("merchant_id") @db.Uuid
+  tokenHash          Bytes             @map("token_hash")
+  /// cookie | bearer | api-key.
+  transport          String
+  /// `<browser>.<system>` codes; never the raw User-Agent.
+  device             String?           @db.VarChar(32)
+  /// The name an operator gave an API key; set if and only if the transport is api-key.
+  label              String?           @db.VarChar(64)
+  createdAt          DateTime          @map("created_at") @db.Timestamptz(6)
+  lastSeenAt         DateTime          @map("last_seen_at") @db.Timestamptz(6)
+  idleTimeoutSeconds Int               @map("idle_timeout_seconds")
+  absoluteExpiresAt  DateTime          @map("absolute_expires_at") @db.Timestamptz(6)
+  revokedAt          DateTime?         @map("revoked_at") @db.Timestamptz(6)
+  revokedReason      String?           @map("revoked_reason")
+  account            IdentityAccount   @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+  merchant           IdentityMerchant? @relation(fields: [marketId, merchantId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([marketId, id])
+  @@unique([marketId, tokenHash])
+  @@index([marketId, accountId])
+  @@index([marketId, absoluteExpiresAt])
+  @@map("sessions")
+  @@schema("identity")
+}
+
+/// Fixed-window counters of failed sign-ins and sent mail, keyed by HMACs, never by plain
+/// addresses.
+model IdentitySignInThrottle {
+  marketId        String    @map("market_id") @db.VarChar(8)
+  tenantId        String    @map("tenant_id")
+  kind            String
+  keyHash         Bytes     @map("key_hash")
+  accountKey      Bytes?    @map("account_key")
+  windowStartedAt DateTime  @map("window_started_at") @db.Timestamptz(6)
+  attempts        Int
+  blockedUntil    DateTime? @map("blocked_until") @db.Timestamptz(6)
+
+  @@id([marketId, kind, keyHash])
+  @@index([marketId, accountKey])
+  @@map("sign_in_throttles")
+  @@schema("identity")
+}
+
+/// One sign-in attempt, for the security record; pruned after the Market's retention.
+model IdentitySignInRecord {
+  id            String   @id @db.Uuid
+  marketId      String   @map("market_id") @db.VarChar(8)
+  tenantId      String   @map("tenant_id")
+  population    String
+  accountId     String?  @map("account_id") @db.Uuid
+  outcome       String
+  occurredAt    DateTime @map("occurred_at") @db.Timestamptz(6)
+  origin        String   @db.Inet
+  sessionId     String?  @map("session_id") @db.Uuid
+  correlationId String   @map("correlation_id")
+
+  @@index([marketId, occurredAt])
+  @@index([marketId, accountId, occurredAt])
+  @@map("sign_in_records")
+  @@schema("identity")
+}
+
+/// A one-time link mailed to an account (password reset, second-factor enrolment and reset).
+model IdentityOneTimeLink {
+  id          String          @id @db.Uuid
+  marketId    String          @map("market_id") @db.VarChar(8)
+  tenantId    String          @map("tenant_id")
+  accountId   String          @map("account_id") @db.Uuid
+  purpose     String
+  requestedAt DateTime        @map("requested_at") @db.Timestamptz(6)
+  tokenHash   Bytes?          @map("token_hash")
+  issuedAt    DateTime?       @map("issued_at") @db.Timestamptz(6)
+  expiresAt   DateTime?       @map("expires_at") @db.Timestamptz(6)
+  consumedAt  DateTime?       @map("consumed_at") @db.Timestamptz(6)
+  version     Int
+  account     IdentityAccount @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([marketId, accountId, purpose])
+  @@unique([marketId, tokenHash])
+  @@map("one_time_links")
+  @@schema("identity")
+}
+
+/// Events identity's handlers consumed, for at-most-once handling.
+model IdentityInbox {
+  eventId     String   @map("event_id") @db.Uuid
+  handler     String
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@id([eventId, handler])
+  @@map("inbox")
+  @@schema("identity")
+}
+
+/// A merchant: a business that books deliveries in one Market. Created by an operator; its API
+/// keys are sessions of its integration account. A suspended merchant's keys stop working.
+model IdentityMerchant {
+  id             String                       @id @db.Uuid
+  marketId       String                       @map("market_id") @db.VarChar(8)
+  tenantId       String                       @map("tenant_id")
+  /// The business name an operator entered. Not personal data.
+  name           String
+  /// active | suspended.
+  state          String
+  stateChangedAt DateTime                     @map("state_changed_at") @db.Timestamptz(6)
+  version        Int
+  createdAt      DateTime                     @map("created_at") @db.Timestamptz(6)
+  memberships    IdentityMerchantMembership[]
+  sessions       IdentitySession[]
+
+  @@unique([marketId, id])
+  @@map("merchants")
+  @@schema("identity")
+}
+
+/// The membership of a merchant-population account in its merchant. One active membership per
+/// account (partial unique index in the migration).
+model IdentityMerchantMembership {
+  id         String           @id @db.Uuid
+  marketId   String           @map("market_id") @db.VarChar(8)
+  tenantId   String           @map("tenant_id")
+  accountId  String           @map("account_id") @db.Uuid
+  merchantId String           @map("merchant_id") @db.Uuid
+  /// active | removed.
+  state      String
+  removedAt  DateTime?        @map("removed_at") @db.Timestamptz(6)
+  version    Int
+  createdAt  DateTime         @map("created_at") @db.Timestamptz(6)
+  account    IdentityAccount  @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  merchant   IdentityMerchant @relation(fields: [marketId, merchantId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([marketId, accountId])
+  @@index([marketId, merchantId, state])
+  @@map("merchant_memberships")
+  @@schema("identity")
+}
+
+/// A role of one scope (platform, merchant or courier): a system role holds every key of its
+/// scope and stores none; a default role is seeded with its keys; a custom role is an
+/// operator's, platform scope only.
+model IdentityRole {
+  id             String                   @id @db.Uuid
+  marketId       String                   @map("market_id") @db.VarChar(8)
+  tenantId       String                   @map("tenant_id")
+  scope          String
+  kind           String
+  seedCode       String?                  @map("seed_code")
+  seedVersion    Int?                     @map("seed_version")
+  name           String?
+  nameNormalized String?                  @map("name_normalized")
+  version        Int
+  createdAt      DateTime                 @map("created_at") @db.Timestamptz(6)
+  permissions    IdentityRolePermission[]
+  assignments    IdentityRoleAssignment[]
+
+  @@unique([marketId, id])
+  @@unique([marketId, scope, seedCode])
+  @@map("roles")
+  @@schema("identity")
+}
+
+/// The stored keys of a default or custom role.
+model IdentityRolePermission {
+  marketId      String       @map("market_id") @db.VarChar(8)
+  tenantId      String       @map("tenant_id")
+  roleId        String       @map("role_id") @db.Uuid
+  permissionKey String       @map("permission_key")
+  role          IdentityRole @relation(fields: [marketId, roleId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([marketId, roleId, permissionKey])
+  @@map("role_permissions")
+  @@schema("identity")
+}
+
+/// The one role an account holds.
+model IdentityRoleAssignment {
+  id                  String          @id @db.Uuid
+  marketId            String          @map("market_id") @db.VarChar(8)
+  tenantId            String          @map("tenant_id")
+  accountId           String          @map("account_id") @db.Uuid
+  roleId              String          @map("role_id") @db.Uuid
+  assignedByAccountId String?         @map("assigned_by_account_id") @db.Uuid
+  assignedAt          DateTime        @map("assigned_at") @db.Timestamptz(6)
+  version             Int
+  account             IdentityAccount @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  role                IdentityRole    @relation(fields: [marketId, roleId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([marketId, accountId])
+  @@index([marketId, roleId])
+  @@map("role_assignments")
+  @@schema("identity")
+}
+
+/// An account's authenticator-app factor (TOTP), its secret encrypted under the account's key.
+model IdentitySecondFactor {
+  id                      String                 @id @db.Uuid
+  marketId                String                 @map("market_id") @db.VarChar(8)
+  tenantId                String                 @map("tenant_id")
+  accountId               String                 @map("account_id") @db.Uuid
+  state                   String
+  secretCiphertext        String                 @map("secret_ciphertext")
+  pendingSecretCiphertext String?                @map("pending_secret_ciphertext")
+  lastAcceptedStep        Int?                   @map("last_accepted_step")
+  activatedAt             DateTime?              @map("activated_at") @db.Timestamptz(6)
+  lockedAt                DateTime?              @map("locked_at") @db.Timestamptz(6)
+  createdAt               DateTime               @map("created_at") @db.Timestamptz(6)
+  version                 Int
+  account                 IdentityAccount        @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+  recoveryCodes           IdentityRecoveryCode[]
+
+  @@unique([marketId, accountId])
+  @@unique([marketId, id])
+  @@map("second_factors")
+  @@schema("identity")
+}
+
+/// At most ten single-use recovery codes of a second factor, keyed hashes only.
+model IdentityRecoveryCode {
+  marketId       String               @map("market_id") @db.VarChar(8)
+  tenantId       String               @map("tenant_id")
+  secondFactorId String               @map("second_factor_id") @db.Uuid
+  position       Int                  @db.SmallInt
+  codeHash       Bytes                @map("code_hash")
+  usedAt         DateTime?            @map("used_at") @db.Timestamptz(6)
+  secondFactor   IdentitySecondFactor @relation(fields: [marketId, secondFactorId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([marketId, secondFactorId, position])
+  @@map("recovery_codes")
+  @@schema("identity")
+}
+
+/// The second step of a sign-in: a short-lived token between the password and the code.
+model IdentitySignInChallenge {
+  id                  String          @id @db.Uuid
+  marketId            String          @map("market_id") @db.VarChar(8)
+  tenantId            String          @map("tenant_id")
+  accountId           String          @map("account_id") @db.Uuid
+  purpose             String
+  tokenHash           Bytes           @map("token_hash")
+  attempts            Int             @db.SmallInt
+  credentialChangedAt DateTime        @map("credential_changed_at") @db.Timestamptz(6)
+  expiresAt           DateTime        @map("expires_at") @db.Timestamptz(6)
+  consumedAt          DateTime?       @map("consumed_at") @db.Timestamptz(6)
+  createdAt           DateTime        @map("created_at") @db.Timestamptz(6)
+  account             IdentityAccount @relation(fields: [marketId, accountId], references: [marketId, id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([marketId, tokenHash])
+  @@index([marketId, accountId])
+  @@map("sign_in_challenges")
+  @@schema("identity")
+}
+
+/// An invitation to an admin or courier account. The address is held only while it is pending.
+model IdentityInvitation {
+  id                 String    @id @db.Uuid
+  marketId           String    @map("market_id") @db.VarChar(8)
+  tenantId           String    @map("tenant_id")
+  /// admin | courier.
+  kind               String
+  email              String?
+  emailNormalized    String?   @map("email_normalized")
+  roleId             String    @map("role_id") @db.Uuid
+  invitedByAccountId String?   @map("invited_by_account_id") @db.Uuid
+  tokenHash          Bytes?    @map("token_hash")
+  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
+  state              String
+  decidedAt          DateTime? @map("decided_at") @db.Timestamptz(6)
+  acceptedAccountId  String?   @map("accepted_account_id") @db.Uuid
+  version            Int
+  createdAt          DateTime  @map("created_at") @db.Timestamptz(6)
+
+  @@unique([marketId, tokenHash])
+  @@map("invitations")
+  @@schema("identity")
+}

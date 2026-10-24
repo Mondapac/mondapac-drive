@@ -22,6 +22,7 @@ describe('loadAppConfig', () => {
       apiDocsEnabled: false,
       marketConfigDirs: [expect.stringMatching(/config[\\/]markets$/)],
       serviceAreaConfigDirs: [expect.stringMatching(/config[\\/]service-areas$/)],
+      localeConfigDirs: [expect.stringMatching(/config[\\/]locales$/)],
       databaseUrl: DATABASE_URL,
       databasePoolMax: 10,
       mailCatcherUrl: null,

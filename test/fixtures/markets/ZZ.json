@@ -14,6 +14,108 @@
   "tax": {
     "defaultRateBps": 1500
   },
+  "allowedOrigins": {
+    "admin": ["https://dispatch.zz.test"],
+    "merchant": [],
+    "courier": []
+  },
+  "identity": {
+    "password": {
+      "minLength": 16,
+      "maxLength": 100
+    },
+    "sessions": {
+      "admin": {
+        "idleTimeoutMinutes": 20,
+        "absoluteLifetimeMinutes": 480
+      },
+      "courier": {
+        "idleTimeoutMinutes": 600,
+        "absoluteLifetimeMinutes": 20160
+      }
+    },
+    "apiKeys": {
+      "lifetimeDays": 90
+    },
+    "signInThrottles": {
+      "accountOrigin": {
+        "limit": 4,
+        "windowMinutes": 10,
+        "blockMinutes": 20
+      },
+      "account": {
+        "limit": 15,
+        "windowMinutes": 60,
+        "blockMinutes": 30
+      },
+      "origin": {
+        "limit": 25,
+        "windowMinutes": 15,
+        "blockMinutes": 15
+      }
+    },
+    "mailThrottles": {
+      "account": {
+        "limit": 2,
+        "windowMinutes": 60,
+        "blockMinutes": 0
+      },
+      "origin": {
+        "limit": 8,
+        "windowMinutes": 30,
+        "blockMinutes": 0
+      }
+    },
+    "signInRecordRetentionDays": 60,
+    "links": {
+      "lifetimeMinutes": {
+        "reset-password": 60,
+        "enrol-second-factor": 45
+      },
+      "targets": {
+        "admin": {
+          "sign-in": "https://dispatch.zz.test/anmelden",
+          "accept-invitation": "https://dispatch.zz.test/einladung",
+          "enrol-second-factor": "https://dispatch.zz.test/zweiter-faktor",
+          "reset-password": "https://dispatch.zz.test/passwort"
+        },
+        "courier": {
+          "sign-in": "https://courier.zz.test/anmelden",
+          "accept-invitation": "https://courier.zz.test/einladung",
+          "reset-password": "https://courier.zz.test/passwort?ref=mail"
+        }
+      }
+    },
+    "invitations": {
+      "lifetimeMinutes": {
+        "admin": 2880,
+        "courier": 7200
+      }
+    },
+    "challenges": {
+      "maxAttempts": 4,
+      "lifetimeSeconds": 240
+    },
+    "secondFactorThrottles": {
+      "account": {
+        "limit": 8,
+        "windowMinutes": 2880,
+        "blockMinutes": 2880
+      }
+    },
+    "signOutOthersThrottle": {
+      "limit": 3,
+      "windowMinutes": 30,
+      "blockMinutes": 0
+    },
+    "customRoleLimits": {
+      "platform": 50
+    },
+    "mail": {
+      "fromAddress": "noreply@zz.test",
+      "fromName": "ZZ Drive"
+    }
+  },
   "delivery": {
     "rateCard": {
       "vehicles": {

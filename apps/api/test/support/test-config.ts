@@ -16,6 +16,12 @@ export const TEST_SERVICE_AREA_CONFIG_DIRS = [
   path.join(REPO_ROOT, 'test/fixtures/service-areas'),
 ] as const;
 
+/** The real translation catalogues plus the synthetic market's locale (ZZ: en-ZZ). */
+export const TEST_LOCALE_CONFIG_DIRS = [
+  path.join(REPO_ROOT, 'config/locales'),
+  path.join(REPO_ROOT, 'test/fixtures/locales'),
+] as const;
+
 /** Both market fixtures (ADR-0003 decision 9): the launch market and a synthetic one. */
 export const TEST_MARKETS = ['AU', 'ZZ'] as const;
 
@@ -45,5 +51,6 @@ export function testAppConfig(overrides: Record<string, string> = {}): AppConfig
     }),
     marketConfigDirs: TEST_MARKET_CONFIG_DIRS,
     serviceAreaConfigDirs: TEST_SERVICE_AREA_CONFIG_DIRS,
+    localeConfigDirs: TEST_LOCALE_CONFIG_DIRS,
   };
 }

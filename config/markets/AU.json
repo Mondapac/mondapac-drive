@@ -14,6 +14,108 @@
   "tax": {
     "defaultRateBps": 1000
   },
+  "allowedOrigins": {
+    "admin": [],
+    "merchant": [],
+    "courier": []
+  },
+  "identity": {
+    "password": {
+      "minLength": 15,
+      "maxLength": 128
+    },
+    "sessions": {
+      "admin": {
+        "idleTimeoutMinutes": 30,
+        "absoluteLifetimeMinutes": 720
+      },
+      "courier": {
+        "idleTimeoutMinutes": 1440,
+        "absoluteLifetimeMinutes": 43200
+      }
+    },
+    "apiKeys": {
+      "lifetimeDays": 365
+    },
+    "signInThrottles": {
+      "accountOrigin": {
+        "limit": 5,
+        "windowMinutes": 15,
+        "blockMinutes": 15
+      },
+      "account": {
+        "limit": 20,
+        "windowMinutes": 60,
+        "blockMinutes": 60
+      },
+      "origin": {
+        "limit": 30,
+        "windowMinutes": 15,
+        "blockMinutes": 15
+      }
+    },
+    "mailThrottles": {
+      "account": {
+        "limit": 3,
+        "windowMinutes": 60,
+        "blockMinutes": 0
+      },
+      "origin": {
+        "limit": 10,
+        "windowMinutes": 60,
+        "blockMinutes": 0
+      }
+    },
+    "signInRecordRetentionDays": 90,
+    "links": {
+      "lifetimeMinutes": {
+        "reset-password": 60,
+        "enrol-second-factor": 60
+      },
+      "targets": {
+        "admin": {
+          "sign-in": "https://dispatch.au.drive.mondapac.test/sign-in",
+          "accept-invitation": "https://dispatch.au.drive.mondapac.test/accept-invitation",
+          "enrol-second-factor": "https://dispatch.au.drive.mondapac.test/second-factor/enrol",
+          "reset-password": "https://dispatch.au.drive.mondapac.test/reset-password"
+        },
+        "courier": {
+          "sign-in": "https://courier.au.drive.mondapac.test/sign-in",
+          "accept-invitation": "https://courier.au.drive.mondapac.test/accept-invitation",
+          "reset-password": "https://courier.au.drive.mondapac.test/reset-password"
+        }
+      }
+    },
+    "invitations": {
+      "lifetimeMinutes": {
+        "admin": 4320,
+        "courier": 10080
+      }
+    },
+    "challenges": {
+      "maxAttempts": 5,
+      "lifetimeSeconds": 300
+    },
+    "secondFactorThrottles": {
+      "account": {
+        "limit": 10,
+        "windowMinutes": 1440,
+        "blockMinutes": 1440
+      }
+    },
+    "signOutOthersThrottle": {
+      "limit": 5,
+      "windowMinutes": 60,
+      "blockMinutes": 0
+    },
+    "customRoleLimits": {
+      "platform": 50
+    },
+    "mail": {
+      "fromAddress": "no-reply@au.drive.mondapac.test",
+      "fromName": "Mondapac Drive"
+    }
+  },
   "delivery": {
     "rateCard": {
       "vehicles": {
