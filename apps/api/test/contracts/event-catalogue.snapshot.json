@@ -1,5 +1,94 @@
 [
   {
+    "type": "dispatch.courier-assigned.v1",
+    "aggregateType": "dispatch-job",
+    "fields": {
+      "deliveryId": "id",
+      "courierId": "id",
+      "vehicle": "enumOf(bicycle|motorbike|car|van)",
+      "method": "enumOf(offer|manual)",
+      "previousCourierId": "optional(id)"
+    }
+  },
+  {
+    "type": "dispatch.job-exhausted.v1",
+    "aggregateType": "dispatch-job",
+    "fields": {
+      "deliveryId": "id",
+      "rounds": "integer"
+    }
+  },
+  {
+    "type": "dispatch.offer-accepted.v1",
+    "aggregateType": "dispatch-offer",
+    "fields": {
+      "jobId": "id",
+      "deliveryId": "id",
+      "courierId": "id"
+    }
+  },
+  {
+    "type": "dispatch.offer-declined.v1",
+    "aggregateType": "dispatch-offer",
+    "fields": {
+      "jobId": "id",
+      "deliveryId": "id",
+      "courierId": "id"
+    }
+  },
+  {
+    "type": "dispatch.offer-expired.v1",
+    "aggregateType": "dispatch-offer",
+    "fields": {
+      "jobId": "id",
+      "deliveryId": "id",
+      "courierId": "id"
+    }
+  },
+  {
+    "type": "dispatch.offer-sent.v1",
+    "aggregateType": "dispatch-offer",
+    "fields": {
+      "jobId": "id",
+      "deliveryId": "id",
+      "courierId": "id",
+      "round": "integer",
+      "expiresAt": "instant"
+    }
+  },
+  {
+    "type": "dispatch.offer-withdrawn.v1",
+    "aggregateType": "dispatch-offer",
+    "fields": {
+      "jobId": "id",
+      "deliveryId": "id",
+      "courierId": "id"
+    }
+  },
+  {
+    "type": "fleet.courier-suspended.v1",
+    "aggregateType": "courier",
+    "fields": {
+      "courierId": "id",
+      "wasOnline": "boolean"
+    }
+  },
+  {
+    "type": "fleet.courier-went-offline.v1",
+    "aggregateType": "courier",
+    "fields": {
+      "courierId": "id",
+      "cause": "enumOf(courier|offboarded)"
+    }
+  },
+  {
+    "type": "fleet.courier-went-online.v1",
+    "aggregateType": "courier",
+    "fields": {
+      "courierId": "id"
+    }
+  },
+  {
     "type": "identity.account-disabled.v1",
     "aggregateType": "account",
     "fields": {

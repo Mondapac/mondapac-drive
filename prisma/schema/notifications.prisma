@@ -1,0 +1,79 @@
+// The notifications module's tables. Every model carries marketId and tenantId, which the
+// platform's market guard pins on every query. No personal data is stored: a recipient's phone
+// number is read from the delivery module when an SMS is sent, and a webhook body holds ids and
+// statuses only. Webhook signing secrets are derived, never stored (secret_version only).
+
+/// A merchant's webhook endpoint. The URL never changes; a new URL is a new subscription.
+model NotificationsWebhookSubscription {
+  id            String   @id @db.Uuid
+  marketId      String   @map("market_id") @db.VarChar(8)
+  tenantId      String   @map("tenant_id")
+  merchantId    String   @map("merchant_id") @db.VarChar(64)
+  url           String   @db.VarChar(2048)
+  eventTypes    String[] @map("event_types")
+  /// The version the signing secret is derived with; a rotation adds one.
+  secretVersion Int      @map("secret_version")
+  status        String   @db.VarChar(16)
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+  version       Int
+
+  calls NotificationsWebhookCall[]
+
+  @@unique([marketId, id])
+  @@index([marketId, merchantId])
+  @@map("webhook_subscriptions")
+  @@schema("notifications")
+}
+
+/// One delivery change queued for one subscription, with its retry state.
+model NotificationsWebhookCall {
+  id             String    @id @db.Uuid
+  marketId       String    @map("market_id") @db.VarChar(8)
+  tenantId       String    @map("tenant_id")
+  subscriptionId String    @map("subscription_id") @db.Uuid
+  /// The delivery outbox event id: the merchant's deduplication key (Drive-Event-Id).
+  eventId        String    @map("event_id") @db.Uuid
+  eventType      String    @map("event_type") @db.VarChar(64)
+  /// The JSON body every attempt sends, as text so that its bytes never change.
+  body           String
+  status         String    @db.VarChar(16)
+  attempts       Int
+  nextAttemptAt  DateTime? @map("next_attempt_at") @db.Timestamptz(6)
+  lastStatusCode Int?      @map("last_status_code")
+  lastErrorCode  String?   @map("last_error_code") @db.VarChar(64)
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  deadAt         DateTime? @map("dead_at") @db.Timestamptz(6)
+
+  subscription NotificationsWebhookSubscription @relation(fields: [marketId, subscriptionId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([marketId, subscriptionId, eventId])
+  @@index([marketId, status, nextAttemptAt])
+  @@map("webhook_calls")
+  @@schema("notifications")
+}
+
+/// One recipient SMS of one delivery, with its retry state. No number and no text are stored.
+model NotificationsSmsMessage {
+  id                String    @id @db.Uuid
+  marketId          String    @map("market_id") @db.VarChar(8)
+  tenantId          String    @map("tenant_id")
+  deliveryId        String    @map("delivery_id") @db.Uuid
+  kind              String    @db.VarChar(16)
+  eventId           String    @map("event_id") @db.Uuid
+  /// The merchant's order reference, for the template.
+  reference         String    @db.VarChar(128)
+  status            String    @db.VarChar(16)
+  attempts          Int
+  nextAttemptAt     DateTime? @map("next_attempt_at") @db.Timestamptz(6)
+  lastErrorCode     String?   @map("last_error_code") @db.VarChar(64)
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(64)
+  createdAt         DateTime  @map("created_at") @db.Timestamptz(6)
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(6)
+  deadAt            DateTime? @map("dead_at") @db.Timestamptz(6)
+
+  @@unique([marketId, deliveryId, kind])
+  @@index([marketId, status, nextAttemptAt])
+  @@map("sms_messages")
+  @@schema("notifications")
+}

@@ -49,6 +49,17 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # Live courier positions (tracking) and the route cache (routing); the Redis integration
+      # test in test:db reads REDIS_URL.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     # Job level holds only what the application may see. MIGRATION_DATABASE_URL is set on the
     # steps that need it, never here, so the boot probe runs without it.
@@ -92,6 +103,7 @@ jobs:
         run: pnpm verify
         env:
           MIGRATION_DATABASE_URL: postgresql://drive_migrator:drive_migrator@localhost:5432/drive
+          REDIS_URL: redis://localhost:6379
           # Fewer database spec files at once than Jest's default (cores - 1), as in the
           # marketplace: under full parallel load a unit sometimes could not start in time.
           TEST_DB_MAX_WORKERS: '2'

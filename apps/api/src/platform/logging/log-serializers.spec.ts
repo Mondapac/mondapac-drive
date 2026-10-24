@@ -31,6 +31,14 @@ describe('LOG_SERIALIZERS.req', () => {
     });
   });
 
+  it('logs a tracking-link token as its route parameter, never its value', () => {
+    for (const url of [`/tracking/links/${SECRET}`, `/tracking/links/${SECRET}/stream?x=1`]) {
+      const logged = LOG_SERIALIZERS.req({ method: 'GET', url, headers: {} });
+      expect(JSON.stringify(logged)).not.toContain(SECRET);
+      expect(logged.url).toMatch(/^\/tracking\/links\/:token(\/stream)?$/);
+    }
+  });
+
   it('adds the declared content length, and nothing else from the headers', () => {
     const logged = LOG_SERIALIZERS.req({
       method: 'POST',

@@ -1,0 +1,55 @@
+{
+  "settings": {
+    "marketId": "AU",
+    "locale": "en-AU",
+    "currency": "AUD",
+    "distanceUnit": "km",
+    "supportPhone": "+61 7 0000 0000",
+    "offerAcceptSeconds": 30,
+    "coldChain": { "chilled": { "maxCelsius": 5 }, "frozen": { "maxCelsius": -15 } }
+  },
+  "deliveryPin": "1234",
+  "offers": [
+    {
+      "distanceMetres": 4200,
+      "earnings": "950",
+      "temperature": "chilled",
+      "pickup": {
+        "address": "12 Logan Rd, Woolloongabba QLD",
+        "postcode": "4102",
+        "point": { "lat": -27.4886, "lng": 153.0372 },
+        "contactName": "Al-Noor Halal Butcher",
+        "contactPhone": "+61 400 000 001"
+      },
+      "dropoff": {
+        "address": "5 Sample St, Coorparoo QLD",
+        "postcode": "4151",
+        "point": { "lat": -27.4936, "lng": 153.0583 },
+        "contactName": "Sam Customer",
+        "contactPhone": "+61 400 000 002",
+        "notes": "Leave with reception if not home"
+      },
+      "parcel": { "weightGrams": 3000, "volumeLitres": 12 }
+    },
+    {
+      "distanceMetres": 7800,
+      "earnings": "1250",
+      "temperature": "ambient",
+      "pickup": {
+        "address": "88 Demo Ave, Sunnybank QLD",
+        "postcode": "4109",
+        "point": { "lat": -27.5797, "lng": 153.0601 },
+        "contactName": "Mondapac Grocer",
+        "contactPhone": "+61 400 000 003"
+      },
+      "dropoff": {
+        "address": "21 Example Pde, Mount Gravatt QLD",
+        "postcode": "4122",
+        "point": { "lat": -27.5381, "lng": 153.0797 },
+        "contactName": "Riya Customer",
+        "contactPhone": "+61 400 000 004"
+      },
+      "parcel": { "weightGrams": 6000, "volumeLitres": 30 }
+    }
+  ]
+}

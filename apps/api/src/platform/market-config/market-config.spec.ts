@@ -37,6 +37,75 @@ const DELIVERY = {
 const ZZ_FILE = JSON.parse(
   readFileSync(path.join(TEST_MARKET_CONFIG_DIRS[1], 'ZZ.json'), 'utf8'),
 ) as { allowedOrigins: unknown; identity: unknown };
+const DISPATCH = {
+  offerTimeoutSeconds: 30,
+  waveSize: 1,
+  maxRounds: 5,
+  scheduledLeadMinutes: 45,
+  searchRadiusMetres: 8000,
+  candidateLimit: 20,
+};
+
+const TRACKING = {
+  ping: {
+    maxAgeSeconds: 120,
+    maxFutureSkewSeconds: 30,
+    minIntervalSeconds: 3,
+    maxAccuracyMetres: 500,
+    maxSpeedKmh: 160,
+  },
+  livePositionTtlSeconds: 300,
+  breadcrumbRetentionDays: 30,
+  trackingLinkTtlHours: 24,
+  streamIntervalSeconds: 5,
+  nearestCouriers: { maxRadiusMetres: 20000, maxResults: 50 },
+  etaRefreshSeconds: 60,
+};
+
+const NOTIFICATIONS = {
+  webhooks: { maxAttempts: 8, firstRetrySeconds: 30, maxRetrySeconds: 3600 },
+  sms: {
+    senderId: 'Example',
+    optOutText: 'Reply STOP to opt out',
+    maxAttempts: 5,
+    allowedCallingCodes: ['64'],
+    templates: {
+      booked: 'Booked {reference}: {trackingUrl}',
+      on_the_way: 'On the way: {trackingUrl}',
+      delivered: 'Delivered {reference}',
+      failed: 'Not delivered {reference}',
+    },
+  },
+};
+
+const FLEET = {
+  documents: [
+    {
+      type: 'licence',
+      vehicleTypes: ['car'],
+      coldChainOnly: false,
+      perVehicle: false,
+      expires: true,
+    },
+  ],
+};
+
+/** A complete `payouts` section (its own rules: payouts-config.spec.ts). */
+const PAYOUTS = {
+  earnings: {
+    vehicles: { car: { perDelivery: 700, perKm: 100 } },
+    coldChainBonus: { ambient: 0, chilled: 100, frozen: 200 },
+    waiting: { freeMinutes: 5, perMinute: 20, maxPaidMinutes: 30 },
+  },
+  schedule: { cadence: 'weekly', weekday: 1, time: '03:00' },
+  minimumPayout: 1000,
+  tax: { rateBps: 1500, onTips: false, businessIdRequired: false },
+  provider: {
+    accountCountry: 'NZ',
+    onboardingReturnUrl: 'https://drive.example.test/return',
+    onboardingRefreshUrl: 'https://drive.example.test/refresh',
+  },
+};
 
 const VALID = {
   code: 'QQ',
@@ -52,6 +121,11 @@ const VALID = {
   delivery: DELIVERY,
   allowedOrigins: ZZ_FILE.allowedOrigins,
   identity: ZZ_FILE.identity,
+  dispatch: DISPATCH,
+  tracking: TRACKING,
+  notifications: NOTIFICATIONS,
+  fleet: FLEET,
+  payouts: PAYOUTS,
 };
 
 function directoryWith(files: Record<string, unknown>): string {
@@ -146,6 +220,24 @@ describe('loadMarketConfigs', () => {
     ['no tax section', { tax: undefined }, /tax/],
     ['a tax rate above 50 %', { tax: { defaultRateBps: 5001 } }, /tax\.defaultRateBps/],
     ['no delivery section', { delivery: undefined }, /delivery/],
+    ['no dispatch section', { dispatch: undefined }, /dispatch/],
+    [
+      'an offer timeout under 5 s',
+      { dispatch: { ...DISPATCH, offerTimeoutSeconds: 2 } },
+      /dispatch\.offerTimeoutSeconds/,
+    ],
+    ['an empty wave', { dispatch: { ...DISPATCH, waveSize: 0 } }, /dispatch\.waveSize/],
+    ['no tracking section', { tracking: undefined }, /tracking/],
+    [
+      'an ETA refresh of zero',
+      { tracking: { ...TRACKING, etaRefreshSeconds: 0 } },
+      /tracking\.etaRefreshSeconds/,
+    ],
+    [
+      'a breadcrumb retention above a year',
+      { tracking: { ...TRACKING, breadcrumbRetentionDays: 366 } },
+      /tracking\.breadcrumbRetentionDays/,
+    ],
     [
       'a rate card with no vehicle',
       delivery({ rateCard: { ...DELIVERY.rateCard, vehicles: {} } }),
@@ -189,6 +281,22 @@ describe('loadMarketConfigs', () => {
       /delivery\.rateCard\.scheduledDiscountBps/,
     ],
     ['no scheduling rules', delivery({ scheduling: undefined }), /delivery\.scheduling/],
+    ['no fleet section', { fleet: undefined }, /fleet/],
+    [
+      'a document type that is not a code',
+      { fleet: { documents: [{ ...FLEET.documents[0], type: 'Driver Licence' }] } },
+      /fleet\.documents\.0\.type/,
+    ],
+    [
+      'a document listed twice',
+      { fleet: { documents: [FLEET.documents[0], FLEET.documents[0]] } },
+      /each document type is listed once/,
+    ],
+    [
+      'an unknown employment type',
+      { fleet: { documents: [{ ...FLEET.documents[0], employmentTypes: ['volunteer'] }] } },
+      /fleet\.documents\.0\.employmentTypes/,
+    ],
   ])('rejects %s', (_case, overrides, message) => {
     const directory = directoryWith({ 'QQ.json': { ...VALID, ...overrides } });
 

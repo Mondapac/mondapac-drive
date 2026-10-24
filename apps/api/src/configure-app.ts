@@ -20,6 +20,9 @@ import { HTTP_LOGGER } from './platform/logging/logging.module';
 export const APP_OPTIONS = {
   bufferLogs: true,
   bodyParser: false,
+  // The parser also keeps the exact bytes as `rawBody`: a payment provider signs its webhooks
+  // over them (payouts' provider webhook), and re-serialised JSON would not match.
+  rawBody: true,
 } as const satisfies NestApplicationOptions;
 
 /**

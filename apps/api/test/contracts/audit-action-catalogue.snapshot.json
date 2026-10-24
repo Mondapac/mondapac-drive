@@ -1,5 +1,102 @@
 [
   {
+    "action": "fleet.courier.approved",
+    "targetType": "fleet.courier",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "coldChainCapable": "boolean",
+      "employmentType": "enumOf(employee|contractor)",
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    },
+    "after": {
+      "coldChainCapable": "boolean",
+      "employmentType": "enumOf(employee|contractor)",
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    }
+  },
+  {
+    "action": "fleet.courier.offboarded",
+    "targetType": "fleet.courier",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    },
+    "after": {
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    }
+  },
+  {
+    "action": "fleet.courier.reinstated",
+    "targetType": "fleet.courier",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    },
+    "after": {
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    }
+  },
+  {
+    "action": "fleet.courier.suspended",
+    "targetType": "fleet.courier",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    },
+    "after": {
+      "reason": "enumOf(documents|conduct|safety|other)",
+      "status": "enumOf(applicant|active|suspended|offboarded)"
+    }
+  },
+  {
+    "action": "fleet.document.rejected",
+    "targetType": "fleet.document",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id",
+      "reason": "enumOf(illegible|expired|mismatch|incomplete|cancelled|fraudulent|other)"
+    }
+  },
+  {
+    "action": "fleet.document.revoked",
+    "targetType": "fleet.document",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id",
+      "reason": "enumOf(illegible|expired|mismatch|incomplete|cancelled|fraudulent|other)"
+    }
+  },
+  {
+    "action": "fleet.document.verified",
+    "targetType": "fleet.document",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id",
+      "declaredExpiresAt": "optional(instant)",
+      "expiresAt": "optional(instant)"
+    }
+  },
+  {
+    "action": "fleet.vehicle.deactivated",
+    "targetType": "fleet.vehicle",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id"
+    }
+  },
+  {
     "action": "identity.account-role.assigned",
     "targetType": "identity.account",
     "targetId": "id",

@@ -4,6 +4,8 @@ import { parseMarketId, POPULATIONS } from '@mondapac-drive/shared-kernel';
 import type { MarketId, Population } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
 import { routingConfigSchema } from '../routing/routing-config';
+import { notificationsSchema } from './notifications-section';
+import { payoutsSchema } from './payouts-config';
 
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
 const TIME_ZONES = new Set(Intl.supportedValuesOf('timeZone'));
@@ -539,6 +541,79 @@ const deliverySchema = z.strictObject({
   }),
 });
 
+/**
+ * The `dispatch` section, owned by the dispatch module: how offers go out to couriers (accept
+ * timeout, couriers per wave, rounds before a dispatcher takes over), when a scheduled delivery
+ * opens for dispatch, and how far and how many nearby couriers are considered.
+ */
+const dispatchSchema = z.strictObject({
+  offerTimeoutSeconds: z.number().int().min(5).max(600),
+  waveSize: z.number().int().min(1).max(20),
+  maxRounds: z.number().int().min(1).max(50),
+  scheduledLeadMinutes: z.number().int().nonnegative().max(1440),
+  searchRadiusMetres: z.number().int().positive().max(200_000),
+  candidateLimit: z.number().int().min(1).max(200),
+});
+
+/** Whole seconds, bounded so a typo cannot disable a check. */
+const seconds = (max: number) => z.number().int().positive().max(max);
+
+/**
+ * The `tracking` section, owned by the tracking module: which courier location pings are
+ * accepted, how long a live position and a breadcrumb trail are kept (personal data, Privacy
+ * Act: the trail's retention is the Market's decision), how long a customer tracking link lives,
+ * and how often the ETA is asked of routing.
+ */
+const trackingSchema = z.strictObject({
+  ping: z.strictObject({
+    /** A ping recorded longer ago than this is stale and refused. */
+    maxAgeSeconds: seconds(3600),
+    /** A ping recorded further ahead of the server clock than this is refused. */
+    maxFutureSkewSeconds: seconds(300),
+    /** One accepted ping per courier per this many seconds; the others are throttled. */
+    minIntervalSeconds: seconds(300),
+    maxAccuracyMetres: z.number().int().positive().max(10_000),
+    maxSpeedKmh: z.number().int().positive().max(400),
+  }),
+  /** A courier without a ping for this long drops out of the live map and of dispatch. */
+  livePositionTtlSeconds: seconds(86_400),
+  breadcrumbRetentionDays: z.number().int().positive().max(365),
+  trackingLinkTtlHours: z.number().int().positive().max(720),
+  /** How often the tracking page's live channel sends a new view. */
+  streamIntervalSeconds: seconds(60),
+  nearestCouriers: z.strictObject({
+    maxRadiusMetres: z.number().int().positive().max(200_000),
+    maxResults: z.number().int().positive().max(500),
+  }),
+  /** How long one road ETA (platform routing) is reused before routing is asked again. */
+  etaRefreshSeconds: seconds(600),
+});
+
+/** Employment types of the hybrid fleet (fleet domain). */
+export const EMPLOYMENT_TYPES = ['employee', 'contractor'] as const;
+
+/**
+ * The `fleet` section, owned by the fleet module: the documents the Market requires of its
+ * couriers. A document type is the Market's own code (`abn` in AU), never a list in core code.
+ */
+const fleetSchema = z.strictObject({
+  documents: z
+    .array(
+      z.strictObject({
+        type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, 'must be a lower-case code'),
+        employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).min(1).optional(),
+        vehicleTypes: z.array(z.enum(VEHICLE_TYPES)).min(1).optional(),
+        coldChainOnly: z.boolean(),
+        perVehicle: z.boolean(),
+        expires: z.boolean(),
+      }),
+    )
+    .max(50)
+    .refine((documents) => new Set(documents.map((d) => d.type)).size === documents.length, {
+      message: 'each document type is listed once',
+    }),
+});
+
 const marketSchema = z
   .strictObject({
     code: marketCode,
@@ -562,6 +637,12 @@ const marketSchema = z
     delivery: deliverySchema,
     /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
     routing: routingConfigSchema.optional(),
+    dispatch: dispatchSchema,
+    tracking: trackingSchema,
+    notifications: notificationsSchema,
+    fleet: fleetSchema,
+    /** Courier earnings and payouts (payouts-config.ts). */
+    payouts: payoutsSchema,
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',

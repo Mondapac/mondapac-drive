@@ -40,7 +40,12 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     extensions: [],
     delivery: ['USAGE'],
     identity: ['USAGE'],
+    dispatch: ['USAGE'],
+    notifications: ['USAGE'],
+    payouts: ['USAGE'],
     platform: ['USAGE'],
+    tracking: ['USAGE'],
+    fleet: ['USAGE'],
   },
   tables: {
     'platform.audit_log': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
@@ -126,6 +131,99 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: [],
     },
     'identity.invitations': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    // The dispatch module: a job keeps its delivery and requirements, an offer only gets its
+    // answer; the outbox envelope is append-only (20261025070000).
+    'dispatch.jobs': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'assigned_at',
+        'assigned_courier_id',
+        'assigned_vehicle',
+        'assignment_method',
+        'excluded_courier_ids',
+        'next_action_at',
+        'round',
+        'status',
+        'version',
+      ],
+    },
+    'dispatch.offers': { table: ['INSERT', 'SELECT'], columnUpdate: ['answered_at', 'status'] },
+    'dispatch.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    'dispatch.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The tracking module (20261025060000): only the status, courier and end of a tracked
+    // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
+    'tracking.tracked_deliveries': {
+      table: ['DELETE', 'INSERT', 'SELECT'],
+      columnUpdate: ['courier_id', 'ended_at', 'status', 'updated_at', 'vehicle', 'version'],
+    },
+    'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    // The notifications module (20261025110000): only the retry state of a queued message and
+    // the status and secret version of a subscription change.
+    'notifications.webhook_subscriptions': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['secret_version', 'status', 'version'],
+    },
+    'notifications.webhook_calls': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'dead_at',
+        'last_error_code',
+        'last_status_code',
+        'next_attempt_at',
+        'sent_at',
+        'status',
+      ],
+    },
+    'notifications.sms_messages': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'dead_at',
+        'last_error_code',
+        'next_attempt_at',
+        'provider_message_id',
+        'sent_at',
+        'status',
+      ],
+    },
+    // The fleet module (20261025050000): no row is deleted; a courier changes its standing, shift
+    // and the terms an operator confirms, a vehicle its active flag, a document its review and
+    // the expiry the operator confirmed; the outbox envelope is immutable.
+    'fleet.couriers': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['cold_chain_capable', 'employment_type', 'shift', 'status', 'version'],
+    },
+    'fleet.vehicles': { table: ['INSERT', 'SELECT'], columnUpdate: ['active'] },
+    'fleet.documents': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
+    },
+    'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    // The payouts module (20261025100000): the ledger, delivery records, runs and handled
+    // provider events are append-only; a line changes only its transfer state, an account only
+    // whether it can be paid out.
+    'payouts.ledger_entries': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.courier_deliveries': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.payout_runs': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.payout_lines': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'last_error_code',
+        'reversed_amount',
+        'status',
+        'transfer_id',
+        'updated_at',
+        'version',
+      ],
+    },
+    'payouts.payout_accounts': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['payouts_enabled', 'updated_at'],
+    },
+    'payouts.provider_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },
