@@ -12,12 +12,13 @@
   },
   "signIn": {
     "title": "Sign in",
-    "placeholderNotice": "Courier accounts are not live yet. This sign-in is a placeholder.",
-    "phone": "Mobile number",
-    "code": "One-time code",
+    "email": "Email",
+    "password": "Password",
     "submit": "Sign in",
-    "invalid": "Enter your mobile number and the 6-digit code.",
-    "failed": "Sign-in failed. Check the code and try again."
+    "invalid": "Enter the email and password of your courier account.",
+    "failed": "The email or password is not right.",
+    "disabled": "This account is switched off. Contact support.",
+    "throttled": "Too many attempts. Wait a minute and try again."
   },
   "home": {
     "title": "Today",

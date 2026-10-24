@@ -151,5 +151,5 @@ it('opens the device map app at the next stop', async () => {
   const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await press('Navigate');
   const job = await harness.api.job(deliveryId);
-  expect(openURL).toHaveBeenCalledWith(expect.stringContaining(`${job.pickup.point.lat},`));
+  expect(openURL).toHaveBeenCalledWith(expect.stringContaining(`${job.pickup.point!.lat},`));
 });

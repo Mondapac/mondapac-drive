@@ -17,7 +17,7 @@ export async function createHarness(
     clock,
     ...(options.settings ? { settings: options.settings } : {}),
   });
-  const session = await mock.api.signIn({ phone: '+61400000000', code: '123456' });
+  const session = await mock.api.signIn({ email: 'courier@example.test', password: 'secret-1' });
   let stored: CourierSession | null = session;
   const storage: SessionStorage = {
     load: () => Promise.resolve(stored),

@@ -8,7 +8,7 @@ interface Props {
   readonly keyboardType?: KeyboardTypeOptions;
   readonly secureTextEntry?: boolean;
   readonly maxLength?: number;
-  readonly autoComplete?: 'tel' | 'one-time-code' | 'off';
+  readonly autoComplete?: 'email' | 'password' | 'off';
 }
 
 export function TextField({ label, ...input }: Props) {

@@ -8,11 +8,13 @@ expo-router, TanStack Query and Zod. Phase 1 slice 6 (`docs/plan.md`, handoff 08
 ```sh
 pnpm install
 pnpm --filter courier start:mock          # Expo Go / simulator, on the in-app mock backend
-EXPO_PUBLIC_API_URL=https://… pnpm --filter courier start   # against a real API
+EXPO_PUBLIC_API_URL=https://… EXPO_PUBLIC_MARKET_ID=<code> pnpm --filter courier start   # real API
 ```
 
 Without `EXPO_PUBLIC_API_URL` the app always uses the mock (`src/api/mock`). The mock accepts any
-6-digit sign-in code, offers the two fixture jobs in turn and takes the delivery PIN `1234`.
+email and password (except `wrong-password`), offers the two fixture jobs in turn and takes the
+delivery PIN `1234`. With a real API, `EXPO_PUBLIC_MARKET_ID` names the Market the build serves:
+sign-in is scoped to it (`x-market-id`) and the session carries it afterwards.
 A release build refuses to start on the mock or without an https `EXPO_PUBLIC_API_URL`; plain
 http to localhost and LAN addresses works in development builds only.
 
@@ -61,22 +63,24 @@ Native Testing Library). Both run in `pnpm verify` and CI through `pnpm -r`, and
 
 ## Backend contract
 
-Only the delivery routes exist on main (`GET /delivery/deliveries/:id`,
-`POST /delivery/deliveries/:id/events`, with `x-market-id`). The other paths in
-`src/api/http-client.ts` are proposals for the packages that own them and change there:
+On main: identity's courier sign-in and sign-out (`POST /identity/courier/sign-in` with email and
+password, `POST /identity/courier/sign-out`; bearer token), the courier delivery routes
+(`GET /delivery/courier/deliveries/:id`, `POST …/:id/events`) and tracking's
+`POST /tracking/courier/pings` (`{ pings: [...] }`, at most 20; the courier is the session's, so
+no ping carries a courier id). The other paths in `src/api/http-client.ts` are proposals for
+the packages that own them and change there:
 
-| Port                               | Owner        | Proposed route                                     |
-| ---------------------------------- | ------------ | -------------------------------------------------- |
-| Sign in / out                      | identity WP2 | `POST`/`DELETE /identity/courier/sessions…`        |
-| Market settings, status, shift     | fleet 05     | `GET /fleet/courier/me…`, `PUT …/me/shift`         |
-| Location pings                     | tracking 06  | `POST /tracking/courier/pings` `{ pings: [...] }`  |
-| Current offer, accept, decline     | dispatch 07  | `/dispatch/courier/offers/current`, `…/:id/accept` |
-| Proof photo upload                 | delivery     | `POST /delivery/deliveries/:id/proof-photos`       |
-| Earnings summary                   | payouts 10   | `GET /payouts/courier/me/summary`                  |
+| Port                           | Owner       | Proposed route                                       |
+| ------------------------------ | ----------- | ---------------------------------------------------- |
+| Market settings, status, shift | fleet 05    | `GET /fleet/courier/me…`, `PUT …/me/shift`           |
+| Current offer, accept, decline | dispatch 07 | `/dispatch/courier/offers/current`, `…/:id/accept`   |
+| Proof photo upload             | delivery    | `POST /delivery/courier/deliveries/:id/proof-photos` |
+| Earnings summary               | payouts 10  | `GET /payouts/courier/me/summary`                    |
 
 Two changes the delivery API needs for the courier: the `delivered` event takes
 `proof: { kind: 'pin', pin }` and the server checks the PIN (today the body carries
 `pinMatched: true`, which a client could assert), and a proof-photo upload route that returns
-the `photoRef`. Offers are polled every 5 s while online until dispatch pushes them.
+the `photoRef`. Offers are polled every 5 s while online until dispatch pushes them. A stop
+without a point (not geocoded) is navigated to by its address.
 
 Store builds (EAS: identifiers, icons, signing, push) are a later package.

@@ -19,14 +19,13 @@ export const MAX_PINGS_PER_BATCH = 20;
  * Turns location fixes into tracking pings (handoff 06). A fix without accuracy is dropped, and
  * so are a negative speed or heading, which the platforms report when they are unknown.
  */
-export function toPings(courierId: string, fixes: readonly LocationFix[]): LocationPing[] {
+export function toPings(fixes: readonly LocationFix[]): LocationPing[] {
   return fixes
     .filter((fix) => fix.coords.accuracy !== null && fix.coords.accuracy >= 0)
     .slice(-MAX_PINGS_PER_BATCH)
     .map((fix) => {
       const { latitude, longitude, accuracy, heading, speed } = fix.coords;
       return {
-        courierId,
         lat: latitude,
         lng: longitude,
         accuracyM: Math.round(accuracy ?? 0),

@@ -212,8 +212,9 @@ function JobSteps({
 
 function StopCard({ stop }: { readonly stop: Stop }) {
   const navigate = () => {
-    Linking.openURL(directionsUrl(stop.point, Platform.OS)).catch(() =>
-      Linking.openURL(webDirectionsUrl(stop.point)),
+    const destination = stop.point ?? stop.address;
+    Linking.openURL(directionsUrl(destination, Platform.OS)).catch(() =>
+      Linking.openURL(webDirectionsUrl(destination)),
     );
   };
   return (

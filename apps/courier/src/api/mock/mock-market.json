@@ -9,6 +9,7 @@
     "coldChain": { "chilled": { "maxCelsius": 5 }, "frozen": { "maxCelsius": -15 } }
   },
   "deliveryPin": "1234",
+  "wrongPassword": "wrong-password",
   "offers": [
     {
       "distanceMetres": 4200,

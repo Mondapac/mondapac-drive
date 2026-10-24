@@ -136,7 +136,9 @@ export function AppProviders({ api, clock, queryClient, storage, tracking, child
 
   // A session the server rejects signs the courier out (and stops tracking) wherever it shows.
   useEffect(() => {
-    const rejected = (error: unknown) => error instanceof ApiError && error.status === 401;
+    // A refused sign-in (credentials.invalid) is not a rejected session.
+    const rejected = (error: unknown) =>
+      error instanceof ApiError && error.status === 401 && error.code !== 'credentials.invalid';
     const onEvent = (event: { type: string; action?: { type: string; error?: unknown } }) => {
       if (
         event.type === 'updated' &&
