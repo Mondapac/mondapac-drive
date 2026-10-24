@@ -93,10 +93,14 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
       'notifications.delivery-cancelled',
       'notifications.delivery-status-changed',
       'payouts.delivery-earning',
+      'tracking.delivery-booked',
+      'tracking.delivery-cancelled',
+      'tracking.delivery-status-changed',
     ]);
     expect(subscriptions.subscribersOf('delivery.status-changed.v1')).toEqual([
       'notifications.delivery-status-changed',
       'payouts.delivery-earning',
+      'tracking.delivery-status-changed',
     ]);
     expect(subscriptions.subscribersOf('identity.invitation-issued.v1')).toEqual([
       'identity.invitation-mail',

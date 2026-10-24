@@ -6,20 +6,22 @@
 
 /// Tracking's view of one delivery, reported by delivery and dispatch.
 model TrackingDelivery {
-  marketId   String    @map("market_id") @db.VarChar(8)
-  tenantId   String    @map("tenant_id")
-  deliveryId String    @map("delivery_id") @db.Uuid
-  status     String    @db.VarChar(24)
-  courierId  String?   @map("courier_id") @db.VarChar(64)
-  vehicle    String?   @db.VarChar(16)
-  pickupLat  Float     @map("pickup_lat")
-  pickupLng  Float     @map("pickup_lng")
-  dropoffLat Float     @map("dropoff_lat")
-  dropoffLng Float     @map("dropoff_lng")
-  startedAt  DateTime  @map("started_at") @db.Timestamptz(6)
-  updatedAt  DateTime  @map("updated_at") @db.Timestamptz(6)
-  endedAt    DateTime? @map("ended_at") @db.Timestamptz(6)
-  version    Int
+  marketId        String    @map("market_id") @db.VarChar(8)
+  tenantId        String    @map("tenant_id")
+  deliveryId      String    @map("delivery_id") @db.Uuid
+  status          String    @db.VarChar(24)
+  courierId       String?   @map("courier_id") @db.VarChar(64)
+  vehicle         String?   @db.VarChar(16)
+  pickupLat       Float     @map("pickup_lat")
+  pickupLng       Float     @map("pickup_lng")
+  dropoffLat      Float     @map("dropoff_lat")
+  dropoffLng      Float     @map("dropoff_lng")
+  startedAt       DateTime  @map("started_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @map("updated_at") @db.Timestamptz(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
+  version         Int
+  /// The last delivery aggregate version a lifecycle event applied; null for direct reports.
+  deliveryVersion Int?      @map("delivery_version")
 
   @@id([marketId, deliveryId])
   @@index([marketId, courierId])
@@ -58,5 +60,21 @@ model TrackingLink {
   @@id([marketId, tokenHash])
   @@index([marketId, expiresAt])
   @@map("links")
+  @@schema("tracking")
+}
+
+/// The events a tracking subscriber has handled (platform persistence design 6.4): `runOnce`
+/// inserts (event_id, handler) in the handler's own unit and skips the work when the row exists.
+/// Written only by platform/persistence/outbox/.
+model TrackingInbox {
+  eventId     String   @map("event_id") @db.Uuid
+  /// The subscriber's name, "tracking.<handler>".
+  handler     String
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@id([eventId, handler])
+  @@map("inbox")
   @@schema("tracking")
 }

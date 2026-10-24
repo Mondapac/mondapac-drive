@@ -279,6 +279,22 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       expect(fakes.sessions.get(SESSION_ID)!.session.lastSeenAt).toEqual(clock.now());
     });
 
+    it('never writes lastSeenAt for a re-check with touch: false (tracking PR #18, M1)', async () => {
+      seedSession();
+      const before = fakes.sessions.get(SESSION_ID)!.session.lastSeenAt;
+      clock.advance(Temporal.Duration.from({ minutes: 5 }));
+
+      const result = await authenticator().authenticate(
+        market,
+        { token: TOKEN, transport: 'bearer' },
+        { touch: false },
+      );
+
+      expect(result.ok).toBe(true);
+      expect(units).toEqual([{ readOnly: true }]);
+      expect(fakes.sessions.get(SESSION_ID)!.session.lastSeenAt).toEqual(before);
+    });
+
     it('still authenticates when the lastSeenAt write fails, and logs it', async () => {
       seedSession();
       clock.advance(Temporal.Duration.from({ minutes: 5 }));

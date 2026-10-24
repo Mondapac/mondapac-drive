@@ -80,11 +80,13 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     // The delivery module: deliveries keep their identity, market and money columns; history
     // and the outbox envelope are append-only (20261024150000, 20261024160000); the exception
-    // flag is set outside the version (20261026010000).
+    // flag and the wrong-PIN count are set outside the version (20261026010000, 20261026011000).
     'delivery.deliveries': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['courier_id', 'exception', 'status', 'version'],
+      columnUpdate: ['courier_id', 'exception', 'status', 'version', 'wrong_pins'],
     },
+    // Proof photos are append-only (20261026011000).
+    'delivery.proof_photos': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
@@ -170,8 +172,18 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
     'tracking.tracked_deliveries': {
       table: ['DELETE', 'INSERT', 'SELECT'],
-      columnUpdate: ['courier_id', 'ended_at', 'status', 'updated_at', 'vehicle', 'version'],
+      columnUpdate: [
+        'courier_id',
+        'delivery_version',
+        'ended_at',
+        'status',
+        'updated_at',
+        'vehicle',
+        'version',
+      ],
     },
+    // 20261026060000: tracking's inbox for the delivery lifecycle subscribers, append-only.
+    'tracking.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and

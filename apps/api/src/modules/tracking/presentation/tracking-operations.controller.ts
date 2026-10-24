@@ -7,11 +7,13 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Sse,
   SseSignal,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { CallContext } from '@mondapac-drive/shared-kernel';
+import type { IncomingMessage } from 'node:http';
+import { err, type CallContext } from '@mondapac-drive/shared-kernel';
 import {
   concatMap,
   EMPTY,
@@ -37,6 +39,7 @@ import {
 } from '../application/use-cases/view-courier-positions.use-case';
 import type { Breadcrumb } from '../domain/breadcrumb';
 import type { LivePosition, NearbyCourier } from '../domain/live-position';
+import { AdminSessionCheck, type SessionStillLive } from './admin-session-check';
 import { StreamLimits } from './stream-limits';
 import { answer, fail, parsed, refusal } from './tracking-http';
 import { nearestQuery, pingBody } from './tracking.schemas';
@@ -129,6 +132,7 @@ export class DispatcherTrackingController {
     private readonly viewNearby: ViewNearbyCouriers,
     private readonly viewPosition: ViewCourierPosition,
     private readonly deliveryTrail: DeliveryTrail,
+    private readonly sessions: AdminSessionCheck,
   ) {}
 
   @Get('couriers/nearest')
@@ -159,16 +163,19 @@ export class DispatcherTrackingController {
   @ApiOperation({
     summary: 'Server-sent events of the couriers near a point (dispatcher map)',
     description:
-      'A `couriers` event every five seconds for half an hour. Each event asks the gate again, ' +
-      'so a revoked role ends the stream with one `end` event. At most three streams per admin ' +
+      'A `couriers` event every five seconds for half an hour. Each event checks the session ' +
+      'and asks the gate again, so a signed-out or revoked session (`session.invalid`) or a ' +
+      'removed role ends the stream with one `end` event. At most three streams per admin ' +
       '(429 `tracking.too-many-streams`).',
   })
   async map(
     @Call() context: CallContext,
     @Query() query: unknown,
     @SseSignal() signal: AbortSignal,
+    @Req() request: IncomingMessage,
   ): Promise<Observable<MessageEvent>> {
     const input = nearbyQueryOf(query);
+    const stillLive = this.sessions.of(request, context);
     // The first read answers a refusal as an HTTP error, before the stream opens.
     const first = await this.viewNearby.execute(context, input);
     if (!first.ok) throw refusal(first.error);
@@ -186,7 +193,7 @@ export class DispatcherTrackingController {
     return timer(0, MAP_REFRESH_MS).pipe(
       take(MAP_MAX_EVENTS),
       concatMap((tick) =>
-        tick === 0 ? from([first]) : from(this.viewNearby.execute(context, input)),
+        tick === 0 ? from([first]) : from(this.nextMap(stillLive, context, input)),
       ),
       takeWhile((result) => result.ok, true),
       map((result) =>
@@ -197,5 +204,11 @@ export class DispatcherTrackingController {
       // Runs on completion and when the client disconnects (Nest unsubscribes on close).
       finalize(release),
     );
+  }
+
+  /** One later map event: the session first (L1 of 06b), then the gated read. */
+  private async nextMap(stillLive: SessionStillLive, context: CallContext, input: NearbyQuery) {
+    if (!(await stillLive())) return err({ code: 'session.invalid' });
+    return this.viewNearby.execute(context, input);
   }
 }

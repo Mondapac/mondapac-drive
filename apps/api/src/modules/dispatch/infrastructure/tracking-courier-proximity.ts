@@ -1,5 +1,5 @@
 import { parseId, type CallContext, type GeoPoint } from '@mondapac-drive/shared-kernel';
-import type { CourierPositions } from '../../tracking';
+import type { CourierPositions } from '../../tracking/contracts/courier-positions.contract';
 import type { CourierProximity } from '../application/ports';
 import type { NearbyCourier } from '../domain/matching';
 

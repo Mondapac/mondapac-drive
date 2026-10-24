@@ -155,6 +155,10 @@
       "minLeadMinutes": 30,
       "maxDaysAhead": 3,
       "minWindowMinutes": 30
+    },
+    "proofOfDelivery": {
+      "pinLength": 6,
+      "maxPinAttempts": 3
     }
   },
   "routing": {

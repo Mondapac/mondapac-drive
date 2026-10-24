@@ -31,6 +31,7 @@ export class ConfigMarketSettingsProvider implements MarketSettingsProvider {
       rateCard: market.delivery.rateCard,
       coldChain: market.delivery.coldChain,
       scheduling: market.delivery.scheduling,
+      proofOfDelivery: market.delivery.proofOfDelivery,
     });
     this.#settings.set(marketId, settings);
     return settings;
