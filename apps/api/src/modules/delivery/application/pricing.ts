@@ -100,9 +100,13 @@ export class DeliveryPricing {
         );
       }
 
-      const pickupPoint = await this.pointOf(market, input.pickup, 'pickup');
+      // Both stops are located at once: a booking without coordinates waits for one geocoding
+      // round trip, not two (the marketplace expects an answer within 2 s; handoff 09b).
+      const [pickupPoint, dropoffPoint] = await Promise.all([
+        this.pointOf(market, input.pickup, 'pickup'),
+        this.pointOf(market, input.dropoff, 'dropoff'),
+      ]);
       if (!('lat' in pickupPoint)) return err(pickupPoint);
-      const dropoffPoint = await this.pointOf(market, input.dropoff, 'dropoff');
       if (!('lat' in dropoffPoint)) return err(dropoffPoint);
       const distanceMetres = await this.distances.roadDistanceMetres(
         market,

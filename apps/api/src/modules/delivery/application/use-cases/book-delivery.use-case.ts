@@ -8,9 +8,11 @@ import type {
   Result,
 } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import type { OutboxWriter } from '../../../../platform/events/outbox-writer';
 import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import { BOOKING_CREATE } from '../../contracts/permissions';
 import { createDelivery, type DeliveryState, type Stop } from '../../domain/delivery';
+import { bookedEvent } from '../../domain/events/delivery-events';
 import { ACCESS_DENIED, merchantOf } from '../deliveries';
 import { refusingBrokenRules, type DeliveryFailure } from '../failure';
 import type { DeliveryPricing, QuoteDeliveryInput } from '../pricing';
@@ -38,13 +40,15 @@ export interface BookDeliveryDependencies {
   readonly unitOfWork: UnitOfWork;
   readonly ids: IdGenerator;
   readonly clock: Clock;
+  readonly outbox: OutboxWriter;
 }
 
 /**
  * Books a delivery for the merchant of the API key. Rule `permissions [delivery.booking.create]`.
  * The merchant is the actor's, never a field of the request, so a key books only for its own
  * merchant. Idempotent on (merchant, external reference): a retry, also one that races the first
- * request, returns the delivery already booked instead of creating a second one.
+ * request, returns the delivery already booked instead of creating a second one. A new booking
+ * writes `delivery.booked.v1` in the unit of the insert; a repeated one writes nothing.
  */
 export class BookDelivery extends UseCase<BookDeliveryInput, BookedDelivery, DeliveryFailure> {
   static override readonly access: AccessDeclaration = {
@@ -99,6 +103,7 @@ export class BookDelivery extends UseCase<BookDeliveryInput, BookedDelivery, Del
         market,
         async (): Promise<Result<BookedDelivery, DeliveryFailure>> => {
           if (await this.deps.deliveries.insert(market, delivery)) {
+            await this.deps.outbox.append(context, [bookedEvent(delivery)]);
             return ok({ delivery, created: true });
           }
           // The same reference was booked meanwhile: answer with that delivery.

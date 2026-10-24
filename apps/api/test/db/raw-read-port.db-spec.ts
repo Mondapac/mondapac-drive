@@ -65,7 +65,8 @@ describe('raw read port (database integration)', () => {
     app = new Client({ connectionString: testDatabaseUrl() });
     await owner.connect();
     await app.connect();
-    // The same code in both Markets, each with its own row.
+    // The same code in both Markets, each with its own row. A valid status and currency: the
+    // operations panel's delivery list, in the same database, reads these rows too.
     for (const code of TEST_MARKETS) {
       const market = marketOf(code);
       const id = uuid7();
@@ -76,9 +77,9 @@ describe('raw read port (database integration)', () => {
             mode, pickup, dropoff, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, weight_grams,
             volume_litres, temperature, vehicle, distance_metres, quote, total_amount, tax_amount,
             currency, created_at, version)
-         VALUES ($1, $2, $3, 'merchant-raw-read', $4, 'area', 'requested', 'on_demand', '{}', '{}',
-                 -27.5, 153.0, -27.4, 153.1, 1000, 5, 'ambient', 'car', 4000, '{}', 1000, 0,
-                 'XXX', now(), 1)`,
+         VALUES ($1, $2, $3, 'merchant-raw-read', $4, 'area', 'DISPATCHING', 'on_demand', '{}',
+                 '{}', -27.5, 153.0, -27.4, 153.1, 1000, 5, 'ambient', 'car', 4000, '{}', 1000, 0,
+                 'AUD', now(), 1)`,
         [id, market.marketId, market.tenantId, CODE],
       );
     }
