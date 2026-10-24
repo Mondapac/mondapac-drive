@@ -11,9 +11,7 @@ import {
 
 const session = {
   token: 'token-0123456789abcdef',
-  courierId: 'courier-1',
   marketId: 'ZZ',
-  displayName: 'Test',
 };
 
 describe('session store', () => {
@@ -50,7 +48,7 @@ describe('build settings', () => {
   const RELEASE = false;
 
   it('runs on the mock without an API URL in a development build', () => {
-    expect(readEnv({}, DEV)).toEqual({ apiMode: 'mock', apiUrl: undefined });
+    expect(readEnv({}, DEV)).toEqual({ apiMode: 'mock', apiUrl: undefined, marketId: undefined });
     expect(
       readEnv(
         { EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_API_MODE: 'mock' },
@@ -67,13 +65,31 @@ describe('build settings', () => {
         RELEASE,
       ),
     ).toThrow(/release build/);
-    expect(readEnv({ EXPO_PUBLIC_API_URL: 'https://api.example.test' }, RELEASE).apiMode).toBe(
-      'http',
+    expect(
+      readEnv(
+        { EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_MARKET_ID: 'ZZ' },
+        RELEASE,
+      ).apiMode,
+    ).toBe('http');
+  });
+
+  it('needs the Market code of the build with a real API', () => {
+    expect(() => readEnv({ EXPO_PUBLIC_API_URL: 'https://api.example.test' }, DEV)).toThrow(
+      /MARKET_ID/,
     );
+    expect(() =>
+      readEnv(
+        { EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_MARKET_ID: 'zz;' },
+        DEV,
+      ),
+    ).toThrow(/Market code/);
   });
 
   it('allows plain http only to a local address in a development build', () => {
-    expect(readEnv({ EXPO_PUBLIC_API_URL: 'http://localhost:3000' }, DEV).apiMode).toBe('http');
+    expect(
+      readEnv({ EXPO_PUBLIC_API_URL: 'http://localhost:3000', EXPO_PUBLIC_MARKET_ID: 'ZZ' }, DEV)
+        .apiMode,
+    ).toBe('http');
     expect(() => readEnv({ EXPO_PUBLIC_API_URL: 'http://localhost:3000' }, RELEASE)).toThrow(
       /https/,
     );

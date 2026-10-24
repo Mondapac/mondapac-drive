@@ -96,12 +96,13 @@ export function createMockCourierApi(options: MockOptions) {
     signIn(input) {
       const parsed = signInInput.safeParse(input);
       if (!parsed.success) return Promise.reject(new ApiError(400, 'validation.failed'));
+      if (parsed.data.password === fixture.wrongPassword) {
+        return Promise.reject(new ApiError(401, 'credentials.invalid'));
+      }
       signedIn = true;
       return Promise.resolve({
         token: 'mock-session-token-0000000000',
-        courierId: 'mock-courier-1',
         marketId: settings.marketId,
-        displayName: 'Mock Courier',
       });
     },
     signOut() {
@@ -224,6 +225,7 @@ export function createMockCourierApi(options: MockOptions) {
     pings: (): readonly LocationPing[] => pings,
     events: () => events,
     pin: fixture.deliveryPin,
+    wrongPassword: fixture.wrongPassword,
   };
   return { api, inspect };
 }

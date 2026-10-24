@@ -7,6 +7,8 @@ export type ApiMode = 'mock' | 'http';
 export interface AppEnv {
   readonly apiMode: ApiMode;
   readonly apiUrl: string | undefined;
+  /** The Market this build serves (EXPO_PUBLIC_MARKET_ID); sign-in is scoped to it. */
+  readonly marketId: string | undefined;
 }
 
 /**
@@ -29,7 +31,14 @@ export function readEnv(
       throw new Error('EXPO_PUBLIC_API_URL must use https outside a developer machine');
     }
   }
-  return { apiMode, apiUrl };
+  const marketId = source.EXPO_PUBLIC_MARKET_ID?.trim() || undefined;
+  if (marketId && !/^[A-Z]{2,8}$/.test(marketId)) {
+    throw new Error('EXPO_PUBLIC_MARKET_ID must be a Market code');
+  }
+  if (apiMode === 'http' && !marketId) {
+    throw new Error('EXPO_PUBLIC_MARKET_ID is needed with EXPO_PUBLIC_API_URL');
+  }
+  return { apiMode, apiUrl, marketId };
 }
 
 function isLocal(url: string): boolean {
@@ -40,6 +49,7 @@ export const env: AppEnv = readEnv(
   {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_API_MODE: process.env.EXPO_PUBLIC_API_MODE,
+    EXPO_PUBLIC_MARKET_ID: process.env.EXPO_PUBLIC_MARKET_ID,
   },
   __DEV__,
 );

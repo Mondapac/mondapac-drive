@@ -9,6 +9,7 @@ import {
 import {
   apiError,
   courierSession,
+  courierSignedIn,
   courierSettings,
   courierStatus,
   currentOffer,
@@ -18,29 +19,29 @@ import {
   proofPhoto,
 } from './schemas';
 
-/**
- * The routes the app calls. Only the delivery routes exist on main today; the others are the
- * ports of the parallel packages (identity WP2, fleet 05, tracking 06, dispatch 07, payouts 10)
- * and change here, in one place, when those routes land.
- */
 /** An id as the API issues it; anything else (such as `..`) never reaches a path. */
 function segment(id: string): string {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new ApiError(400, 'id.invalid');
   return id;
 }
 
+/**
+ * The routes the app calls. Identity, the courier delivery routes and tracking exist on main;
+ * fleet, dispatch, payouts and the proof-photo upload are proposals for the packages that own
+ * them and change here, in one place, when those routes land.
+ */
 export const ROUTES = {
-  sessions: '/identity/courier/sessions',
-  currentSession: '/identity/courier/sessions/current',
+  signIn: '/identity/courier/sign-in',
+  signOut: '/identity/courier/sign-out',
   settings: '/fleet/courier/me/settings',
   status: '/fleet/courier/me',
   shift: '/fleet/courier/me/shift',
   currentOffer: '/dispatch/courier/offers/current',
   acceptOffer: (id: string) => `/dispatch/courier/offers/${segment(id)}/accept`,
   declineOffer: (id: string) => `/dispatch/courier/offers/${segment(id)}/decline`,
-  delivery: (id: string) => `/delivery/deliveries/${segment(id)}`,
-  deliveryEvents: (id: string) => `/delivery/deliveries/${segment(id)}/events`,
-  proofPhotos: (id: string) => `/delivery/deliveries/${segment(id)}/proof-photos`,
+  delivery: (id: string) => `/delivery/courier/deliveries/${segment(id)}`,
+  deliveryEvents: (id: string) => `/delivery/courier/deliveries/${segment(id)}/events`,
+  proofPhotos: (id: string) => `/delivery/courier/deliveries/${segment(id)}/proof-photos`,
   pings: '/tracking/courier/pings',
   earnings: '/payouts/courier/me/summary',
 } as const;
@@ -50,6 +51,8 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 interface Options {
   readonly baseUrl: string;
   readonly session: SessionSource;
+  /** The Market the app is built for; sign-in is scoped to it, then the session carries it. */
+  readonly marketId: string;
   readonly fetch?: Fetch;
   /** Milliseconds before a call is abandoned. */
   readonly timeoutMs?: number;
@@ -87,6 +90,8 @@ export function createHttpCourierApi(options: Options): CourierApi {
       if (!session) throw new ApiError(401, 'session.missing');
       headers.authorization = `Bearer ${session.token}`;
       headers['x-market-id'] = session.marketId;
+    } else {
+      headers['x-market-id'] = options.marketId;
     }
     let payload: BodyInit | undefined;
     if (body instanceof FormData) {
@@ -125,9 +130,13 @@ export function createHttpCourierApi(options: Options): CourierApi {
   }
 
   return {
-    signIn: (input) =>
-      call('POST', ROUTES.sessions, courierSession, input, { authenticated: false }),
-    signOut: () => call('DELETE', ROUTES.currentSession, null),
+    signIn: async (input) => {
+      const signedIn = await call('POST', ROUTES.signIn, courierSignedIn, input, {
+        authenticated: false,
+      });
+      return courierSession.parse({ token: signedIn.token, marketId: options.marketId });
+    },
+    signOut: () => call('POST', ROUTES.signOut, null, {}),
     settings: () => call('GET', ROUTES.settings, courierSettings),
     status: () => call('GET', ROUTES.status, courierStatus),
     setShift: (state) => call('PUT', ROUTES.shift, courierStatus, { state }),

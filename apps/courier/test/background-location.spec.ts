@@ -18,9 +18,8 @@ const fix = (overrides: Partial<LocationFix['coords']> = {}, timestamp = 1_761_2
 
 describe('location pings', () => {
   it('maps a fix to the tracking ping', () => {
-    expect(toPings('c-1', [fix()])).toEqual([
+    expect(toPings([fix()])).toEqual([
       {
-        courierId: 'c-1',
         lat: -27.47,
         lng: 153.02,
         accuracyM: 8,
@@ -32,10 +31,7 @@ describe('location pings', () => {
   });
 
   it('drops a fix without accuracy and leaves out unknown heading and speed', () => {
-    const [ping, ...rest] = toPings('c-1', [
-      fix({ accuracy: null }),
-      fix({ heading: -1, speed: -1 }),
-    ]);
+    const [ping, ...rest] = toPings([fix({ accuracy: null }), fix({ heading: -1, speed: -1 })]);
     expect(rest).toEqual([]);
     expect(ping).not.toHaveProperty('headingDeg');
     expect(ping).not.toHaveProperty('speedKmh');
@@ -43,7 +39,7 @@ describe('location pings', () => {
 
   it('keeps the latest fixes of a burst', () => {
     const fixes = Array.from({ length: 50 }, (_, i) => fix({}, i * 1000));
-    const pings = toPings('c-1', fixes);
+    const pings = toPings(fixes);
     expect(pings).toHaveLength(MAX_PINGS_PER_BATCH);
     expect(pings.at(-1)?.recordedAt).toBe(new Date(49_000).toISOString());
   });
@@ -52,7 +48,7 @@ describe('location pings', () => {
 describe('background location task', () => {
   async function deps(online: boolean, signedIn = true) {
     const mock = createMockCourierApi({ clock: fakeClock(0) });
-    const session = await mock.api.signIn({ phone: '+61400000000', code: '123456' });
+    const session = await mock.api.signIn({ email: 'courier@example.test', password: 'secret-1' });
     const stopUpdates = jest.fn(() => Promise.resolve());
     const clearSession = jest.fn(() => Promise.resolve());
     const value: TaskDeps = {
@@ -66,10 +62,11 @@ describe('background location task', () => {
   }
 
   it('sends pings while the courier is online', async () => {
-    const { value, mock, session } = await deps(true);
+    const { value, mock } = await deps(true);
     await handleLocationUpdate({ data: { locations: [fix()] } }, value);
     expect(mock.inspect.pings()).toHaveLength(1);
-    expect(mock.inspect.pings()[0]?.courierId).toBe(session.courierId);
+    // The courier is the bearer session's on the server; no ping names it.
+    expect(mock.inspect.pings()[0]).not.toHaveProperty('courierId');
   });
 
   it('sends nothing and stops the updates once offline', async () => {

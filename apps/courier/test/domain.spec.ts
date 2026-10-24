@@ -60,4 +60,10 @@ describe('navigation deep link', () => {
     expect(directionsUrl(point, 'android')).toBe('google.navigation:q=-27.47,153.02');
     expect(directionsUrl(point, 'web')).toContain('destination=-27.47,153.02');
   });
+
+  it('navigates by address when the stop has no point', () => {
+    expect(directionsUrl('5 Sample St, Coorparoo', 'android')).toBe(
+      'google.navigation:q=5%20Sample%20St%2C%20Coorparoo',
+    );
+  });
 });

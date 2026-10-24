@@ -51,11 +51,10 @@ export const courierSettings = z.object({
 export type CourierSettings = z.infer<typeof courierSettings>;
 export type ColdChainLimits = CourierSettings['coldChain'];
 
+/** The courier's session: the bearer token and the Market it was opened in. */
 export const courierSession = z.object({
   token: z.string().min(16),
-  courierId: z.string().min(1),
   marketId: z.string().min(2).max(8),
-  displayName: z.string().min(1),
 });
 export type CourierSession = z.infer<typeof courierSession>;
 
@@ -89,7 +88,8 @@ export const offerAccepted = z.object({ deliveryId: z.string().min(1) });
 const stop = z.object({
   address: z.string(),
   postcode: z.string(),
-  point,
+  /** Absent when the stop could not be geocoded; the app then navigates by address. */
+  point: point.optional(),
   contactName: z.string(),
   contactPhone: z.string(),
   notes: z.string().optional(),
@@ -124,8 +124,8 @@ export const apiError = z.object({ code: z.string(), details: z.unknown().option
 
 /** Inputs the courier types, checked before anything is sent. */
 export const signInInput = z.object({
-  phone: z.string().regex(/^\+?[0-9 ]{6,20}$/),
-  code: z.string().regex(/^[0-9]{6}$/),
+  email: z.email().max(254),
+  password: z.string().min(1).max(256),
 });
 export type SignInInput = z.infer<typeof signInInput>;
 
@@ -145,9 +145,14 @@ export const FAILURE_REASONS = [
 ] as const;
 export type FailureReason = (typeof FAILURE_REASONS)[number];
 
-/** A location fix as tracking (handoff 06) takes it. */
+/** The answer of identity's courier sign-in (`POST /identity/courier/sign-in`). */
+export const courierSignedIn = z.object({
+  code: z.literal('signed-in'),
+  token: z.string().min(16),
+});
+
+/** A location fix as tracking takes it; the courier is the bearer session's, never a field. */
 export interface LocationPing {
-  readonly courierId: string;
   readonly lat: number;
   readonly lng: number;
   readonly accuracyM: number;

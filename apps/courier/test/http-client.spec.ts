@@ -4,9 +4,7 @@ import type { CourierSession } from '../src/api/schemas';
 
 const session: CourierSession = {
   token: 'token-0123456789abcdef',
-  courierId: 'courier-1',
   marketId: 'ZZ',
-  displayName: 'Test',
 };
 
 function setup(
@@ -23,6 +21,7 @@ function setup(
   const api = createHttpCourierApi({
     baseUrl: 'https://api.example.test/',
     session: { current: () => current },
+    marketId: 'ZZ',
     fetch,
   });
   return { api, fetch };
@@ -62,11 +61,58 @@ describe('HTTP adapter', () => {
     });
   });
 
-  it('sends no token to sign in, and refuses other calls without a session', async () => {
-    const { api, fetch } = setup({ body: session }, null);
-    await api.signIn({ phone: '+1 555 0100', code: '123456' });
-    expect(fetch.mock.calls[0]![1].headers).not.toHaveProperty('authorization');
+  it("signs in on identity's courier route, scoped to the build's Market", async () => {
+    const { api, fetch } = setup(
+      {
+        body: {
+          code: 'signed-in',
+          token: session.token,
+          absoluteLifetimeSeconds: 2_592_000,
+          idleTimeoutSeconds: 604_800,
+        },
+      },
+      null,
+    );
+    await expect(
+      api.signIn({ email: 'courier@example.test', password: 'secret-1' }),
+    ).resolves.toEqual({ token: session.token, marketId: 'ZZ' });
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('https://api.example.test/identity/courier/sign-in');
+    expect(init.headers).toMatchObject({ 'x-market-id': 'ZZ' });
+    expect(init.headers).not.toHaveProperty('authorization');
+    expect(JSON.parse(init.body as string)).toEqual({
+      email: 'courier@example.test',
+      password: 'secret-1',
+    });
     await expect(api.status()).rejects.toEqual(new ApiError(401, 'session.missing'));
+  });
+
+  it('turns a refused sign-in into its code', async () => {
+    const { api } = setup(
+      { status: 401, body: { statusCode: 401, code: 'credentials.invalid' } },
+      null,
+    );
+    await expect(api.signIn({ email: 'courier@example.test', password: 'x' })).rejects.toEqual(
+      new ApiError(401, 'credentials.invalid'),
+    );
+  });
+
+  it('signs out of the bearer session', async () => {
+    const { api, fetch } = setup({ body: { code: 'signed-out' } });
+    await api.signOut();
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('https://api.example.test/identity/courier/sign-out');
+    expect(init.method).toBe('POST');
+    expect(init.headers).toMatchObject({ authorization: `Bearer ${session.token}` });
+  });
+
+  it('sends pings in one batch without a courier id', async () => {
+    const { api, fetch } = setup();
+    const ping = { lat: 1, lng: 2, accuracyM: 5, recordedAt: '2026-10-24T09:00:00.000Z' };
+    await api.sendPings([ping]);
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('https://api.example.test/tracking/courier/pings');
+    expect(JSON.parse(init.body as string)).toEqual({ pings: [ping] });
   });
 
   it('records a delivery event on the delivery API route with the PIN for the server to check', async () => {
@@ -78,7 +124,7 @@ describe('HTTP adapter', () => {
     });
     expect(updated.status).toBe('DELIVERED');
     const [url, init] = fetch.mock.calls[0]!;
-    expect(url).toContain('/delivery/deliveries/d-1/events');
+    expect(url).toContain('/delivery/courier/deliveries/d-1/events');
     expect(JSON.parse(init.body as string)).toEqual({
       type: 'delivered',
       temperatureCelsius: -20,
@@ -111,13 +157,14 @@ describe('HTTP adapter', () => {
     const api = createHttpCourierApi({
       baseUrl: 'https://api.example.test',
       session: { current: () => session },
+      marketId: 'ZZ',
       fetch: () => Promise.reject(new TypeError('Network request failed')),
     });
     await expect(api.earnings()).rejects.toEqual(new ApiError(0, 'network.unavailable'));
   });
 
   it('refuses an id that is not one the API issues', async () => {
-    expect(ROUTES.delivery('d-1')).toBe('/delivery/deliveries/d-1');
+    expect(ROUTES.delivery('d-1')).toBe('/delivery/courier/deliveries/d-1');
     for (const id of ['..', '../x', 'a/b', '', 'x'.repeat(65)]) {
       expect(() => ROUTES.delivery(id)).toThrow(new ApiError(400, 'id.invalid'));
     }

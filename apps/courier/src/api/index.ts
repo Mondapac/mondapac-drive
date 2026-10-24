@@ -6,8 +6,8 @@ import { createHttpCourierApi } from './http-client';
 import { createMockCourierApi } from './mock/mock-client';
 
 export function createCourierApi(appEnv: AppEnv, session: SessionSource, clock: Clock): CourierApi {
-  if (appEnv.apiMode === 'http' && appEnv.apiUrl) {
-    return createHttpCourierApi({ baseUrl: appEnv.apiUrl, session });
+  if (appEnv.apiMode === 'http' && appEnv.apiUrl && appEnv.marketId) {
+    return createHttpCourierApi({ baseUrl: appEnv.apiUrl, marketId: appEnv.marketId, session });
   }
   return createMockCourierApi({ clock }).api;
 }

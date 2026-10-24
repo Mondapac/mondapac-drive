@@ -31,7 +31,7 @@ export async function handleLocationUpdate(body: TaskBody, deps: TaskDeps): Prom
     return;
   }
   const fixes = (body.data as { locations?: LocationFix[] } | undefined)?.locations ?? [];
-  const pings = toPings(session.courierId, fixes);
+  const pings = toPings(fixes);
   if (pings.length === 0) return;
   try {
     await deps.api().sendPings(pings);
