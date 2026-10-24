@@ -156,7 +156,10 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
       const ended = await request(app.getHttpServer())
         .get(`/tracking/links/${link.value.token}`)
         .set('x-market-id', code);
-      expect([ended.status, ended.body.code]).toEqual([410, 'tracking.ended']);
+      expect([ended.status, (ended.body as { code: string }).code]).toEqual([
+        410,
+        'tracking.ended',
+      ]);
 
       // Each of the six events was handled once; handling again changes nothing.
       expect(await handled(id)).toEqual([
