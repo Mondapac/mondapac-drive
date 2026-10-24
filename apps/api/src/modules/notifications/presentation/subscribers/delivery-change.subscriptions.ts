@@ -3,11 +3,7 @@ import {
   type RegisteredSubscription,
 } from '../../../../platform/events/event-subscriptions';
 import type { RecordDeliveryChange } from '../../application/use-cases/record-delivery-change.use-case';
-import {
-  DELIVERY_BOOKED,
-  DELIVERY_CANCELLED,
-  DELIVERY_STATUS_CHANGED,
-} from './delivery-events.pending';
+import { DELIVERY_BOOKED, DELIVERY_CANCELLED, DELIVERY_STATUS_CHANGED } from '../../../delivery';
 
 /**
  * A status as the delivery API and the webhook body name it (`PICKED_UP`), from the event's

@@ -132,8 +132,16 @@ export interface DeliveryContact {
   readonly recipientPin: string | null;
 }
 
-/** The delivery module's read for notifications. Undefined when the delivery is unknown. */
+/**
+ * The delivery module's read for notifications. Undefined when the delivery is unknown.
+ * `referenceOf` answers the merchant side only, for queueing a change; `contactOf` the
+ * recipient's phone and PIN too, for an SMS attempt only.
+ */
 export interface DeliveryContacts {
+  referenceOf(
+    context: CallContext,
+    deliveryId: string,
+  ): Promise<Pick<DeliveryContact, 'merchantId' | 'externalReference'> | undefined>;
   contactOf(context: CallContext, deliveryId: string): Promise<DeliveryContact | undefined>;
 }
 export const DELIVERY_CONTACTS = Symbol('DeliveryContacts');

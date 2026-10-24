@@ -89,7 +89,7 @@ export class RecordDeliveryChange extends UseCase<
     if (!isSystem(context)) return err(ACCESS_DENIED);
     const { market } = context;
     const { contacts, subscriptions, outbound, unitOfWork, ids, clock } = this.deps;
-    const contact = await contacts.contactOf(context, input.deliveryId);
+    const contact = await contacts.referenceOf(context, input.deliveryId);
     if (contact === undefined) {
       return err({ code: 'notifications.delivery-unknown', message: 'No such delivery' });
     }

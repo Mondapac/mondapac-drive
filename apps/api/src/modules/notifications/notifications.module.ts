@@ -9,6 +9,7 @@ import { ID_GENERATOR } from '../../platform/ids/ids.module';
 import { PersistenceModule } from '../../platform/persistence/persistence.module';
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
+import { DeliveryModule } from '../delivery';
 import { TrackingModule } from '../tracking';
 import {
   DELIVERY_CONTACTS,
@@ -97,7 +98,7 @@ function subscriptionChange<U>(
  * operator re-sends a dead-lettered call. Changes are audited.
  */
 @Module({
-  imports: [TrackingModule],
+  imports: [DeliveryModule, TrackingModule],
   controllers: [MerchantWebhookController, AdminWebhookCallController],
   providers: [
     registerPermissions('notifications', NOTIFICATIONS_PERMISSIONS),

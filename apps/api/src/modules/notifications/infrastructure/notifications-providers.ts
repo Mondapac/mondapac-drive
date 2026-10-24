@@ -3,6 +3,7 @@ import { APP_CONFIG } from '../../../platform/config/config.module';
 import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
+import { DeliveryRecipients } from '../../delivery';
 import { IssueTrackingLink } from '../../tracking';
 import {
   DELIVERY_CONTACTS,
@@ -18,7 +19,7 @@ import { ConfigNotificationSettingsProvider } from './config-notification-settin
 import { HmacWebhookSigner } from './hmac-webhook-signer';
 import { HttpsWebhookTransport } from './https-webhook-transport';
 import { twilioCredentials, webhookKey } from './notifications-secrets';
-import { NoDeliveryContacts } from './pending-integrations';
+import { DeliveryRecipientContacts } from './delivery-contacts';
 import {
   PrismaOutboundRepository,
   PrismaWebhookSubscriptionRepository,
@@ -56,7 +57,11 @@ export const notificationsProviders: Provider[] = [
       return credentials === null ? new UnconfiguredSmsSender() : new TwilioSmsSender(credentials);
     },
   },
-  { provide: DELIVERY_CONTACTS, useValue: new NoDeliveryContacts() },
+  {
+    provide: DELIVERY_CONTACTS,
+    inject: [DeliveryRecipients],
+    useFactory: (recipients: DeliveryRecipients) => new DeliveryRecipientContacts(recipients),
+  },
   {
     provide: TRACKING_LINKS,
     inject: [IssueTrackingLink],

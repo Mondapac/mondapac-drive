@@ -106,6 +106,12 @@ class RecordingSmsSender implements SmsSender {
 /** The delivery module's read, scripted per delivery; `'throw'` as the phone makes it fail. */
 const contacts = new Map<string, DeliveryContact>();
 const deliveryContacts: DeliveryContacts = {
+  referenceOf: (_context, id) => {
+    const found = contacts.get(id);
+    return Promise.resolve(
+      found && { merchantId: found.merchantId, externalReference: found.externalReference },
+    );
+  },
   contactOf: (_context, id) =>
     contacts.get(id)?.dropoffPhone === 'throw'
       ? Promise.reject(new Error('delivery unavailable'))
