@@ -1,0 +1,62 @@
+{
+  "code": "AU",
+  "currency": "AUD",
+  "timezone": "Australia/Brisbane",
+  "pricesIncludeTax": true,
+  "taxRateBps": 1000,
+  "serviceAreas": [
+    {
+      "code": "greater-brisbane",
+      "timezone": "Australia/Brisbane",
+      "postcodes": ["4000-4179", "4205-4207", "4300-4306", "4500-4521"],
+      "deliveryEnabled": true
+    }
+  ],
+  "rateCard": {
+    "vehicles": {
+      "bicycle": {
+        "baseFee": 700,
+        "perKm": 120,
+        "maxDistanceMetres": 8000,
+        "maxWeightGrams": 8000,
+        "maxVolumeLitres": 40,
+        "temperatures": ["ambient", "chilled"]
+      },
+      "motorbike": {
+        "baseFee": 800,
+        "perKm": 130,
+        "maxDistanceMetres": 25000,
+        "maxWeightGrams": 15000,
+        "maxVolumeLitres": 60,
+        "temperatures": ["ambient", "chilled"]
+      },
+      "car": {
+        "baseFee": 1000,
+        "perKm": 150,
+        "maxDistanceMetres": 60000,
+        "maxWeightGrams": 50000,
+        "maxVolumeLitres": 300,
+        "temperatures": ["ambient", "chilled", "frozen"]
+      },
+      "van": {
+        "baseFee": 2500,
+        "perKm": 220,
+        "maxDistanceMetres": 100000,
+        "maxWeightGrams": 500000,
+        "maxVolumeLitres": 3000,
+        "temperatures": ["ambient", "chilled", "frozen"]
+      }
+    },
+    "coldChainSurcharge": { "ambient": 0, "chilled": 300, "frozen": 500 },
+    "scheduledDiscountBps": 1000
+  },
+  "coldChain": {
+    "chilled": { "maxCelsius": 5 },
+    "frozen": { "maxCelsius": -15 }
+  },
+  "scheduling": {
+    "minLeadMinutes": 60,
+    "maxDaysAhead": 7,
+    "minWindowMinutes": 60
+  }
+}

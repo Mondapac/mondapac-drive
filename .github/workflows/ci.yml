@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (Node ${{ matrix.node.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # The exact minimum of `engines` in package.json, and the version in .nvmrc.
+        node:
+          - label: minimum
+            version: 24.20.0
+          - label: .nvmrc
+            version-file: .nvmrc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node.version }}
+          node-version-file: ${{ matrix.node.version-file }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+
+  migrations:
+    name: Migrations apply and reverse
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drive
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d drive"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drive
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply all migrations
+        run: pnpm db:migrate
+      - name: Reverse them newest first, then apply again
+        run: |
+          for dir in $(ls -d prisma/migrations/*/ | sort -r); do
+            psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$dir/down.sql"
+          done
+          psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'TRUNCATE "_prisma_migrations"'
+          pnpm db:migrate

@@ -1,0 +1,8 @@
+*.md
+docs/
+pnpm-lock.yaml
+dist/
+coverage/
+node_modules/
+**/generated/
+prisma/migrations/
