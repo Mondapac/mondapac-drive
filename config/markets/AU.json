@@ -215,7 +215,8 @@
     "webhooks": {
       "maxAttempts": 8,
       "firstRetrySeconds": 30,
-      "maxRetrySeconds": 3600
+      "maxRetrySeconds": 3600,
+      "rotationOverlapMinutes": 1440
     },
     "sms": {
       "senderId": "Mondapac",
@@ -227,7 +228,9 @@
         "on_the_way": "Your order {reference} is on the way. Track it: {trackingUrl}",
         "delivered": "Your order {reference} has been delivered.",
         "failed": "We could not deliver your order {reference}. The sender will contact you."
-      }
+      },
+      "pinText": "Your delivery PIN is {pin}.",
+      "trackingPageUrl": "https://track.mondapac.com.au/t/{token}"
     }
   },
   "fleet": {

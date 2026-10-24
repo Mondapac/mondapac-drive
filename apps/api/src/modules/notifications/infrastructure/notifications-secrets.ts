@@ -15,14 +15,20 @@ export const MIN_WEBHOOK_KEY_BYTES = 32;
 
 /**
  * The deployment's webhook key, from which every subscription's secret is derived:
- * `NOTIFICATIONS_WEBHOOK_KEY`, base64 of at least 32 random bytes. When it is unset and
- * `NODE_ENV` is explicitly `development` or `test`, a stand-in derived from a constant of this
- * file is used (like the rate-limit secret's), which protects nothing; anywhere else an unset
- * or short key stops the process at start-up. The value is never logged.
+ * `NOTIFICATIONS_WEBHOOK_KEY`, base64 of at least 32 random bytes. Anywhere but an explicit
+ * `development` or `test` run an unset or short key stops the process at start-up. The value
+ * is never logged.
+ *
+ * Unset in such a run, a local stand-in is used, guarded (Hassan L3 on package 11) so that a
+ * deployment started with the wrong NODE_ENV cannot sign with a key anyone can compute from
+ * this file: it is refused when Twilio credentials are set (only a real deployment sends SMS),
+ * and it is derived from the constant together with `DATABASE_URL`, whose credentials are the
+ * deployment's own, so the API and the worker of one environment agree and no other can
+ * reproduce it.
  */
 export function webhookKey(
   env: Readonly<Record<string, string | undefined>>,
-  environment: Pick<AppConfig, 'nodeEnv' | 'nodeEnvExplicit'>,
+  environment: Pick<AppConfig, 'nodeEnv' | 'nodeEnvExplicit' | 'databaseUrl'>,
 ): Uint8Array {
   const raw = env.NOTIFICATIONS_WEBHOOK_KEY;
   if (raw !== undefined && raw !== '') {
@@ -37,13 +43,19 @@ export function webhookKey(
   if (nodeEnvExplicit !== true || (nodeEnv !== 'development' && nodeEnv !== 'test')) {
     throw new WebhookKeyRefusedError('required outside an explicit development or test run');
   }
+  if ((env.TWILIO_ACCOUNT_SID ?? '') !== '' || (env.TWILIO_AUTH_TOKEN ?? '') !== '') {
+    throw new WebhookKeyRefusedError('required wherever Twilio credentials are set');
+  }
   new Logger('NotificationsWebhookKey').warn({
     msg: 'notifications.webhook-key.local-stand-in',
     nodeEnv,
     note: 'webhook secrets derive from the local stand-in key, which protects nothing',
   });
   return new Uint8Array(
-    createHash('sha256').update('mondapac-drive.notifications.webhook-key.stand-in.v1').digest(),
+    createHash('sha256')
+      .update('mondapac-drive.notifications.webhook-key.stand-in.v2\0')
+      .update(environment.databaseUrl)
+      .digest(),
   );
 }
 
