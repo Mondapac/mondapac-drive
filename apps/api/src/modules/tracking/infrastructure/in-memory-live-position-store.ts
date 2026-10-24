@@ -1,7 +1,16 @@
-import { Temporal, type Clock, type GeoPoint, type MarketId } from '@mondapac-drive/shared-kernel';
+import {
+  Temporal,
+  type Clock,
+  type GeoPoint,
+  type MarketContext,
+} from '@mondapac-drive/shared-kernel';
 import type { LivePositionStore } from '../application/ports';
 import { straightLineMetres } from '../domain/geo-distance';
 import type { LivePosition, NearbyCourier } from '../domain/live-position';
+
+/** One key per Market, tenant and courier, as the Redis store's hash tag. */
+const scoped = (market: MarketContext, courierId: string) =>
+  `${market.marketId}:${market.tenantId}:${courierId}`;
 
 interface Entry<T> {
   readonly value: T;
@@ -19,15 +28,19 @@ export class InMemoryLivePositionStore implements LivePositionStore {
 
   constructor(private readonly clock: Clock) {}
 
-  claimPingSlot(market: MarketId, courierId: string, intervalSeconds: number): Promise<boolean> {
-    const key = `${market}:${courierId}`;
+  claimPingSlot(
+    market: MarketContext,
+    courierId: string,
+    intervalSeconds: number,
+  ): Promise<boolean> {
+    const key = scoped(market, courierId);
     if (this.#live(this.#slots.get(key)) !== undefined) return Promise.resolve(false);
     this.#slots.set(key, { value: true, expiresAt: this.#in(intervalSeconds) });
     return Promise.resolve(true);
   }
 
-  save(market: MarketId, position: LivePosition, ttlSeconds: number): Promise<boolean> {
-    const key = `${market}:${position.courierId}`;
+  save(market: MarketContext, position: LivePosition, ttlSeconds: number): Promise<boolean> {
+    const key = scoped(market, position.courierId);
     const current = this.#live(this.#positions.get(key));
     if (
       current !== undefined &&
@@ -39,12 +52,12 @@ export class InMemoryLivePositionStore implements LivePositionStore {
     return Promise.resolve(true);
   }
 
-  lastKnown(market: MarketId, courierId: string): Promise<LivePosition | undefined> {
-    return Promise.resolve(this.#live(this.#positions.get(`${market}:${courierId}`)));
+  lastKnown(market: MarketContext, courierId: string): Promise<LivePosition | undefined> {
+    return Promise.resolve(this.#live(this.#positions.get(scoped(market, courierId))));
   }
 
   nearest(
-    market: MarketId,
+    market: MarketContext,
     point: GeoPoint,
     radiusMetres: number,
     limit: number,
@@ -53,7 +66,7 @@ export class InMemoryLivePositionStore implements LivePositionStore {
     const nearby: NearbyCourier[] = [];
     for (const [key, entry] of this.#positions) {
       const position = this.#live(entry);
-      if (position === undefined || !key.startsWith(`${market}:`)) continue;
+      if (position === undefined || !key.startsWith(scoped(market, ''))) continue;
       if (serviceAreaCode !== undefined && position.serviceAreaCode !== serviceAreaCode) continue;
       const distanceMetres = straightLineMetres(point, position.point);
       if (distanceMetres <= radiusMetres) nearby.push({ position, distanceMetres });

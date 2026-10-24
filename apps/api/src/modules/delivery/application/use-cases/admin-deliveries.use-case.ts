@@ -1,4 +1,5 @@
 import { err, ok } from '@mondapac-drive/shared-kernel';
+import type { CourierAccounts } from '../ports';
 import type { CallContext, Id, Result } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { DELIVERY_CANCEL, DELIVERY_DISPATCH, DELIVERY_VIEW } from '../../contracts/permissions';
@@ -27,6 +28,10 @@ export const DISPATCH_EVENT_TYPES: readonly DeliveryEventType[] = Object.freeze(
 
 export interface DispatchInput extends DeliveryRef {
   readonly event: DeliveryEventInput;
+}
+
+export interface DispatchDeliveryDependencies extends DeliveryAccessDependencies {
+  readonly couriers: CourierAccounts;
 }
 
 const anyDelivery = (): boolean => true;
@@ -115,7 +120,8 @@ export class ViewDelivery extends UseCase<DeliveryRef, DeliveryState, DeliveryFa
 /**
  * Dispatch: open dispatch of a scheduled delivery, assign a courier with a vehicle, or unassign.
  * Rule `permissions [delivery.delivery.dispatch]`. The courier id is the courier's identity
- * account; that it names an active courier is fleet's check when fleet lands.
+ * account, and an assignment is refused unless it names an active courier account of the Market
+ * (`delivery.courier-not-active`; Hassan, WP2 review).
  */
 export class DispatchDelivery extends UseCase<DispatchInput, DeliveryState, DeliveryFailure> {
   static override readonly access: AccessDeclaration = {
@@ -125,16 +131,27 @@ export class DispatchDelivery extends UseCase<DispatchInput, DeliveryState, Deli
 
   constructor(
     gate: UseCaseGate,
-    private readonly deps: DeliveryAccessDependencies,
+    private readonly deps: DispatchDeliveryDependencies,
   ) {
     super(gate);
   }
 
-  protected handle(
+  protected async handle(
     context: CallContext,
     input: DispatchInput,
   ): Promise<Result<DeliveryState, DeliveryFailure>> {
-    if (!isAdmin(context)) return Promise.resolve(err(ACCESS_DENIED));
+    if (!isAdmin(context)) return err(ACCESS_DENIED);
+    const { courierId } = input.event;
+    if (input.event.type === 'courier_assigned' && courierId !== undefined) {
+      const active = await this.deps.couriers.isActive(context, courierId);
+      if (active === undefined) return err(ACCESS_DENIED);
+      if (!active) {
+        return err({
+          code: 'delivery.courier-not-active',
+          message: 'The courier is not an active courier of this Market',
+        });
+      }
+    }
     return recordEvent(
       this.deps,
       context.market,

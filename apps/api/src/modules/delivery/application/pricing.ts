@@ -1,4 +1,5 @@
 import {
+  err,
   ok,
   type Clock,
   type GeoPoint,
@@ -13,11 +14,21 @@ import { assertWindowAllowed, type DeliveryMode, type DeliveryWindow } from '../
 import type { ServiceArea } from '../domain/service-area';
 import type { VehicleType } from '../domain/vehicle';
 import { refusingBrokenRules, type DeliveryFailure } from './failure';
-import type { DistanceProvider, MarketSettingsProvider } from './ports';
+import type { DistanceProvider, Geocoder, MarketSettingsProvider } from './ports';
+
+/** A stop as a request gives it: coordinates, or an address to geocode, or both. */
+export interface StopLocation {
+  readonly postcode: string;
+  readonly point?: GeoPoint;
+  readonly address?: string;
+}
+
+/** The vehicle the road distance is measured for when the request names none. */
+const DEFAULT_ROUTING_VEHICLE: VehicleType = 'car';
 
 export interface QuoteDeliveryInput {
-  readonly pickup: { readonly postcode: string; readonly point: GeoPoint };
-  readonly dropoff: { readonly postcode: string; readonly point: GeoPoint };
+  readonly pickup: StopLocation;
+  readonly dropoff: StopLocation;
   readonly parcel: Parcel;
   readonly mode: DeliveryMode;
   readonly window?: DeliveryWindow;
@@ -28,12 +39,16 @@ export interface QuoteDeliveryResult {
   readonly quote: DeliveryQuote;
   readonly serviceArea: ServiceArea;
   readonly settings: MarketDeliverySettings;
+  /** The stops' points: as given, or geocoded from the address. */
+  readonly pickupPoint: GeoPoint;
+  readonly dropoffPoint: GeoPoint;
 }
 
 /** The ports {@link DeliveryPricing} reads. */
 export interface DeliveryPricingDependencies {
   readonly markets: MarketSettingsProvider;
   readonly distances: DistanceProvider;
+  readonly geocoder: Geocoder;
   readonly clock: Clock;
 }
 
@@ -45,11 +60,13 @@ export interface DeliveryPricingDependencies {
 export class DeliveryPricing {
   private readonly markets: MarketSettingsProvider;
   private readonly distances: DistanceProvider;
+  private readonly geocoder: Geocoder;
   private readonly clock: Clock;
 
   constructor(deps: DeliveryPricingDependencies) {
     this.markets = deps.markets;
     this.distances = deps.distances;
+    this.geocoder = deps.geocoder;
     this.clock = deps.clock;
   }
 
@@ -83,9 +100,15 @@ export class DeliveryPricing {
         );
       }
 
+      const pickupPoint = await this.pointOf(market, input.pickup, 'pickup');
+      if (!('lat' in pickupPoint)) return err(pickupPoint);
+      const dropoffPoint = await this.pointOf(market, input.dropoff, 'dropoff');
+      if (!('lat' in dropoffPoint)) return err(dropoffPoint);
       const distanceMetres = await this.distances.roadDistanceMetres(
-        input.pickup.point,
-        input.dropoff.point,
+        market,
+        pickupPoint,
+        dropoffPoint,
+        input.vehicle ?? DEFAULT_ROUTING_VEHICLE,
       );
       const quote = priceDelivery(settings, {
         parcel: input.parcel,
@@ -93,8 +116,34 @@ export class DeliveryPricing {
         mode: input.mode,
         vehicle: input.vehicle,
       });
-      return ok({ quote, serviceArea, settings });
+      return ok({ quote, serviceArea, settings, pickupPoint, dropoffPoint });
     });
+  }
+
+  /** The stop's point, geocoded from its address and postcode when the request gives none. */
+  private async pointOf(
+    market: MarketContext,
+    stop: StopLocation,
+    which: 'pickup' | 'dropoff',
+  ): Promise<GeoPoint | DeliveryFailure> {
+    if (stop.point !== undefined) return stop.point;
+    if (stop.address === undefined) {
+      return {
+        code: 'address.point-required',
+        message: `The ${which} needs a point or an address`,
+      };
+    }
+    const located = await this.geocoder.locate(market, stop.address, stop.postcode);
+    if (located === 'not-found') {
+      return { code: 'address.not-found', message: `The ${which} address could not be found` };
+    }
+    if (located === 'unavailable') {
+      return {
+        code: 'address.geocoding-unavailable',
+        message: `The ${which} address cannot be located now; send its coordinates or retry`,
+      };
+    }
+    return located;
   }
 
   private servedArea(

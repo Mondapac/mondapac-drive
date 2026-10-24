@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Temporal } from '@mondapac-drive/shared-kernel';
+import { testMarketContext } from '@mondapac-drive/shared-kernel/testing';
 import { Redis } from 'ioredis';
 import type { LivePosition } from '../../src/modules/tracking/domain/live-position';
 import { RedisLivePositionStore } from '../../src/modules/tracking/infrastructure/redis-live-position-store';
@@ -7,7 +8,7 @@ import { TEST_MARKET_IDS } from '../support/test-config';
 
 // The live position store on a real Redis (REDIS_URL; docker compose maps it to 6380, CI sets
 // it): GEO search nearest first, a later reading wins, the TTL drops an offline courier, the
-// throttle slot, per-area sets, and no Market sees another's couriers. Courier ids are random,
+// throttle slot, per-area sets, and no Market, nor tenant of a Market, sees another's couriers. Courier ids are random,
 // so parallel runs on one Redis never meet.
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6380';
@@ -43,8 +44,13 @@ describe('live positions on Redis (integration)', () => {
   });
   const ours = (ids: string[]) => ids.filter((id) => id.endsWith(run));
 
-  describe.each(TEST_MARKET_IDS)('in market %s', (market) => {
-    const other = TEST_MARKET_IDS.find((m) => m !== market)!;
+  describe.each(TEST_MARKET_IDS)('in market %s', (code) => {
+    const market = testMarketContext(code, 'platform');
+    const other = testMarketContext(
+      TEST_MARKET_IDS.find((m) => m !== code)!,
+      'platform',
+    );
+    const otherTenant = testMarketContext(code, 'second-tenant');
 
     it('answers the nearest couriers first, with their positions, and only within the radius', async () => {
       await store.save(market, position('near', -27.4701), 60);
@@ -62,19 +68,29 @@ describe('live positions on Redis (integration)', () => {
       expect(ours(elsewhere.map((n) => n.position.courierId))).not.toContain(`near-${run}`);
     });
 
+    it("keeps each tenant's couriers to itself, under the tenant's hash tag", async () => {
+      await store.save(market, position('tenant', -27.4705), 60);
+      expect(await redis.exists(`tracking:{${code}:platform}:pos:tenant-${run}`)).toBe(1);
+      expect(await store.lastKnown(otherTenant, `tenant-${run}`)).toBeUndefined();
+      const found = await store.nearest(otherTenant, { lat: -27.47, lng: 153.02 }, 5000, 50);
+      expect(ours(found.map((n) => n.position.courierId))).toEqual([]);
+      expect(await store.claimPingSlot(market, `tenant-${run}`, 1)).toBe(true);
+      expect(await store.claimPingSlot(otherTenant, `tenant-${run}`, 1)).toBe(true);
+    });
+
     it('keeps the later reading when pings arrive out of order', async () => {
       expect(
         await store.save(
           market,
-          position(`order${market}`, -27.47, { recordedAt: at.add({ seconds: 10 }) }),
+          position(`order${code}`, -27.47, { recordedAt: at.add({ seconds: 10 }) }),
           60,
         ),
       ).toBe(true);
       expect(
-        await store.save(market, position(`order${market}`, -27.6, { recordedAt: at }), 60),
+        await store.save(market, position(`order${code}`, -27.6, { recordedAt: at }), 60),
       ).toBe(false);
-      expect((await store.lastKnown(market, `order${market}-${run}`))?.point.lat).toBe(-27.47);
-      expect(await store.lastKnown(other, `order${market}-${run}`)).toBeUndefined();
+      expect((await store.lastKnown(market, `order${code}-${run}`))?.point.lat).toBe(-27.47);
+      expect(await store.lastKnown(other, `order${code}-${run}`)).toBeUndefined();
     });
 
     it('drops a courier once the TTL runs out, from the position and from the search', async () => {
@@ -85,7 +101,7 @@ describe('live positions on Redis (integration)', () => {
       const found = await store.nearest(market, { lat: -27.47, lng: 153.02 }, 5000, 50);
       expect(found.map((n) => n.position.courierId)).not.toContain(`gone-${run}`);
       // The stale GEO member was removed by the search.
-      expect(await redis.zscore(`tracking:{${market}}:geo`, `gone-${run}`)).toBeNull();
+      expect(await redis.zscore(`tracking:{${code}:platform}:geo`, `gone-${run}`)).toBeNull();
     });
 
     it('searches one service area, and moves a courier out of the area they left', async () => {
@@ -116,7 +132,10 @@ describe('live positions on Redis (integration)', () => {
 
     it('expires every key it writes', async () => {
       await store.save(market, position('ttl', -27.4704), 60);
-      for (const key of [`tracking:{${market}}:pos:ttl-${run}`, `tracking:{${market}}:geo`]) {
+      for (const key of [
+        `tracking:{${code}:platform}:pos:ttl-${run}`,
+        `tracking:{${code}:platform}:geo`,
+      ]) {
         const ttl = await redis.pttl(key);
         expect(ttl).toBeGreaterThan(0);
         expect(ttl).toBeLessThanOrEqual(60_000);

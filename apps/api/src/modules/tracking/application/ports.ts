@@ -7,7 +7,8 @@ import type { TrackingSettings } from '../domain/tracking-settings';
 import type { VehicleType } from '../domain/vehicle';
 
 /**
- * The couriers' live positions, per Market (Redis GEO in production, keys under `tracking:`).
+ * The couriers' live positions, per Market and tenant (Redis GEO in production, keys under
+ * `tracking:`).
  * A position disappears `ttlSeconds` after it was saved, so an offline courier drops out of
  * every search. Calls run outside any unit of work.
  */
@@ -16,19 +17,23 @@ export interface LivePositionStore {
    * Takes the courier's ping slot for `intervalSeconds`. False when a ping of the courier was
    * accepted less than `intervalSeconds` ago: the caller refuses this one as throttled.
    */
-  claimPingSlot(market: MarketId, courierId: string, intervalSeconds: number): Promise<boolean>;
+  claimPingSlot(
+    market: MarketContext,
+    courierId: string,
+    intervalSeconds: number,
+  ): Promise<boolean>;
   /**
    * Saves the courier's latest position unless a later reading is already stored (pings can
    * arrive out of order). Answers whether it was saved.
    */
-  save(market: MarketId, position: LivePosition, ttlSeconds: number): Promise<boolean>;
-  lastKnown(market: MarketId, courierId: string): Promise<LivePosition | undefined>;
+  save(market: MarketContext, position: LivePosition, ttlSeconds: number): Promise<boolean>;
+  lastKnown(market: MarketContext, courierId: string): Promise<LivePosition | undefined>;
   /**
    * The couriers within `radiusMetres` of `point`, nearest first, at most `limit`. With a
    * service area, only couriers whose latest ping named that area.
    */
   nearest(
-    market: MarketId,
+    market: MarketContext,
     point: GeoPoint,
     radiusMetres: number,
     limit: number,

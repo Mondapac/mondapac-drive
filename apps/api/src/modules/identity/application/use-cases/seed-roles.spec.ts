@@ -92,7 +92,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
 
     expect(roleOf('platform', 'dispatcher')).toMatchObject({
       kind: 'default',
-      seedVersion: 1,
+      seedVersion: 2,
       permissionKeys: [
         'delivery.delivery.cancel',
         'delivery.delivery.dispatch',
@@ -100,6 +100,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
         'identity.courier-account.disable',
         'identity.courier-account.invite',
         'identity.courier-account.view',
+        'tracking.map.view',
       ],
     });
     expect(roleOf('merchant', 'merchant')).toMatchObject({ kind: 'system', permissionKeys: [] });
@@ -131,7 +132,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
       role.seedCode === 'dispatcher'
         ? {
             ...role,
-            seedVersion: 2,
+            seedVersion: 3,
             permissionKeys: ['delivery.delivery.view', 'identity.merchant.view'],
           }
         : role,
@@ -144,16 +145,16 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
 
     expect(roleOf('platform', 'dispatcher')).toMatchObject({
       id: before.id,
-      seedVersion: 2,
+      seedVersion: 3,
       version: before.version + 1,
       permissionKeys: ['delivery.delivery.view', 'identity.merchant.view'],
     });
     expect(fakes.audits).toEqual([
       {
         ...RoleSeedApplied.entry(before.id, {
-          before: { seedVersion: 1 },
+          before: { seedVersion: 2 },
           after: {
-            seedVersion: 2,
+            seedVersion: 3,
             addedKeys: ['identity.merchant.view'],
             removedKeys: [
               'delivery.delivery.cancel',
@@ -161,6 +162,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
               'identity.courier-account.disable',
               'identity.courier-account.invite',
               'identity.courier-account.view',
+              'tracking.map.view',
             ],
           },
         }),
@@ -170,8 +172,8 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     ]);
     expect(logged('identity.seed-roles.upgraded')?.[0]).toMatchObject({
       roleId: before.id,
-      fromSeedVersion: 1,
-      seedVersion: 2,
+      fromSeedVersion: 2,
+      seedVersion: 3,
     });
 
     // Applied once: the next run finds the role current and writes nothing.
@@ -225,7 +227,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     expect(logged('identity.seed-roles.stored-newer')?.[0]).toMatchObject({
       seedCode: 'operator',
       storedSeedVersion: 15,
-      seedVersion: 1,
+      seedVersion: 2,
     });
   });
 
@@ -236,10 +238,10 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     fakes.audits.length = 0;
 
     await seedRoles(
-      seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 2 } : role)),
+      seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 3 } : role)),
     ).execute(system, {});
 
-    expect(fakes.roles.get(stored.id)!.seedVersion).toBe(1);
+    expect(fakes.roles.get(stored.id)!.seedVersion).toBe(2);
     expect(fakes.audits).toEqual([]);
     expect(logged('identity.seed-roles.kind-mismatch')).toBeDefined();
   });

@@ -1,8 +1,15 @@
-import type { GeoPoint, Id, MarketContext, MarketId } from '@mondapac-drive/shared-kernel';
+import type {
+  CallContext,
+  GeoPoint,
+  Id,
+  MarketContext,
+  MarketId,
+} from '@mondapac-drive/shared-kernel';
 import type { DeliveryState } from '../domain/delivery';
 import type { DeliveryStatus } from '../domain/delivery-status';
 import type { MarketDeliverySettings } from '../domain/market-settings';
 import type { ServiceArea } from '../domain/service-area';
+import type { VehicleType } from '../domain/vehicle';
 
 /**
  * The deliveries of one Market. Every method runs inside the caller's unit of work
@@ -65,11 +72,28 @@ export type DeliverySummary = Pick<
 };
 export const DELIVERY_REPOSITORY = Symbol('DeliveryRepository');
 
-/** Road distance between two points, in metres. */
+/** Road distance between two points for a vehicle, in metres. Always answers (an estimate at worst). */
 export interface DistanceProvider {
-  roadDistanceMetres(from: GeoPoint, to: GeoPoint): Promise<number>;
+  roadDistanceMetres(
+    market: MarketContext,
+    from: GeoPoint,
+    to: GeoPoint,
+    vehicle: VehicleType,
+  ): Promise<number>;
 }
 export const DISTANCE_PROVIDER = Symbol('DistanceProvider');
+
+/** What {@link Geocoder} answers for an address it cannot place. */
+export type GeocodeMiss = 'not-found' | 'unavailable';
+
+/**
+ * The point of a stop given by address and postcode, for a request without coordinates. The
+ * point may be the postcode's centre when the address itself is not found.
+ */
+export interface Geocoder {
+  locate(market: MarketContext, address: string, postcode: string): Promise<GeoPoint | GeocodeMiss>;
+}
+export const GEOCODER = Symbol('Geocoder');
 
 /** The delivery settings and service areas of the Markets this deployment hosts. */
 export interface MarketSettingsProvider {
@@ -79,3 +103,13 @@ export interface MarketSettingsProvider {
   areaFor(marketId: MarketId, postcode: string): ServiceArea | undefined;
 }
 export const MARKET_SETTINGS = Symbol('MarketSettingsProvider');
+
+/** Courier accounts as identity knows them. */
+export interface CourierAccounts {
+  /**
+   * Whether the id names an active courier account of the Market, asked as the calling actor;
+   * `undefined` when the actor may not ask (its role does not hold the courier view).
+   */
+  isActive(context: CallContext, accountId: string): Promise<boolean | undefined>;
+}
+export const COURIER_ACCOUNTS = Symbol('CourierAccounts');

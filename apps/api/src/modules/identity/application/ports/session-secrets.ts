@@ -12,7 +12,11 @@ export interface IssuedSessionToken {
  * a short version prefix; only the SHA-256 is stored.
  */
 export interface SessionTokens {
-  issue(): IssuedSessionToken;
+  /**
+   * A new token. A merchant API key has its own prefix (`kind: 'api-key'`), so a scanner, a log
+   * filter or a person tells a long-lived integration key from a browser or app session.
+   */
+  issue(kind?: 'session' | 'api-key'): IssuedSessionToken;
   /** The stored hash of a presented token, or null when it does not have the token's shape. */
   hashOf(token: string): Uint8Array | null;
 }

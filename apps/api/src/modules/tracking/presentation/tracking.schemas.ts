@@ -1,11 +1,14 @@
 import { Temporal } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
+import { MAX_PINGS_PER_REQUEST } from '../application/use-cases/record-location-ping.use-case';
 
 /**
  * A courier's location ping. Ranges are checked here for a clear 400 and again by the domain
- * against the Market's limits (accuracy, speed, age).
+ * against the Market's limits (accuracy, speed, age). The courier is the session's: a
+ * `courierId` the courier app still sends is accepted and dropped, never used.
  */
-export const pingBody = z.strictObject({
+const ping = z.strictObject({
+  courierId: z.string().max(64).optional(),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   accuracyM: z.number().min(0).max(10_000),
@@ -16,6 +19,21 @@ export const pingBody = z.strictObject({
     .string()
     .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
     .optional(),
+});
+
+/** A batch of the courier's latest fixes, at most {@link MAX_PINGS_PER_REQUEST}. */
+export const pingBody = z.strictObject({
+  pings: z
+    .array(ping)
+    .min(1)
+    .max(MAX_PINGS_PER_REQUEST)
+    .transform((pings) =>
+      pings.map((item) => {
+        const rest = { ...item };
+        delete rest.courierId;
+        return rest;
+      }),
+    ),
 });
 
 export const nearestQuery = z.strictObject({

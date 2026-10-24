@@ -2,10 +2,19 @@ import type { Provider } from '@nestjs/common';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { ServiceAreaDirectory } from '../../../platform/market-config/service-area-directory';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
-import { DELIVERY_REPOSITORY, DISTANCE_PROVIDER, MARKET_SETTINGS } from '../application/ports';
+import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
+import { ROUTING_PROVIDER, type RoutingProvider } from '../../../platform/routing';
+import {
+  COURIER_ACCOUNTS,
+  DELIVERY_REPOSITORY,
+  DISTANCE_PROVIDER,
+  GEOCODER,
+  MARKET_SETTINGS,
+} from '../application/ports';
 import { ConfigMarketSettingsProvider } from './config-market-settings.provider';
+import { IdentityCourierAccounts } from './identity-courier-accounts';
 import { PrismaDeliveryRepository } from './prisma-delivery.repository';
-import { StraightLineDistanceProvider } from './straight-line-distance.provider';
+import { RoutingDistanceProvider, RoutingGeocoder } from './routing-delivery.providers';
 
 /** The implementations of the delivery ports. Only infrastructure/ reaches the persistence internals. */
 export const deliveryProviders: Provider[] = [
@@ -20,5 +29,19 @@ export const deliveryProviders: Provider[] = [
     useFactory: (markets: MarketRegistry, areas: ServiceAreaDirectory) =>
       new ConfigMarketSettingsProvider(markets, areas),
   },
-  { provide: DISTANCE_PROVIDER, useValue: new StraightLineDistanceProvider() },
+  {
+    provide: DISTANCE_PROVIDER,
+    inject: [ROUTING_PROVIDER],
+    useFactory: (routing: RoutingProvider) => new RoutingDistanceProvider(routing),
+  },
+  {
+    provide: COURIER_ACCOUNTS,
+    inject: [IDENTITY_FACADE],
+    useFactory: (identity: IdentityFacade) => new IdentityCourierAccounts(identity),
+  },
+  {
+    provide: GEOCODER,
+    inject: [ROUTING_PROVIDER],
+    useFactory: (routing: RoutingProvider) => new RoutingGeocoder(routing),
+  },
 ];

@@ -35,6 +35,15 @@ export interface IdentityFacade {
     context: CallContext,
     accountId: Id<'Account'>,
   ): Promise<Result<string | null, AccessDenied>>;
+
+  /**
+   * Whether `accountId` is an active courier account of the context's Market. Rule `permissions
+   * [identity.courier-account.view]`: a dispatcher checks a courier before assigning a job.
+   */
+  isActiveCourier(
+    context: CallContext,
+    accountId: Id<'Account'>,
+  ): Promise<Result<boolean, AccessDenied>>;
 }
 
 /** Nest token of the {@link IdentityFacade}, provided and exported by `IdentityModule`. */

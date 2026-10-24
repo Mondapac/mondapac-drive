@@ -24,6 +24,7 @@ model TrackingDelivery {
   @@id([marketId, deliveryId])
   @@index([marketId, courierId])
   @@index([marketId, endedAt])
+  @@index([marketId, updatedAt])
   @@map("tracked_deliveries")
   @@schema("tracking")
 }
