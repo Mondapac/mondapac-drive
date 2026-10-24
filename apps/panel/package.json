@@ -5,8 +5,8 @@
   "description": "Mondapac Drive operations panel for operators and dispatchers, copied from the marketplace admin panel (a87dd54f). Thin Next.js app; shared components live in @mondapac-drive/ui.",
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "node server.mjs --dev",
-    "build": "next build",
+    "dev": "node scripts/copy-maplibre-worker.mjs && node server.mjs --dev",
+    "build": "node scripts/copy-maplibre-worker.mjs && next build",
     "start": "node server.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
@@ -14,6 +14,7 @@
   "dependencies": {
     "@mondapac-drive/panel-server": "workspace:*",
     "@mondapac-drive/ui": "workspace:*",
+    "maplibre-gl": "6.12.0",
     "next": "16.4.2",
     "next-intl": "4.14.9",
     "qrcode-generator": "2.0.4",

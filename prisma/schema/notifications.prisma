@@ -13,6 +13,8 @@ model NotificationsWebhookSubscription {
   eventTypes    String[] @map("event_types")
   /// The version the signing secret is derived with; a rotation adds one.
   secretVersion Int      @map("secret_version")
+  /// Until when secret_version - 1 still signs next to the current one (rotation overlap).
+  previousSecretValidUntil DateTime? @map("previous_secret_valid_until") @db.Timestamptz(6)
   status        String   @db.VarChar(16)
   createdAt     DateTime @map("created_at") @db.Timestamptz(6)
   version       Int
@@ -75,5 +77,18 @@ model NotificationsSmsMessage {
   @@unique([marketId, deliveryId, kind])
   @@index([marketId, status, nextAttemptAt])
   @@map("sms_messages")
+  @@schema("notifications")
+}
+
+/// Delivery events notifications' handlers consumed, for at-most-once handling.
+model NotificationsInbox {
+  eventId     String   @map("event_id") @db.Uuid
+  handler     String
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@id([eventId, handler])
+  @@map("inbox")
   @@schema("notifications")
 }

@@ -18,7 +18,7 @@ import { FleetDomainError } from './errors';
 import { courierSuspended, courierWentOffline, courierWentOnline } from './events';
 import type { MarketFleetRules } from './fleet-rules';
 import { assertShiftChange, type ShiftState } from './shift';
-import { newVehicle, type NewVehicle } from './vehicle';
+import { checkCapacity, newVehicle, type NewVehicle, type VehicleCapacity } from './vehicle';
 import type { CourierState } from './courier-state';
 
 export type { CourierState } from './courier-state';
@@ -56,6 +56,7 @@ export function registerCourier(input: NewCourier): CourierState {
     status: 'applicant',
     serviceAreaCode: input.serviceAreaCode,
     coldChainCapable: input.coldChainCapable,
+    taxRegistered: false,
     shift: 'offline',
     vehicles: [],
     documents: [],
@@ -174,6 +175,19 @@ export function offboardCourier(courier: CourierState, now: Temporal.Instant): C
   };
 }
 
+/**
+ * An operator records whether the courier is registered for the Market's sales tax, from their
+ * business registration. An offboarded courier's record is final.
+ */
+export function setTaxRegistration(courier: CourierState, taxRegistered: boolean): CourierChange {
+  requireStatus(courier, ['applicant', 'active', 'suspended'], 'fleet.courier.offboarded');
+  if (typeof taxRegistered !== 'boolean') {
+    throw new FleetDomainError('fleet.courier.tax-registration-invalid', 'A yes or no');
+  }
+  if (courier.taxRegistered === taxRegistered) return unchanged(courier);
+  return unchanged(next(courier, { taxRegistered }));
+}
+
 // --- Vehicles -------------------------------------------------------------------------------
 
 export function addVehicle(courier: CourierState, input: NewVehicle): CourierChange {
@@ -207,6 +221,45 @@ export function deactivateVehicle(courier: CourierState, vehicleId: Id<'Vehicle'
   return unchanged(
     next(courier, {
       vehicles: courier.vehicles.map((v) => (v.id === vehicleId ? { ...v, active: false } : v)),
+    }),
+  );
+}
+
+/**
+ * Sets what a vehicle carries, in place of the rate card's default for its type: an operator
+ * measured the vehicle or its box. An inactive vehicle keeps its last capacity.
+ */
+export function setVehicleCapacity(
+  courier: CourierState,
+  vehicleId: Id<'Vehicle'>,
+  capacity: VehicleCapacity,
+): CourierChange {
+  requireStatus(courier, ['applicant', 'active', 'suspended'], 'fleet.courier.offboarded');
+  const vehicle = courier.vehicles.find((candidate) => candidate.id === vehicleId);
+  if (vehicle === undefined) {
+    throw new FleetDomainError('fleet.vehicle.not-found', 'No such vehicle');
+  }
+  if (!vehicle.active) {
+    throw new FleetDomainError('fleet.vehicle.inactive', 'The vehicle is out of use');
+  }
+  checkCapacity(capacity);
+  if (
+    vehicle.maxWeightGrams === capacity.maxWeightGrams &&
+    vehicle.maxVolumeLitres === capacity.maxVolumeLitres
+  ) {
+    return unchanged(courier);
+  }
+  return unchanged(
+    next(courier, {
+      vehicles: courier.vehicles.map((v) =>
+        v.id === vehicleId
+          ? {
+              ...v,
+              maxWeightGrams: capacity.maxWeightGrams,
+              maxVolumeLitres: capacity.maxVolumeLitres,
+            }
+          : v,
+      ),
     }),
   );
 }
@@ -384,7 +437,9 @@ export function rejectDocument(
 /**
  * The courier changes their shift. Only an active courier works shifts, and going online (also
  * back from a pause) needs a vehicle they are eligible for now. Going online from offline and
- * going offline publish an event; a pause and a delivery do not.
+ * going offline publish an event; a pause and a delivery do not. Going online from offline or
+ * from a delivery starts the courier's idle time (`idleSince`), which dispatch uses to offer
+ * work first to whoever has waited longest; coming back from a pause keeps it.
  */
 export function changeShift(
   courier: CourierState,
@@ -396,7 +451,9 @@ export function changeShift(
   if (courier.shift === to) return unchanged(courier);
   assertShiftChange(courier.shift, to);
   if (to === 'online' && courier.shift !== 'on_delivery') requireEligible(courier, rules, now);
-  const changed = next(courier, { shift: to });
+  const startsWaiting =
+    to === 'online' && (courier.shift === 'offline' || courier.shift === 'on_delivery');
+  const changed = next(courier, { shift: to, ...(startsWaiting ? { idleSince: now } : {}) });
   const events: PendingEvent[] = [];
   if (courier.shift === 'offline' && to === 'online') {
     events.push(

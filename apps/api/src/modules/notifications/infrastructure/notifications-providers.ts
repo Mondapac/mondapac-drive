@@ -3,10 +3,12 @@ import { APP_CONFIG } from '../../../platform/config/config.module';
 import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
+import { DeliveryRecipients } from '../../delivery';
+import { IssueTrackingLink } from '../../tracking';
 import {
+  DELIVERY_CONTACTS,
   NOTIFICATION_SETTINGS,
   OUTBOUND_REPOSITORY,
-  RECIPIENT_DIRECTORY,
   SMS_SENDER,
   TRACKING_LINKS,
   WEBHOOK_SIGNER,
@@ -17,11 +19,12 @@ import { ConfigNotificationSettingsProvider } from './config-notification-settin
 import { HmacWebhookSigner } from './hmac-webhook-signer';
 import { HttpsWebhookTransport } from './https-webhook-transport';
 import { twilioCredentials, webhookKey } from './notifications-secrets';
-import { NoRecipientDirectory, NoTrackingLinks } from './pending-integrations';
+import { DeliveryRecipientContacts } from './delivery-contacts';
 import {
   PrismaOutboundRepository,
   PrismaWebhookSubscriptionRepository,
 } from './prisma-notifications.repository';
+import { IssuedTrackingLinks } from './tracking-links';
 import { TwilioSmsSender, UnconfiguredSmsSender } from './twilio-sms-sender';
 
 /** The implementations of the notifications ports. Only infrastructure/ reaches the platform internals. */
@@ -54,6 +57,14 @@ export const notificationsProviders: Provider[] = [
       return credentials === null ? new UnconfiguredSmsSender() : new TwilioSmsSender(credentials);
     },
   },
-  { provide: RECIPIENT_DIRECTORY, useValue: new NoRecipientDirectory() },
-  { provide: TRACKING_LINKS, useValue: new NoTrackingLinks() },
+  {
+    provide: DELIVERY_CONTACTS,
+    inject: [DeliveryRecipients],
+    useFactory: (recipients: DeliveryRecipients) => new DeliveryRecipientContacts(recipients),
+  },
+  {
+    provide: TRACKING_LINKS,
+    inject: [IssueTrackingLink],
+    useFactory: (issue: IssueTrackingLink) => new IssuedTrackingLinks(issue),
+  },
 ];

@@ -83,9 +83,21 @@ export interface DeliverySummary {
   readonly temperature: 'ambient' | 'chilled' | 'frozen';
   readonly pickupPostcode: string;
   readonly dropoffPostcode: string;
+  /** Rounded to 4 decimals; absent until the delivery API sends it (handoff 21). */
+  readonly pickupPoint?: GeoPoint;
+  readonly dropoffPoint?: GeoPoint;
+  /** A state a dispatcher must act on, beside the status; absent or null when there is none. */
+  readonly exception?: DeliveryException | null;
   readonly total: MoneyBody;
   readonly createdAt: string;
 }
+
+export interface GeoPoint {
+  readonly lat: number;
+  readonly lng: number;
+}
+
+export type DeliveryException = 'dispatch-exhausted' | 'cold-chain-breach';
 
 export interface DeliveryPage {
   readonly items: readonly DeliverySummary[];
@@ -173,6 +185,7 @@ export const PERMISSION = {
   courierView: 'identity.courier-account.view',
   courierInvite: 'identity.courier-account.invite',
   courierDisable: 'identity.courier-account.disable',
+  mapView: 'tracking.map.view',
 } as const;
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
