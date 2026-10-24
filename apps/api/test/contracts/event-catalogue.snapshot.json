@@ -241,5 +241,24 @@
       "accountId": "id",
       "change": "enumOf(activated|replaced|recovery-codes-regenerated|reset|locked)"
     }
+  },
+  {
+    "type": "payouts.line-failed.v1",
+    "aggregateType": "payout-line",
+    "fields": {
+      "lineId": "id",
+      "runId": "id",
+      "courierId": "id",
+      "status": "enumOf(failed|unresolved)"
+    }
+  },
+  {
+    "type": "payouts.line-transferred.v1",
+    "aggregateType": "payout-line",
+    "fields": {
+      "lineId": "id",
+      "runId": "id",
+      "courierId": "id"
+    }
   }
 ]

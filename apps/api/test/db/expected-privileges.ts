@@ -267,6 +267,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [
         'attempts',
+        'hold_reason',
         'last_error_code',
         'reversed_amount',
         'status',
@@ -277,9 +278,12 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     'payouts.payout_accounts': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['payouts_enabled', 'updated_at'],
+      columnUpdate: ['payouts_enabled', 'provider_state_at', 'updated_at'],
     },
     'payouts.provider_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261026040000 (handoff 24): the payouts outbox and inbox, as every module's.
+    'payouts.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    'payouts.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

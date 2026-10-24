@@ -95,6 +95,7 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
       'notifications.delivery-booked',
       'notifications.delivery-cancelled',
       'notifications.delivery-status-changed',
+      'payouts.delivery-earning',
       'tracking.delivery-booked',
       'tracking.delivery-cancelled',
       'tracking.delivery-status-changed',
@@ -107,6 +108,7 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     expect(subscriptions.subscribersOf('delivery.status-changed.v1')).toEqual([
       'dispatch.follow-delivery-status',
       'notifications.delivery-status-changed',
+      'payouts.delivery-earning',
       'tracking.delivery-status-changed',
     ]);
     expect(subscriptions.subscribersOf('delivery.cancelled.v1')).toEqual([
