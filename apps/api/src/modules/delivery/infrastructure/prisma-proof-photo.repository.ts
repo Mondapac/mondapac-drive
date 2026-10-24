@@ -33,10 +33,17 @@ export class PrismaProofPhotoRepository implements ProofPhotoRepository {
   async belongsTo(
     market: MarketContext,
     deliveryId: Id<'Delivery'>,
+    courierId: string,
     photoId: Id<'ProofPhoto'>,
   ): Promise<boolean> {
     const found = await this.prisma.tx(market).deliveryProofPhoto.count({
-      where: { marketId: market.marketId, tenantId: market.tenantId, deliveryId, id: photoId },
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        deliveryId,
+        courierId,
+        id: photoId,
+      },
     });
     return found === 1;
   }

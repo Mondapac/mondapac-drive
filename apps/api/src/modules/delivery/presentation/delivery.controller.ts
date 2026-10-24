@@ -9,6 +9,7 @@ import {
   Query,
   Res,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -60,6 +61,7 @@ import {
   dispatchBody,
   quoteBody,
 } from './delivery.schemas';
+import { BearerSessionRequiredGuard } from './bearer-session-required.guard';
 
 /** The status of each refusal; any other code is a broken domain rule (422). */
 const STATUS: Readonly<Record<string, number>> = Object.freeze({
@@ -315,8 +317,9 @@ export class CourierDeliveryController {
   @Post('deliveries/:id/proof-photos')
   @HttpCode(201)
   @ReadsSession()
-  // The session is checked (guards run before interceptors) before any byte is buffered; the
-  // body stops at one file part named `photo` of at most MAX_PROOF_PHOTO_BYTES (413 beyond).
+  // Guards run before interceptors: no byte is buffered without a signed-in courier. The body
+  // stops at one file part named `photo` of at most MAX_PROOF_PHOTO_BYTES (413 beyond).
+  @UseGuards(BearerSessionRequiredGuard)
   @UseInterceptors(
     // No storage option: multer keeps the part in memory (its default without a destination).
     FileInterceptor('photo', {

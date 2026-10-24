@@ -175,10 +175,11 @@ export interface ProofPhotoRepository {
   insert(market: MarketContext, photo: ProofPhoto): Promise<void>;
   /** How many photos the delivery has. */
   countFor(market: MarketContext, deliveryId: Id<'Delivery'>): Promise<number>;
-  /** Whether the photo exists and belongs to this delivery. */
+  /** Whether the photo exists and this courier uploaded it for this delivery. */
   belongsTo(
     market: MarketContext,
     deliveryId: Id<'Delivery'>,
+    courierId: string,
     photoId: Id<'ProofPhoto'>,
   ): Promise<boolean>;
 }

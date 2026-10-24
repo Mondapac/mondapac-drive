@@ -8,6 +8,7 @@ import { testCallContext } from '@mondapac-drive/shared-kernel/testing';
 import { Client } from 'pg';
 import request from 'supertest';
 import { DeliveryRecipients } from '../../src/modules/delivery';
+import { RATE_LIMIT_COUNTERS } from '../../src/platform/rate-limit/rate-limit-counters';
 import { createTestApp } from '../support/test-app';
 import { panelHeaders, TEST_MARKETS } from '../support/test-config';
 import {
@@ -65,10 +66,15 @@ describe('proof of delivery (database integration)', () => {
     let otherCourier: CourierActor;
     const limits = LIMITS[code]!;
 
-    // One application per Market: each gets its own rate-limit window for the many requests.
+    // One application per Market. The per-origin limiter is not under test here and every request
+    // comes from one address, so its counters never pass the limit (ZZ allows 60 a minute).
     beforeAll(async () => {
       ({ app } = await createTestApp({
         panelOrigins: true,
+        override: (builder) =>
+          builder.overrideProvider(RATE_LIMIT_COUNTERS).useValue({
+            consume: () => Promise.resolve({ count: 1, msBeforeNext: 60_000 }),
+          }),
         env: {
           DATABASE_URL: testDatabaseUrl(),
           HOSTED_MARKETS: TEST_MARKETS.join(','),
@@ -98,12 +104,13 @@ describe('proof of delivery (database integration)', () => {
     /** A delivery assigned to `courier` and brought to `steps` (by default the drop-off). */
     async function delivery(
       steps = ['arrived_at_pickup', 'picked_up', 'arrived_at_dropoff'],
+      temperature: 'ambient' | 'chilled' = 'ambient',
     ): Promise<string> {
       const created = await post(code, '/delivery/deliveries', merchant.headers, {
         externalReference: `order-${randomUUID()}`,
         pickup: stop(-27.47),
         dropoff: stop(-27.49),
-        parcel: { weightGrams: 2000, volumeLitres: 10, temperature: 'ambient' },
+        parcel: { weightGrams: 2000, volumeLitres: 10, temperature },
         mode: 'on_demand',
       });
       const { id, quote } = created.body as { id: string; quote: { vehicle: string } };
@@ -112,7 +119,8 @@ describe('proof of delivery (database integration)', () => {
         courierId: courier.accountId,
         vehicle: quote.vehicle,
       });
-      for (const type of steps) await report(id, { type });
+      const reading = temperature === 'ambient' ? {} : { temperatureCelsius: 2 };
+      for (const type of steps) await report(id, { type, ...reading });
       return id;
     }
     const report = (id: string, body: object, by: CourierActor = courier) =>
@@ -186,6 +194,40 @@ describe('proof of delivery (database integration)', () => {
         [id],
       );
       expect(rows).toEqual([{ wrong_pins: 0 }]);
+    });
+
+    it('tells a right PIN from a wrong one only by using an attempt', async () => {
+      const id = await delivery(undefined, 'chilled');
+      const pin = (await pinOf(id))!;
+      // The step's other rules come first: no reading, refused before the PIN is compared.
+      const unread = await report(id, { type: 'delivered', proof: { kind: 'pin', pin } });
+      expect([unread.status, (unread.body as { code: string }).code]).toEqual([
+        422,
+        'cold-chain.reading-required',
+      ]);
+      const { rows } = await sql.query<{ wrong_pins: number }>(
+        'SELECT wrong_pins FROM delivery.deliveries WHERE id = $1',
+        [id],
+      );
+      expect(rows).toEqual([{ wrong_pins: 0 }]);
+      const done = await report(id, {
+        type: 'delivered',
+        temperatureCelsius: 2,
+        proof: { kind: 'pin', pin },
+      });
+      expect(done.status).toBe(200);
+    });
+
+    it('buffers no photo for a caller who has not signed in', async () => {
+      const id = await delivery(['arrived_at_pickup', 'picked_up']);
+      const anonymous = await request(server())
+        .post(`/delivery/courier/deliveries/${id}/proof-photos`)
+        .set({ 'x-market-id': code })
+        .attach('photo', JPEG, { filename: 'door.jpg', contentType: 'image/jpeg' });
+      expect([anonymous.status, (anonymous.body as { code: string }).code]).toEqual([
+        401,
+        'access.unauthenticated',
+      ]);
     });
 
     it('stores a photo for the courier of the delivery only, and never returns its key', async () => {

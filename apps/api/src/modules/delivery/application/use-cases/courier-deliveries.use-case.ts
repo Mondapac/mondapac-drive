@@ -159,8 +159,12 @@ export class ReportAssignmentEvent extends UseCase<ReportInput, DeliveryState, D
             message: `Cannot record ${report.type} while the delivery is ${delivery.status}`,
           });
         }
+        const now = this.deps.clock.now();
         let proof: ProofOfDelivery | undefined;
         if (offered?.kind === 'pin') {
+          // Every other rule of the step first (a cold-chain reading, say): a refusal for another
+          // reason would otherwise tell a right PIN from a wrong one without using an attempt.
+          applyDeliveryEvent(delivery, { ...report, proof: { kind: 'pin' } }, now, settings);
           const { pinLength, maxPinAttempts } = settings.proofOfDelivery;
           const used = await this.deps.deliveries.claimPinAttempt(
             market,
@@ -176,7 +180,7 @@ export class ReportAssignmentEvent extends UseCase<ReportInput, DeliveryState, D
           const photoId = parseId<'ProofPhoto'>(offered.photoRef);
           if (
             !photoId.ok ||
-            !(await this.deps.photos.belongsTo(market, delivery.id, photoId.value))
+            !(await this.deps.photos.belongsTo(market, delivery.id, courierId, photoId.value))
           ) {
             return err({
               code: 'delivery.proof-photo-unknown',
@@ -186,7 +190,7 @@ export class ReportAssignmentEvent extends UseCase<ReportInput, DeliveryState, D
           proof = { kind: 'photo', photoRef: photoId.value };
         }
         const event: DeliveryEventInput = { ...report, ...(proof ? { proof } : {}) };
-        const next = applyDeliveryEvent(delivery, event, this.deps.clock.now(), settings);
+        const next = applyDeliveryEvent(delivery, event, now, settings);
         await saveChange(this.deps, context, delivery, next);
         return ok({ kind: 'recorded', delivery: next });
       }),
