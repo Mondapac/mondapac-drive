@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Temporal } from '@mondapac-drive/shared-kernel';
 import type { JobDefinition } from '../../../../platform/scheduler/job-registry';
 import type { RunPayouts } from '../../application/use-cases/run-payouts.use-case';
@@ -6,8 +7,11 @@ import type { RunPayouts } from '../../application/use-cases/run-payouts.use-cas
  * The payout job: every 15 minutes, in each hosted Market, open the run of a period that has
  * closed and send pending transfers. Safe to run twice and concurrently (RunPayouts). A broken
  * rule or a refused unit is thrown, so the scheduler logs the failed run and retries next tick.
+ * Lines that became unresolved are logged as a warning: their money is debited and waits for an
+ * operator to settle it against the provider's records.
  */
 export function payoutJob(runPayouts: RunPayouts): JobDefinition {
+  const logger = new Logger('Payouts');
   return {
     name: 'payouts.run-payouts',
     every: Temporal.Duration.from({ minutes: 15 }),
@@ -15,6 +19,11 @@ export function payoutJob(runPayouts: RunPayouts): JobDefinition {
     run: async (context) => {
       const result = await runPayouts.run(context.market);
       if (!result.ok) throw new Error(`payouts.run-payouts refused: ${result.error.code}`);
+      if (result.value.unresolved > 0) {
+        logger.warn(
+          `payouts.lines-unresolved market=${context.market.marketId} count=${result.value.unresolved}`,
+        );
+      }
     },
   };
 }

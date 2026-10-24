@@ -105,6 +105,7 @@ describe('StripePayoutGateway', () => {
       false,
     ],
     [json(429, { error: { type: 'rate_limit_error' } }), 'stripe.rate_limit_error', true],
+    [json(400, { error: { type: 'idempotency_error' } }), 'stripe.idempotency_error', true],
     [json(500, { error: { type: 'api_error' } }), 'stripe.api_error', true],
     [{ status: 502, body: '<html>bad gateway</html>' }, 'stripe.unknown', true],
     [new Error('socket hang up'), 'stripe.unreachable', true],

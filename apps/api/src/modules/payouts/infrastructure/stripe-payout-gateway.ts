@@ -66,12 +66,20 @@ function parseJson(text: string): Record<string, unknown> | undefined {
   }
 }
 
-/** A refusal from Stripe's answer: its error code or type, never its message (it may echo input). */
+/**
+ * A refusal from Stripe's answer: its error code or type, never its message (it may echo input).
+ * An idempotency error is transient: an earlier request under the same key exists and may have
+ * been applied, so it must never read as "not paid".
+ */
 function refusalOf(response: HttpResponse): GatewayRefusal {
-  const transient = response.status === 429 || response.status >= 500 || response.status === 409;
   const error = parseJson(response.body)?.error as Record<string, unknown> | undefined;
   const raw = typeof error?.code === 'string' ? error.code : error?.type;
   const code = typeof raw === 'string' && /^[a-z0-9_]{1,48}$/.test(raw) ? raw : 'unknown';
+  const transient =
+    response.status === 429 ||
+    response.status >= 500 ||
+    response.status === 409 ||
+    code === 'idempotency_error';
   return { code: `stripe.${code}`, transient };
 }
 
