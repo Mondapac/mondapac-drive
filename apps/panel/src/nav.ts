@@ -27,6 +27,13 @@ export const adminNav: NavConfig = {
       anyOf: ['identity.courier-account.view'],
     },
     {
+      id: 'fleet',
+      icon: 'truck',
+      labelKey: 'nav.fleet',
+      href: '/fleet',
+      anyOf: ['fleet.courier.view'],
+    },
+    {
       id: 'payouts',
       icon: 'wallet',
       labelKey: 'nav.payouts',
