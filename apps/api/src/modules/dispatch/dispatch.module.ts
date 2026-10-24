@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { registerEvents } from '../../platform/events/event-catalogue';
 import { PersistenceModule } from '../../platform/persistence/persistence.module';
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
+import { FleetModule } from '../fleet';
+import { TrackingModule } from '../tracking';
 import { JobAdvancer } from './application/job-advancer';
 import { AdvanceDispatchJobs } from './application/use-cases/advance-dispatch-jobs.use-case';
 import { AnswerOffer } from './application/use-cases/answer-offer.use-case';
@@ -16,10 +18,12 @@ import { advanceDispatchJobsJob } from './presentation/jobs/advance-dispatch-job
 /**
  * Dispatch: finds a courier for each delivery. Offers go out in waves to the nearest couriers
  * who can carry the parcel, lapse after the Market's accept timeout, and after the last round
- * the job is handed to a dispatcher, who may also assign or reassign by hand. No routes yet:
+ * the job is handed to a dispatcher, who may also assign or reassign by hand. Couriers come
+ * from fleet (who may take work) and tracking (who is near). No routes yet:
  * they come with authentication (work package 2).
  */
 @Module({
+  imports: [FleetModule, TrackingModule],
   providers: [
     JobAdvancer,
     OpenDispatchJob,

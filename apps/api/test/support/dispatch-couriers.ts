@@ -1,11 +1,14 @@
-import type { GeoPoint, MarketContext } from '@mondapac-drive/shared-kernel';
-import type { CourierAvailability, CourierProximity } from '../application/ports';
-import type { AvailableCourier, NearbyCourier } from '../domain/matching';
+import type { CallContext, GeoPoint, MarketContext } from '@mondapac-drive/shared-kernel';
+import type {
+  CourierAvailability,
+  CourierProximity,
+} from '../../src/modules/dispatch/application/ports';
+import type { AvailableCourier, NearbyCourier } from '../../src/modules/dispatch/domain/matching';
 
 /**
- * Stand-ins for fleet's `findEligibleCouriers` and tracking's `nearestCouriers` until those
- * modules are on main: couriers a test (or a seed) puts in, per Market. Empty in a running
- * process, so every job is exhausted and handed to a dispatcher until the real adapters land.
+ * Stand-ins for fleet's `findEligibleCouriers` and tracking's `nearestCouriers` for tests:
+ * couriers a test puts in, per Market. The running process binds the fleet and tracking
+ * adapters instead.
  */
 export class InMemoryCouriers implements CourierAvailability, CourierProximity {
   readonly #available = new Map<string, AvailableCourier[]>();
@@ -33,16 +36,16 @@ export class InMemoryCouriers implements CourierAvailability, CourierProximity {
     );
   }
 
-  findEligibleCouriers(market: MarketContext): Promise<readonly AvailableCourier[]> {
-    return Promise.resolve(this.#available.get(market.marketId) ?? []);
+  findEligibleCouriers(context: CallContext): Promise<readonly AvailableCourier[]> {
+    return Promise.resolve(this.#available.get(context.market.marketId) ?? []);
   }
 
   nearestCouriers(
-    market: MarketContext,
+    context: CallContext,
     _point: GeoPoint,
     options: { readonly radiusMetres: number; readonly limit: number },
   ): Promise<readonly NearbyCourier[]> {
-    const near = (this.#nearby.get(market.marketId) ?? [])
+    const near = (this.#nearby.get(context.market.marketId) ?? [])
       .filter((c) => c.distanceMetres <= options.radiusMetres)
       .sort((a, b) => a.distanceMetres - b.distanceMetres)
       .slice(0, options.limit);

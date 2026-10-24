@@ -13,7 +13,7 @@ import {
   type DispatchJob,
 } from '../../src/modules/dispatch/domain/dispatch-job';
 import { DISPATCH_EVENTS } from '../../src/modules/dispatch/domain/events/dispatch-events';
-import { InMemoryCouriers } from '../../src/modules/dispatch/infrastructure/in-memory-couriers';
+import { InMemoryCouriers } from '../support/dispatch-couriers';
 import { PrismaDispatchJobRepository } from '../../src/modules/dispatch/infrastructure/prisma-dispatch-job.repository';
 import { UnlinkedDelivery } from '../../src/modules/dispatch/infrastructure/unlinked-delivery';
 import { EventCatalogue } from '../../src/platform/events/event-catalogue';

@@ -20,7 +20,7 @@ import {
   ZZ,
 } from '../../../../../test/support/dispatch-markets';
 import { pendingOffers } from '../../domain/dispatch-job';
-import { InMemoryCouriers } from '../../infrastructure/in-memory-couriers';
+import { InMemoryCouriers } from '../../../../../test/support/dispatch-couriers';
 import { JobAdvancer } from '../job-advancer';
 import { AdvanceDispatchJobs } from './advance-dispatch-jobs.use-case';
 import { AnswerOffer } from './answer-offer.use-case';
