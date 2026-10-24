@@ -85,6 +85,14 @@
       }
     }
   },
+  "dispatch": {
+    "offerTimeoutSeconds": 20,
+    "waveSize": 2,
+    "maxRounds": 3,
+    "scheduledLeadMinutes": 30,
+    "searchRadiusMetres": 5000,
+    "candidateLimit": 10
+  },
   "notifications": {
     "webhooks": {
       "maxAttempts": 4,

@@ -90,6 +90,20 @@ const deliverySchema = z.strictObject({
   }),
 });
 
+/**
+ * The `dispatch` section, owned by the dispatch module: how offers go out to couriers (accept
+ * timeout, couriers per wave, rounds before a dispatcher takes over), when a scheduled delivery
+ * opens for dispatch, and how far and how many nearby couriers are considered.
+ */
+const dispatchSchema = z.strictObject({
+  offerTimeoutSeconds: z.number().int().min(5).max(600),
+  waveSize: z.number().int().min(1).max(20),
+  maxRounds: z.number().int().min(1).max(50),
+  scheduledLeadMinutes: z.number().int().nonnegative().max(1440),
+  searchRadiusMetres: z.number().int().positive().max(200_000),
+  candidateLimit: z.number().int().min(1).max(200),
+});
+
 /** Whole seconds, bounded so a typo cannot disable a check. */
 const seconds = (max: number) => z.number().int().positive().max(max);
 
@@ -170,6 +184,7 @@ const marketSchema = z
     delivery: deliverySchema,
     /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
     routing: routingConfigSchema.optional(),
+    dispatch: dispatchSchema,
     tracking: trackingSchema,
     notifications: notificationsSchema,
     fleet: fleetSchema,

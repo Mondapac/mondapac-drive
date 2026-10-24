@@ -39,6 +39,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     // No privilege for the application on `extensions` (see `extensions` below).
     extensions: [],
     delivery: ['USAGE'],
+    dispatch: ['USAGE'],
     notifications: ['USAGE'],
     payouts: ['USAGE'],
     platform: ['USAGE'],
@@ -85,6 +86,25 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The dispatch module: a job keeps its delivery and requirements, an offer only gets its
+    // answer; the outbox envelope is append-only (20261025070000).
+    'dispatch.jobs': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'assigned_at',
+        'assigned_courier_id',
+        'assigned_vehicle',
+        'assignment_method',
+        'excluded_courier_ids',
+        'next_action_at',
+        'round',
+        'status',
+        'version',
+      ],
+    },
+    'dispatch.offers': { table: ['INSERT', 'SELECT'], columnUpdate: ['answered_at', 'status'] },
+    'dispatch.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    'dispatch.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // The tracking module (20261025060000): only the status, courier and end of a tracked
     // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
     'tracking.tracked_deliveries': {
