@@ -3,6 +3,7 @@ import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
+import { RoutePopulation } from '../src/platform/call-context/route-population.decorator';
 import { MarketEchoController } from './support/market-test.controllers';
 import { createTestApp, type LogLine } from './support/test-app';
 
@@ -13,6 +14,7 @@ const ONE_KIB = 1024;
  * Test-only: echoes the parsed body. Market-scoped: an unsafe route on a market-exempt controller
  * fails the start-up check (identity design 6.4).
  */
+@RoutePopulation('courier')
 @Controller('test/hardening-echo')
 class EchoController {
   @Post()

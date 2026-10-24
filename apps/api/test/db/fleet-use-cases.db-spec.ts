@@ -107,14 +107,14 @@ describe('fleet use cases (database integration)', () => {
     const rules = fleetRules.get(market.marketId);
     const area = TEST_SERVICE_AREAS[code]!;
 
-    const person = (population: 'customer' | 'admin', correlation: string): CallContext =>
+    const person = (population: 'courier' | 'admin', correlation: string): CallContext =>
       testCallContext(
         market,
         testAuthenticatedActor(market, {
           population,
           accountId: newId(),
           sessionId: newId(),
-          sellerId: null,
+          merchantId: null,
         }),
         `fleet-${correlation}-${newId()}`,
       );
@@ -190,7 +190,7 @@ describe('fleet use cases (database integration)', () => {
     }
 
     it('takes a courier from application to dispatch, with events and audit rows', async () => {
-      const courierContext = person('customer', 'courier');
+      const courierContext = person('courier', 'courier');
       const operator = person('admin', 'operator');
       const applicant = await readyApplicant(courierContext, operator);
       expect(applicant.documents.every((d) => d.status === 'verified')).toBe(true);
@@ -261,7 +261,7 @@ describe('fleet use cases (database integration)', () => {
     });
 
     it('answers a second application of the same account with the same profile', async () => {
-      const courierContext = person('customer', 'again');
+      const courierContext = person('courier', 'again');
       const input = {
         employmentType: 'employee' as const,
         serviceAreaCode: area,
@@ -283,8 +283,8 @@ describe('fleet use cases (database integration)', () => {
     });
 
     it('lets only the courier change their profile and only an operator decide about it', async () => {
-      const courierContext = person('customer', 'owner');
-      const stranger = person('customer', 'stranger');
+      const courierContext = person('courier', 'owner');
+      const stranger = person('courier', 'stranger');
       const { courier } = value(
         await use(RegisterCourier).execute(courierContext, {
           employmentType: 'contractor',
@@ -328,7 +328,7 @@ describe('fleet use cases (database integration)', () => {
     });
 
     it('audits a vehicle an operator takes out of use, and not one the courier does', async () => {
-      const courierContext = person('customer', 'vehicles');
+      const courierContext = person('courier', 'vehicles');
       const { courier } = value(
         await use(RegisterCourier).execute(courierContext, {
           employmentType: 'employee',
@@ -364,7 +364,7 @@ describe('fleet use cases (database integration)', () => {
     });
 
     it('keeps no file of a refused document, and reads the file type from its bytes', async () => {
-      const courierContext = person('customer', 'files');
+      const courierContext = person('courier', 'files');
       const { courier } = value(
         await use(RegisterCourier).execute(courierContext, {
           employmentType: 'contractor',

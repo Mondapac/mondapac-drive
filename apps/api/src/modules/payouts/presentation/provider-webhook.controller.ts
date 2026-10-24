@@ -12,6 +12,7 @@ import type { MarketContext } from '@mondapac-drive/shared-kernel';
 import type { Request } from 'express';
 import { MarketFromPath } from '../../../platform/http/market-from-path.decorator';
 import { Market } from '../../../platform/market-context/market.decorator';
+import { RoutePopulation } from '../../../platform/call-context/route-population.decorator';
 import { HandleProviderWebhook } from '../application/use-cases/handle-provider-webhook.use-case';
 
 /**
@@ -23,6 +24,9 @@ import { HandleProviderWebhook } from '../application/use-cases/handle-provider-
  */
 @ApiExcludeController()
 @MarketFromPath()
+// Anonymous: no @ReadsSession. Server to server like a merchant integration: the merchant
+// population's origin rule lets a request without Origin or Sec-Fetch-Site through.
+@RoutePopulation('merchant')
 @Controller('payouts/:market/provider-webhook')
 export class ProviderWebhookController {
   constructor(private readonly webhook: HandleProviderWebhook) {}

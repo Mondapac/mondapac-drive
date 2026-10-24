@@ -8,23 +8,38 @@ Plan: `docs/plan.md`. Decisions: `docs/adr/`.
 
 Every route is scoped to a Market by the `x-market-id` header (the marketplace's convention).
 
-- `POST /delivery/quotes`: price a delivery. Picks the cheapest vehicle that can carry the
-  parcel (weight, volume, distance, temperature), adds a cold-chain surcharge, discounts
-  scheduled deliveries and states the tax inside the price. Amounts are decimal text in minor
-  units.
-- `POST /delivery/deliveries`: book it. Idempotent on (merchant, external reference);
-  `expectedTotal` refuses a booking whose price has changed since the quote.
-- `POST /delivery/deliveries/:id/events`: courier and dispatcher events. The lifecycle is
-  enforced; chilled and frozen parcels need temperature readings at pickup and drop-off; a
-  delivery needs a PIN or a photo as proof.
-- `GET /delivery/deliveries/:id`, `GET /health` and `GET /health/ready`.
+Three populations sign in, each with its own credential (identity, copied from the marketplace):
+
+- **Admins** (operations staff) use the panel: password plus second factor, a `__Host-` session
+  cookie, CSRF token and panel origin on every unsafe request. Platform roles: Platform
+  Administrator, Operator (merchants, couriers and deliveries read, cancel) and Dispatcher
+  (onboards couriers, dispatches); custom roles are edited in the panel.
+- **Merchants** (the marketplace and other shops) call the API with an API key
+  (`Authorization: Bearer ms1_...`). Keys are stored hashed, scoped to one Market and one merchant,
+  expire per Market (`identity.apiKeys`) and are issued, listed and revoked by an admin.
+- **Couriers** are invited by a dispatcher, accept with a name and password, and sign in from the
+  app with a bearer session.
+
+Delivery routes, by population:
+
+- Merchant: `POST /delivery/quotes` prices a delivery (cheapest vehicle that fits weight, volume,
+  distance and temperature; cold-chain surcharge; scheduled discount; tax inside the price;
+  amounts as decimal text in minor units). `POST /delivery/deliveries` books it, idempotent on
+  (merchant, external reference); `expectedTotal` refuses a changed price. `GET` and
+  `POST .../:id/cancel` see only the merchant's own deliveries.
+- Admin: `POST /delivery/admin/deliveries/:id/dispatch` opens dispatch and assigns or unassigns a
+  courier (`courierId` is the courier's identity account id).
+- Courier: `GET /delivery/courier/deliveries/:id` and `POST .../:id/events` for the assigned
+  courier only. The lifecycle is enforced; chilled and frozen parcels need temperature readings at
+  pickup and drop-off; a delivery needs a PIN or a photo as proof.
+- `GET /health` and `GET /health/ready` are public.
 
 Deliveries are stored in PostgreSQL (PostGIS points) through the platform runtime copied from the
-marketplace: unit of work and market guard, outbox, relay and event delivery, audit log, rate
-limits, scheduler and worker role (`APP_ROLE=worker`).
+marketplace: unit of work and market guard, outbox, relay and event delivery, audit log (hash
+chained), rate limits, scheduler and worker role (`APP_ROLE=worker`).
 
-Not yet: authentication (do not expose the API; it arrives with identity), real road distances
-(a straight-line estimate x 1.3 for now). Rate cards in `config/markets/` are placeholders.
+Not yet: real road distances (a straight-line estimate x 1.3 for now), the admin panel UI. Rate
+cards in `config/markets/` are placeholders.
 
 ## Getting started
 

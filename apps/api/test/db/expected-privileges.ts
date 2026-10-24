@@ -39,6 +39,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     // No privilege for the application on `extensions` (see `extensions` below).
     extensions: [],
     delivery: ['USAGE'],
+    identity: ['USAGE'],
     dispatch: ['USAGE'],
     notifications: ['USAGE'],
     payouts: ['USAGE'],
@@ -86,6 +87,50 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The identity module (20261024170000, copied from the marketplace's identity migrations):
+    // no account is deleted by the application, the outbox envelope and the inbox are
+    // append-only, a merchant and a membership change only their state.
+    'identity.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    'identity.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'identity.accounts': { table: ['INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.password_credentials': { table: ['INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.sessions': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.sign_in_throttles': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.sign_in_records': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    'identity.one_time_links': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.merchants': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['state', 'state_changed_at', 'version'],
+    },
+    'identity.merchant_memberships': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['removed_at', 'state', 'version'],
+    },
+    'identity.roles': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.role_permissions': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    'identity.role_assignments': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.second_factors': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.recovery_codes': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.sign_in_challenges': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.invitations': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
     // The dispatch module: a job keeps its delivery and requirements, an offer only gets its
     // answer; the outbox envelope is append-only (20261025070000).
     'dispatch.jobs': {

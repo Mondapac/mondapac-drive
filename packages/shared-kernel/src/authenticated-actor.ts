@@ -5,6 +5,6 @@
 // platform's entry adapters never build one, and tests use the `/testing` builders.
 //
 // Named exports only. The constructor checks every field again at run time and throws when
-// `sellerId` and `population` disagree.
+// `merchantId` and `population` disagree.
 export { mintAuthenticatedActor as authenticatedActor } from './actor-context';
 export type { AuthenticatedActorFields } from './actor-context';

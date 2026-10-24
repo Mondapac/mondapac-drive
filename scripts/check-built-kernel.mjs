@@ -103,10 +103,10 @@ if (problems.length === 0) {
       }
       // An authenticated actor built through its own entry, in a call context of /contexts.
       const actor = authenticated.authenticatedActor(context, {
-        population: 'customer',
+        population: 'courier',
         accountId: '01900000-0000-7000-8000-000000000001',
         sessionId: '01900000-0000-7000-8000-000000000002',
-        sellerId: null,
+        merchantId: null,
       });
       const signedIn = contexts.createCallContext(context, actor, 'built-kernel-check-0002');
       if (!kernel.isMinted(actor) || !kernel.isMinted(signedIn)) {

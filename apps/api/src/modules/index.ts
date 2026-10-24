@@ -2,12 +2,14 @@
 // its public entry point only.
 import { DeliveryModule } from './delivery';
 import { DispatchModule } from './dispatch';
-import { NotificationsModule } from './notifications';
 import { FleetModule } from './fleet';
+import { IdentityModule } from './identity';
+import { NotificationsModule } from './notifications';
 import { PayoutsModule } from './payouts';
 import { TrackingModule } from './tracking';
 
 export const CORE_MODULES = [
+  IdentityModule,
   DeliveryModule,
   DispatchModule,
   NotificationsModule,

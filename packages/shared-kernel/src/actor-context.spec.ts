@@ -24,13 +24,13 @@ function id<K extends string>(text: string): Id<K> {
 
 const ACCOUNT = id<'Account'>('01890a5d-ac96-774b-bcce-b302099a8057');
 const SESSION = id<'Session'>('01890a5d-ac96-774b-bcce-b302099a8058');
-const SELLER = id<'Seller'>('01890a5d-ac96-774b-bcce-b302099a8059');
+const MERCHANT = id<'Merchant'>('01890a5d-ac96-774b-bcce-b302099a8059');
 
-const customer = (): AuthenticatedActorFields => ({
-  population: 'customer',
+const courier = (): AuthenticatedActorFields => ({
+  population: 'courier',
   accountId: ACCOUNT,
   sessionId: SESSION,
-  sellerId: null,
+  merchantId: null,
 });
 
 describe.each(MARKETS)('actors of market %s (identity design 4; foundations 3.4)', (code) => {
@@ -60,26 +60,28 @@ describe.each(MARKETS)('actors of market %s (identity design 4; foundations 3.4)
     expect(() => systemActor(forged as MarketContext)).toThrow(TypeError);
   });
 
-  it('mints an authenticated actor of the population customer, without a seller', () => {
-    const actor = mintAuthenticatedActor(context, customer());
+  it('mints an authenticated actor of the population courier, without a merchant', () => {
+    const actor = mintAuthenticatedActor(context, courier());
 
-    expect(actor).toEqual({ kind: 'authenticated', marketId: code, ...customer() });
+    expect(actor).toEqual({ kind: 'authenticated', marketId: code, ...courier() });
     expect(isMinted(actor)).toBe(true);
     expect(Object.isFrozen(actor)).toBe(true);
   });
 
-  it('mints a seller-side actor only with its seller (rule 1 of identity design 4)', () => {
-    const seller = { ...customer(), population: 'seller' as const, sellerId: SELLER };
+  it('mints a merchant actor only with its merchant (rule 1 of identity design 4)', () => {
+    const merchant = { ...courier(), population: 'merchant' as const, merchantId: MERCHANT };
 
-    expect(mintAuthenticatedActor(context, seller).sellerId).toBe(SELLER);
-    expect(() => mintAuthenticatedActor(context, { ...seller, sellerId: null })).toThrow(TypeError);
+    expect(mintAuthenticatedActor(context, merchant).merchantId).toBe(MERCHANT);
+    expect(() => mintAuthenticatedActor(context, { ...merchant, merchantId: null })).toThrow(
+      TypeError,
+    );
   });
 
-  it.each(['customer', 'admin'] as const)(
-    'refuses a %s actor that carries a seller id',
+  it.each(['courier', 'admin'] as const)(
+    'refuses a %s actor that carries a merchant id',
     (population) => {
       expect(() =>
-        mintAuthenticatedActor(context, { ...customer(), population, sellerId: SELLER }),
+        mintAuthenticatedActor(context, { ...courier(), population, merchantId: MERCHANT }),
       ).toThrow(TypeError);
     },
   );
@@ -89,11 +91,11 @@ describe.each(MARKETS)('actors of market %s (identity design 4; foundations 3.4)
     ['a malformed account id', { accountId: 'not-an-id' }],
     ['a malformed session id', { sessionId: '01890A5D-AC96-774B-BCCE-B302099A8058' }],
     ['a token in place of the session id', { sessionId: 'a'.repeat(43) }],
-    ['a malformed seller id', { population: 'seller', sellerId: 'x' }],
+    ['a malformed merchant id', { population: 'merchant', merchantId: 'x' }],
   ])('refuses %s', (_case, override) => {
     expect(() =>
       mintAuthenticatedActor(context, {
-        ...customer(),
+        ...courier(),
         ...override,
       } as AuthenticatedActorFields),
     ).toThrow(TypeError);
@@ -101,20 +103,20 @@ describe.each(MARKETS)('actors of market %s (identity design 4; foundations 3.4)
 
   it('copies only the declared fields: nothing extra travels in the actor', () => {
     const actor = mintAuthenticatedActor(context, {
-      ...customer(),
+      ...courier(),
       roles: ['admin'],
       email: 'person@example.test',
     } as AuthenticatedActorFields);
 
     expect(Object.keys(actor).sort()).toEqual(
-      ['accountId', 'kind', 'marketId', 'population', 'sellerId', 'sessionId'].sort(),
+      ['accountId', 'kind', 'marketId', 'population', 'merchantId', 'sessionId'].sort(),
     );
   });
 });
 
 describe('ActorContext', () => {
-  it('names the three populations of identity design 4', () => {
-    expect(POPULATIONS).toEqual(['customer', 'seller', 'admin']);
+  it('names the three populations of Drive', () => {
+    expect(POPULATIONS).toEqual(['admin', 'merchant', 'courier']);
   });
 
   it('is a closed union on kind: a switch over it is exhaustive', () => {

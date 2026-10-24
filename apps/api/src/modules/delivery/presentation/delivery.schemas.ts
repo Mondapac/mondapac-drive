@@ -1,6 +1,5 @@
 import { Temporal } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
-import { DELIVERY_EVENT_TYPES } from '../domain/delivery-status';
 import { TEMPERATURES } from '../domain/parcel';
 import { VEHICLE_TYPES } from '../domain/vehicle';
 
@@ -46,8 +45,8 @@ const stop = z.strictObject({
   notes: z.string().max(500).optional(),
 });
 
+/** A booking: the merchant is the API key's, never a field. */
 export const createDeliveryBody = z.strictObject({
-  merchantId: z.string().min(1).max(64),
   externalReference: z.string().min(1).max(128),
   pickup: stop,
   dropoff: stop,
@@ -60,16 +59,36 @@ export const createDeliveryBody = z.strictObject({
   ...shared,
 });
 
-export const deliveryEventBody = z.strictObject({
-  type: z.enum(DELIVERY_EVENT_TYPES),
-  courierId: z.string().min(1).max(64).optional(),
-  vehicle: z.enum(VEHICLE_TYPES).optional(),
+const proof = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('pin'), pinMatched: z.literal(true) }),
+  z.strictObject({ kind: z.literal('photo'), photoRef: z.string().min(1).max(300) }),
+]);
+
+const reason = z.string().max(500);
+
+/** What a courier reports on its own assignment: never a courier id, which is the actor's. */
+export const courierReportBody = z.strictObject({
+  type: z.enum([
+    'arrived_at_pickup',
+    'picked_up',
+    'arrived_at_dropoff',
+    'delivered',
+    'delivery_failed',
+    'return_started',
+    'returned',
+  ]),
   temperatureCelsius: z.number().min(-40).max(60).optional(),
-  proof: z
-    .discriminatedUnion('kind', [
-      z.strictObject({ kind: z.literal('pin'), pinMatched: z.literal(true) }),
-      z.strictObject({ kind: z.literal('photo'), photoRef: z.string().min(1).max(300) }),
-    ])
-    .optional(),
-  reason: z.string().max(500).optional(),
+  proof: proof.optional(),
+  reason: reason.optional(),
 });
+
+/** A dispatcher's step: the courier is the courier's identity account id (a UUID). */
+export const dispatchBody = z.strictObject({
+  type: z.enum(['dispatch_opened', 'courier_assigned', 'courier_unassigned']),
+  courierId: z.uuid().optional(),
+  vehicle: z.enum(VEHICLE_TYPES).optional(),
+  reason: reason.optional(),
+});
+
+/** A cancellation always has a reason. */
+export const cancelBody = z.strictObject({ reason: reason.min(1) });

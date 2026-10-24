@@ -181,7 +181,7 @@ const adminContext = (market: MarketContext): CallContext =>
       population: 'admin',
       accountId: ACCOUNT,
       sessionId: SESSION,
-      sellerId: null,
+      merchantId: null,
     }),
     'request-correlation-0042',
   );

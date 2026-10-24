@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { MarketContext, Result } from '@mondapac-drive/shared-kernel';
 import { concatMap, finalize, from, map, take, takeWhile, timer, type Observable } from 'rxjs';
 import { Market } from '../../../platform/market-context/market.decorator';
+import { RoutePopulation } from '../../../platform/call-context/route-population.decorator';
 import {
   ViewTrackingLink,
   type TrackingFailure,
@@ -33,6 +34,9 @@ function eventOf(result: Result<CustomerView, TrackingFailure>): MessageEvent {
  * Market (`x-market-id`, set by the tier in front of the API) and its default rate limit.
  */
 @ApiTags('tracking')
+// Anonymous: no @ReadsSession, so no credential is read and a bearer header is refused. The
+// population is the merchant's (its recipients follow the link); a GET has no origin check.
+@RoutePopulation('merchant')
 @Controller('tracking')
 export class TrackingLinkController {
   readonly #streams = new StreamLimits();

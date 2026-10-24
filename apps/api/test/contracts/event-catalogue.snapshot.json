@@ -87,5 +87,126 @@
     "fields": {
       "courierId": "id"
     }
+  },
+  {
+    "type": "identity.account-disabled.v1",
+    "aggregateType": "account",
+    "fields": {
+      "accountId": "id",
+      "population": "enumOf(admin|merchant|courier)"
+    }
+  },
+  {
+    "type": "identity.account-display-name-changed.v1",
+    "aggregateType": "account",
+    "fields": {
+      "accountId": "id",
+      "population": "enumOf(admin|merchant|courier)"
+    }
+  },
+  {
+    "type": "identity.account-enabled.v1",
+    "aggregateType": "account",
+    "fields": {
+      "accountId": "id",
+      "population": "enumOf(admin|merchant|courier)"
+    }
+  },
+  {
+    "type": "identity.account-other-sessions-signed-out.v1",
+    "aggregateType": "account",
+    "fields": {
+      "accountId": "id"
+    }
+  },
+  {
+    "type": "identity.account-password-changed.v1",
+    "aggregateType": "account",
+    "fields": {
+      "accountId": "id",
+      "cause": "enumOf(reset|change)"
+    }
+  },
+  {
+    "type": "identity.account-role-changed.v1",
+    "aggregateType": "role-assignment",
+    "fields": {
+      "accountId": "id",
+      "scope": "enumOf(platform|merchant|courier)",
+      "previousRoleId": "id",
+      "roleId": "id"
+    }
+  },
+  {
+    "type": "identity.invitation-accepted.v1",
+    "aggregateType": "invitation",
+    "fields": {
+      "invitationId": "id",
+      "kind": "enumOf(admin|courier)",
+      "accountId": "id"
+    }
+  },
+  {
+    "type": "identity.invitation-issued.v1",
+    "aggregateType": "invitation",
+    "fields": {
+      "invitationId": "id",
+      "kind": "enumOf(admin|courier)"
+    }
+  },
+  {
+    "type": "identity.invitation-revoked.v1",
+    "aggregateType": "invitation",
+    "fields": {
+      "invitationId": "id",
+      "kind": "enumOf(admin|courier)"
+    }
+  },
+  {
+    "type": "identity.one-time-link-requested.v1",
+    "aggregateType": "one-time-link",
+    "fields": {
+      "linkId": "id",
+      "accountId": "id",
+      "purpose": "enumOf(reset-password|enrol-second-factor)"
+    }
+  },
+  {
+    "type": "identity.role-created.v1",
+    "aggregateType": "role",
+    "fields": {
+      "roleId": "id",
+      "scope": "enumOf(platform|merchant|courier)",
+      "addedKeys": "listOf(permissionKey)",
+      "removedKeys": "listOf(permissionKey)"
+    }
+  },
+  {
+    "type": "identity.role-deleted.v1",
+    "aggregateType": "role",
+    "fields": {
+      "roleId": "id",
+      "scope": "enumOf(platform|merchant|courier)",
+      "addedKeys": "listOf(permissionKey)",
+      "removedKeys": "listOf(permissionKey)"
+    }
+  },
+  {
+    "type": "identity.role-updated.v1",
+    "aggregateType": "role",
+    "fields": {
+      "roleId": "id",
+      "scope": "enumOf(platform|merchant|courier)",
+      "addedKeys": "listOf(permissionKey)",
+      "removedKeys": "listOf(permissionKey)"
+    }
+  },
+  {
+    "type": "identity.second-factor-changed.v1",
+    "aggregateType": "second-factor",
+    "fields": {
+      "accountId": "id",
+      "change": "enumOf(activated|replaced|recovery-codes-regenerated|reset|locked)"
+    }
   }
 ]

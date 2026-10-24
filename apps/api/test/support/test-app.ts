@@ -10,7 +10,7 @@ import { AppModule } from '../../src/app.module';
 import { APP_OPTIONS, configureApp } from '../../src/configure-app';
 import { RATE_LIMIT_COUNTERS } from '../../src/platform/rate-limit/rate-limit-counters';
 import { MemoryRateLimitCounters } from './memory-rate-limit-counters';
-import { testAppConfig } from './test-config';
+import { panelOriginMarketConfigDirs, testAppConfig } from './test-config';
 
 // nestjs-pino builds its pino-http instance once per module registry, so in one Jest test
 // file only the first application's log destination receives lines. A spec file that
@@ -41,6 +41,12 @@ export interface TestAppOptions {
   /** Replaces providers before compiling (e.g. fakes of the database ports in a no-database suite). */
   readonly override?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
   /**
+   * Fills an empty admin origin list with the dispatch panel's origin
+   * ({@link panelOriginMarketConfigDirs}), so a test can send unsafe requests to admin routes
+   * with `panelHeaders`.
+   */
+  readonly panelOrigins?: boolean;
+  /**
    * Where the rate limiter counts: `memory` (the default) gives each application counters of
    * its own, so suites without a database run and parallel database suites never share a
    * window; `postgres` keeps the application's PostgreSQL store (the rate-limit database suite).
@@ -63,7 +69,10 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     },
   });
 
-  const config = testAppConfig(options.env);
+  const base = testAppConfig(options.env);
+  const config = options.panelOrigins
+    ? { ...base, marketConfigDirs: panelOriginMarketConfigDirs() }
+    : base;
   const created = Test.createTestingModule({
     imports: [AppModule.register({ config, logDestination })],
     controllers: [...(options.controllers ?? [])],

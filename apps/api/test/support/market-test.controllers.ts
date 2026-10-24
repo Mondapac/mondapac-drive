@@ -1,6 +1,7 @@
 import { Controller, Get, Search } from '@nestjs/common';
 import { isMinted } from '@mondapac-drive/shared-kernel';
 import type { MarketContext } from '@mondapac-drive/shared-kernel';
+import { RoutePopulation } from '../../src/platform/call-context/route-population.decorator';
 import { Market } from '../../src/platform/market-context/market.decorator';
 import { NoMarketContext } from '../../src/platform/market-context/no-market-context.decorator';
 
@@ -8,6 +9,7 @@ import { NoMarketContext } from '../../src/platform/market-context/no-market-con
  * Test-only. Slice 0 has no market-scoped endpoint, so the market tests register this
  * controller: it returns the Market the request was resolved to.
  */
+@RoutePopulation('courier')
 @Controller('test/market')
 export class MarketEchoController {
   @Get()
