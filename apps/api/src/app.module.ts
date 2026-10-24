@@ -18,6 +18,7 @@ import { MarketContextGuard } from './platform/market-context/market-context.gua
 import { MarketContextModule } from './platform/market-context/market-context.module';
 import { RateLimitGuard } from './platform/rate-limit/rate-limit.guard';
 import { PersistenceModule } from './platform/persistence/persistence.module';
+import { RoutingModule } from './platform/routing/routing.module';
 import { SchedulerModule } from './platform/scheduler/scheduler.module';
 import { SubjectKeysModule } from './platform/subject-keys/subject-keys.module';
 import { WorkerModule } from './platform/worker/worker.module';
@@ -64,6 +65,7 @@ export class AppModule {
         SchedulerModule,
         WorkerModule,
         HealthModule,
+        RoutingModule,
         ...CORE_MODULES,
       ],
       providers: [

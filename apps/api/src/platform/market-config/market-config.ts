@@ -3,6 +3,7 @@ import path from 'node:path';
 import { parseMarketId } from '@mondapac-drive/shared-kernel';
 import type { MarketId } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
+import { routingConfigSchema } from '../routing/routing-config';
 
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
 const TIME_ZONES = new Set(Intl.supportedValuesOf('timeZone'));
@@ -106,6 +107,8 @@ const marketSchema = z
     /** `defaultRateBps`: the tax rate inside or on top of a delivery fee (AU GST 1000 = 10 %). */
     tax: z.strictObject({ defaultRateBps: z.number().int().min(0).max(5000) }),
     delivery: deliverySchema,
+    /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
+    routing: routingConfigSchema.optional(),
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',

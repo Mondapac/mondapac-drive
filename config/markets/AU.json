@@ -70,5 +70,35 @@
       "maxDaysAhead": 7,
       "minWindowMinutes": 60
     }
+  },
+  "routing": {
+    "provider": "google",
+    "google": {
+      "apiKeyEnv": "GOOGLE_MAPS_API_KEY",
+      "regionCode": "au",
+      "travelModes": {
+        "bicycle": "BICYCLE",
+        "motorbike": "TWO_WHEELER",
+        "car": "DRIVE",
+        "van": "DRIVE"
+      },
+      "trafficAware": true
+    },
+    "timeoutMs": 2000,
+    "cacheTtlSeconds": 900,
+    "cacheCoordinateDecimals": 4,
+    "circuitBreaker": {
+      "failureThreshold": 5,
+      "openSeconds": 30
+    },
+    "straightLine": {
+      "roadFactor": 1.3,
+      "speedsKmh": {
+        "bicycle": 15,
+        "motorbike": 30,
+        "car": 30,
+        "van": 25
+      }
+    }
   }
 }

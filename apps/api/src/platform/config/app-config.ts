@@ -62,6 +62,10 @@ const envSchema = z.object({
   // and checked by parseClientAddressTrust below; a secret is never echoed.
   TRUSTED_BFF_CIDRS: z.string().optional(),
   CLIENT_ADDRESS_KEYS: z.string().optional(),
+  // Redis (route cache, live positions). Unset: each process keeps its own in-memory store.
+  REDIS_URL: z
+    .url({ protocol: /^rediss?$/, error: 'must be a redis:// or rediss:// URL' })
+    .optional(),
 });
 
 /** The migration role's URL: read by the prisma CLI, the scripts and test setup only. */
@@ -114,6 +118,8 @@ export interface AppConfig {
    * socket's. Holds secrets, which print as a marker only; read by `configureApp` alone.
    */
   readonly clientAddressTrust: ClientAddressTrust | null;
+  /** `REDIS_URL`, or null: then caches stay in the process. May hold a password: never log it. */
+  readonly redisUrl: string | null;
 }
 
 /** The log levels a worker may run at: every one that still writes info lines. */
@@ -178,5 +184,6 @@ export function loadAppConfig(env: Record<string, string | undefined>): AppConfi
         ? null
         : path.resolve(parsed.data.OBJECT_STORE_DIR),
     clientAddressTrust: clientAddress.trust,
+    redisUrl: parsed.data.REDIS_URL ?? null,
   });
 }

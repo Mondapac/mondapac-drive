@@ -54,5 +54,35 @@
       "maxDaysAhead": 3,
       "minWindowMinutes": 30
     }
+  },
+  "routing": {
+    "provider": "google",
+    "google": {
+      "apiKeyEnv": "ZZ_ROUTING_API_KEY",
+      "regionCode": "zz",
+      "travelModes": {
+        "bicycle": "BICYCLE",
+        "motorbike": "DRIVE",
+        "car": "DRIVE",
+        "van": "DRIVE"
+      },
+      "trafficAware": false
+    },
+    "timeoutMs": 1000,
+    "cacheTtlSeconds": 300,
+    "cacheCoordinateDecimals": 3,
+    "circuitBreaker": {
+      "failureThreshold": 3,
+      "openSeconds": 60
+    },
+    "straightLine": {
+      "roadFactor": 1.5,
+      "speedsKmh": {
+        "bicycle": 12,
+        "motorbike": 25,
+        "car": 20,
+        "van": 18
+      }
+    }
   }
 }
