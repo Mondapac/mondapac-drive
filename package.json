@@ -1,0 +1,33 @@
+{
+  "name": "mondapac-drive",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mondapac Drive: fleet management and last-mile delivery for the Mondapac marketplace (modular monolith).",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=24.20.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @mondapac-drive/shared-kernel build && pnpm --filter @mondapac-drive/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "pnpm -r test",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate deploy",
+    "verify": "pnpm db:validate && pnpm typecheck && pnpm lint && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^24.19.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.0.0",
+    "prettier": "^3.9.9",
+    "prisma": "^7.10.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}

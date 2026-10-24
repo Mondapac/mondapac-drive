@@ -1,0 +1,164 @@
+import type { GeoPoint, MarketId } from '@mondapac-drive/shared-kernel';
+import { TRANSITIONS, type DeliveryEventType, type DeliveryStatus } from './delivery-status.js';
+import { DeliveryDomainError } from './errors.js';
+import type { MarketDeliverySettings } from './market-settings.js';
+import { needsColdChain, type Parcel } from './parcel.js';
+import type { DeliveryQuote } from './pricing.js';
+import type { DeliveryMode, DeliveryWindow } from './schedule.js';
+import type { VehicleType } from './vehicle.js';
+
+export interface Stop {
+  readonly address: string;
+  readonly postcode: string;
+  readonly point: GeoPoint;
+  readonly contactName: string;
+  readonly contactPhone: string;
+  readonly notes?: string;
+}
+
+/** How the courier proved the hand-over. */
+export type ProofOfDelivery =
+  | { readonly kind: 'pin'; readonly pinMatched: true }
+  | { readonly kind: 'photo'; readonly photoRef: string };
+
+/** What a courier, a dispatcher or the system reports. Fields depend on the event type. */
+export interface DeliveryEventInput {
+  readonly type: DeliveryEventType;
+  readonly courierId?: string;
+  readonly vehicle?: VehicleType;
+  readonly temperatureCelsius?: number;
+  readonly proof?: ProofOfDelivery;
+  readonly reason?: string;
+}
+
+export interface DeliveryHistoryEntry extends DeliveryEventInput {
+  readonly status: DeliveryStatus;
+  readonly at: Date;
+}
+
+export interface DeliveryState {
+  readonly id: string;
+  readonly marketId: MarketId;
+  readonly merchantId: string;
+  /** The merchant's own reference, such as a marketplace sub-order id. Unique per merchant. */
+  readonly externalReference: string;
+  readonly serviceAreaCode: string;
+  readonly pickup: Stop;
+  readonly dropoff: Stop;
+  readonly parcel: Parcel;
+  readonly mode: DeliveryMode;
+  readonly window?: DeliveryWindow;
+  readonly quote: DeliveryQuote;
+  readonly status: DeliveryStatus;
+  readonly courierId?: string;
+  readonly history: readonly DeliveryHistoryEntry[];
+  readonly createdAt: Date;
+  /** Optimistic-concurrency version, bumped on every change. */
+  readonly version: number;
+}
+
+export type NewDelivery = Omit<DeliveryState, 'status' | 'history' | 'version' | 'courierId'>;
+
+export function createDelivery(input: NewDelivery): DeliveryState {
+  const status: DeliveryStatus = input.mode === 'scheduled' ? 'SCHEDULED' : 'DISPATCHING';
+  if (input.mode === 'scheduled' && !input.window) {
+    throw new DeliveryDomainError(
+      'schedule.window-required',
+      'A scheduled delivery needs a window',
+    );
+  }
+  if (input.mode === 'on_demand' && input.window) {
+    throw new DeliveryDomainError(
+      'schedule.window-not-allowed',
+      'An on-demand delivery has no window',
+    );
+  }
+  return {
+    ...input,
+    status,
+    history:
+      status === 'DISPATCHING' ? [{ type: 'dispatch_opened', status, at: input.createdAt }] : [],
+    version: 1,
+  };
+}
+
+/** Applies one event, enforcing the lifecycle, cold-chain readings and proof of delivery. */
+export function applyDeliveryEvent(
+  delivery: DeliveryState,
+  event: DeliveryEventInput,
+  at: Date,
+  settings: Pick<MarketDeliverySettings, 'coldChain'>,
+): DeliveryState {
+  const transition = TRANSITIONS[event.type];
+  if (!transition.from.includes(delivery.status)) {
+    throw new DeliveryDomainError(
+      'delivery.invalid-transition',
+      `Cannot record ${event.type} while the delivery is ${delivery.status}`,
+    );
+  }
+
+  let courierId = delivery.courierId;
+  switch (event.type) {
+    case 'courier_assigned':
+      if (!event.courierId || !event.vehicle) {
+        throw new DeliveryDomainError(
+          'delivery.courier-required',
+          'Assigning needs a courier and a vehicle',
+        );
+      }
+      courierId = event.courierId;
+      break;
+    case 'courier_unassigned':
+      courierId = undefined;
+      break;
+    case 'picked_up':
+      assertColdChain(delivery.parcel, event, settings);
+      break;
+    case 'delivered':
+      if (!event.proof) {
+        throw new DeliveryDomainError(
+          'delivery.proof-required',
+          'Delivery needs a PIN or a photo as proof',
+        );
+      }
+      assertColdChain(delivery.parcel, event, settings);
+      break;
+    case 'delivery_failed':
+    case 'cancelled':
+      if (!event.reason?.trim()) {
+        throw new DeliveryDomainError('delivery.reason-required', `${event.type} needs a reason`);
+      }
+      break;
+    default:
+      break;
+  }
+
+  return {
+    ...delivery,
+    status: transition.to,
+    courierId,
+    history: [...delivery.history, { ...event, status: transition.to, at }],
+    version: delivery.version + 1,
+  };
+}
+
+function assertColdChain(
+  parcel: Parcel,
+  event: DeliveryEventInput,
+  settings: Pick<MarketDeliverySettings, 'coldChain'>,
+): void {
+  if (!needsColdChain(parcel.temperature)) return;
+  const limit = settings.coldChain[parcel.temperature].maxCelsius;
+  if (event.temperatureCelsius === undefined) {
+    throw new DeliveryDomainError(
+      'cold-chain.reading-required',
+      `A ${parcel.temperature} parcel needs a temperature reading at ${event.type}`,
+    );
+  }
+  if (event.temperatureCelsius > limit) {
+    throw new DeliveryDomainError(
+      'cold-chain.breach',
+      `Reading ${event.temperatureCelsius}°C is above the ${limit}°C limit for a ${parcel.temperature} parcel`,
+    );
+  }
+}

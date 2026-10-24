@@ -1,0 +1,62 @@
+// The delivery module's tables. Money is minor units (BigInt) plus a currency. Points are PostGIS
+// geography columns, written by hand-written SQL in the repository. Status changes are appended
+// to delivery_events and never edited.
+
+/// One booked delivery. (market_id, merchant_id, external_reference) is the idempotency key.
+model DeliveryDelivery {
+  id                String                                @id @db.Uuid
+  marketId          String                                @map("market_id") @db.VarChar(8)
+  merchantId        String                                @map("merchant_id") @db.VarChar(64)
+  externalReference String                                @map("external_reference") @db.VarChar(128)
+  serviceAreaCode   String                                @map("service_area_code") @db.VarChar(64)
+  status            String                                @db.VarChar(24)
+  mode              String                                @db.VarChar(16)
+  windowStart       DateTime?                             @map("window_start") @db.Timestamptz(6)
+  windowEnd         DateTime?                             @map("window_end") @db.Timestamptz(6)
+  /// Pickup and drop-off: address, postcode, contact. Points live in the geography columns.
+  pickup            Json
+  dropoff           Json
+  pickupPoint       Unsupported("geography(Point, 4326)") @map("pickup_point")
+  dropoffPoint      Unsupported("geography(Point, 4326)") @map("dropoff_point")
+  weightGrams       Int                                   @map("weight_grams")
+  volumeLitres      Int                                   @map("volume_litres")
+  temperature       String                                @db.VarChar(8)
+  vehicle           String                                @db.VarChar(16)
+  distanceMetres    Int                                   @map("distance_metres")
+  /// The quote as booked, including its breakdown.
+  quote             Json
+  totalAmount       BigInt                                @map("total_amount")
+  taxAmount         BigInt                                @map("tax_amount")
+  currency          String                                @db.VarChar(3)
+  courierId         String?                               @map("courier_id") @db.VarChar(64)
+  createdAt         DateTime                              @map("created_at") @db.Timestamptz(6)
+  version           Int
+
+  events DeliveryEvent[]
+
+  @@unique([marketId, merchantId, externalReference])
+  @@index([marketId, status])
+  @@map("deliveries")
+  @@schema("delivery")
+}
+
+/// Append-only history of a delivery: one row per recorded event.
+model DeliveryEvent {
+  deliveryId         String   @map("delivery_id") @db.Uuid
+  sequence           Int
+  marketId           String   @map("market_id") @db.VarChar(8)
+  type               String   @db.VarChar(32)
+  status             String   @db.VarChar(24)
+  courierId          String?  @map("courier_id") @db.VarChar(64)
+  vehicle            String?  @db.VarChar(16)
+  temperatureCelsius Decimal? @map("temperature_celsius") @db.Decimal(4, 1)
+  proof              Json?
+  reason             String?  @db.VarChar(500)
+  at                 DateTime @db.Timestamptz(6)
+
+  delivery DeliveryDelivery @relation(fields: [deliveryId], references: [id])
+
+  @@id([deliveryId, sequence])
+  @@map("delivery_events")
+  @@schema("delivery")
+}

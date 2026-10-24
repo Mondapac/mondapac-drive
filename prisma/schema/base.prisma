@@ -1,0 +1,14 @@
+// Shared Prisma configuration, as in the marketplace (its ADR-0004): one file per module next to
+// this one; each module owns exactly one PostgreSQL schema and no relation crosses schemas.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../../apps/api/src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["delivery"]
+}

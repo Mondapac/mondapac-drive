@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Optional native builds these packages work without.
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - unrs-resolver
+
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - prisma
