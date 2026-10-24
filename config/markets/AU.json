@@ -163,5 +163,53 @@
         "expires": false
       }
     ]
+  },
+  "payouts": {
+    "earnings": {
+      "vehicles": {
+        "bicycle": {
+          "perDelivery": 550,
+          "perKm": 90
+        },
+        "motorbike": {
+          "perDelivery": 600,
+          "perKm": 100
+        },
+        "car": {
+          "perDelivery": 750,
+          "perKm": 110
+        },
+        "van": {
+          "perDelivery": 1800,
+          "perKm": 160
+        }
+      },
+      "coldChainBonus": {
+        "ambient": 0,
+        "chilled": 150,
+        "frozen": 250
+      },
+      "waiting": {
+        "freeMinutes": 5,
+        "perMinute": 30,
+        "maxPaidMinutes": 30
+      }
+    },
+    "schedule": {
+      "cadence": "weekly",
+      "weekday": 1,
+      "time": "03:00"
+    },
+    "minimumPayout": 1000,
+    "tax": {
+      "rateBps": 1000,
+      "onTips": false,
+      "businessIdRequired": true
+    },
+    "provider": {
+      "accountCountry": "AU",
+      "onboardingReturnUrl": "https://drive.mondapac.com/courier/payouts/return",
+      "onboardingRefreshUrl": "https://drive.mondapac.com/courier/payouts/refresh"
+    }
   }
 }
