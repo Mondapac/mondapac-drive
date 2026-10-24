@@ -181,4 +181,60 @@ describe('StripePayoutGateway', () => {
       error: { code: 'stripe.malformed-answer', transient: true },
     });
   });
+
+  it('lists every transfer of a run, page by page, with its line', async () => {
+    const lineId = '01990000-0000-7000-8000-0000000000aa';
+    const transfer = (id: string, payoutLineId?: string) => ({
+      id,
+      object: 'transfer',
+      amount: 1729,
+      currency: 'aud',
+      destination: 'acct_1',
+      metadata: payoutLineId === undefined ? {} : { payoutLineId },
+    });
+    const { sent, gateway } = fakeStripe(
+      json(200, { object: 'list', data: [transfer('tr_1', lineId)], has_more: true }),
+      json(200, { object: 'list', data: [transfer('tr_2')], has_more: false }),
+    );
+
+    const result = await gateway.transfersOfGroup('run-1');
+
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          transferId: 'tr_1',
+          amount: money(1729n, 'AUD'),
+          destination: 'acct_1',
+          payoutLineId: lineId,
+        },
+        { transferId: 'tr_2', amount: money(1729n, 'AUD'), destination: 'acct_1' },
+      ],
+    });
+    expect(sent.map((request) => [request.method, request.url, request.body])).toEqual([
+      ['GET', 'https://api.stripe.com/v1/transfers?transfer_group=run-1&limit=100', undefined],
+      [
+        'GET',
+        'https://api.stripe.com/v1/transfers?transfer_group=run-1&limit=100&starting_after=tr_1',
+        undefined,
+      ],
+    ]);
+    expect(sent[0]!.headers).toEqual({ authorization: `Bearer ${KEY}` });
+  });
+
+  it('fails a lookup with a malformed transfer or a refusal, never a partial list', async () => {
+    const malformed = fakeStripe(
+      json(200, { object: 'list', data: [{ id: 'tr_1', amount: -1 }], has_more: false }),
+    );
+    const refused = fakeStripe(json(500, { error: { type: 'api_error' } }));
+
+    expect(await malformed.gateway.transfersOfGroup('run-1')).toEqual({
+      ok: false,
+      error: { code: 'stripe.malformed-answer', transient: true },
+    });
+    expect(await refused.gateway.transfersOfGroup('run-1')).toEqual({
+      ok: false,
+      error: { code: 'stripe.api_error', transient: true },
+    });
+  });
 });

@@ -2,6 +2,7 @@ import type { NestApplicationOptions } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
 import type { Clock } from '@mondapac-drive/shared-kernel';
+import { json, type NextFunction, type Request, type Response } from 'express';
 import type { HttpLogger } from 'pino-http';
 import { buildOpenApiDocument } from './openapi';
 import { CLOCK } from './platform/clock/clock.module';
@@ -24,6 +25,14 @@ export const APP_OPTIONS = {
   // over them (payouts' provider webhook), and re-serialised JSON would not match.
   rawBody: true,
 } as const satisfies NestApplicationOptions;
+
+/** The payouts provider webhook's path, `payouts/:market/provider-webhook`, with its Market. */
+const PROVIDER_WEBHOOK_PATH = /^\/payouts\/([A-Z][A-Z0-9_]{1,7})\/provider-webhook\/?$/;
+
+/** What Nest's own parser does with `rawBody: true`: keeps the bytes received. */
+function keepRawBody(request: Request & { rawBody?: Buffer }, _response: unknown, buffer: Buffer) {
+  if (Buffer.isBuffer(buffer)) request.rawBody = buffer;
+}
 
 /**
  * HTTP-level setup shared by the real server (main.ts) and the HTTP tests, so what is
@@ -48,6 +57,21 @@ export function configureApp(app: NestExpressApplication): void {
   app.use(
     clientAddressResolver({ trust: config.clientAddressTrust, clock: app.get<Clock>(CLOCK) }),
   );
+  // The payment provider's webhook sends whole provider objects, which may pass 64 KiB (payouts
+  // security review L4): a larger limit on that route only, keeping the exact bytes as `rawBody`
+  // for its signature. The parser below then finds the body read and skips it. Only a POST to the
+  // exact path of a hosted Market gets it (Hassan L-a): any other request keeps the 64 KiB limit.
+  const webhookParser = json({ limit: '512kb', strict: true, inflate: false, verify: keepRawBody });
+  const hosted = new Set<string>(config.hostedMarkets);
+  app.use(function providerWebhookParser(request: Request, response: Response, next: NextFunction) {
+    const market =
+      request.method === 'POST' ? PROVIDER_WEBHOOK_PATH.exec(request.path)?.[1] : undefined;
+    if (market === undefined || !hosted.has(market)) {
+      next();
+      return;
+    }
+    webhookParser(request, response, next);
+  });
   // JSON only, at most 64 KiB, objects and arrays only. No CORS middleware until origins exist.
   // inflate: false - a compressed body is refused with 415, never decompressed (Hassan L1).
   app.useBodyParser('json', { limit: '64kb', strict: true, inflate: false });

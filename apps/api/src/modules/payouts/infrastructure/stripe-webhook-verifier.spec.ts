@@ -21,8 +21,14 @@ const verifier = new StripeWebhookVerifier([
   new ProviderSecret(ROTATED),
 ]);
 
-const event = (type: string, object: Record<string, unknown>) =>
-  JSON.stringify({ id: 'evt_1Abc', object: 'event', type, data: { object } });
+const event = (type: string, object: Record<string, unknown>, created: number | null = t) =>
+  JSON.stringify({
+    id: 'evt_1Abc',
+    object: 'event',
+    type,
+    ...(created === null ? {} : { created }),
+    data: { object },
+  });
 
 describe('StripeWebhookVerifier', () => {
   it('accepts a signed account update and reads whether payouts are enabled', () => {
@@ -40,8 +46,44 @@ describe('StripeWebhookVerifier', () => {
         type: 'account.updated',
         accountId: 'acct_1',
         payoutsEnabled: true,
+        created: now,
       },
     });
+  });
+
+  it('refuses an account update without its creation time (its order is unknown)', () => {
+    const body = event('account.updated', { id: 'acct_1', payouts_enabled: true }, null);
+
+    expect(verifier.verify(Buffer.from(body), header(body), now)).toEqual({
+      ok: false,
+      error: 'payload-invalid',
+    });
+  });
+
+  it("reads Drive's market and line from a reversed transfer's metadata, and nothing else", () => {
+    const lineId = '01990000-0000-7000-8000-0000000000aa';
+    const read = (metadata: Record<string, unknown>) => {
+      const body = event('transfer.reversed', {
+        id: 'tr_1',
+        amount_reversed: 300,
+        currency: 'aud',
+        metadata,
+      });
+      const result = verifier.verify(Buffer.from(body), header(body), now);
+      return result.ok && result.value.kind === 'transfer-reversed'
+        ? { marketId: result.value.marketId, payoutLineId: result.value.payoutLineId }
+        : undefined;
+    };
+
+    expect(read({ marketId: 'AU', payoutLineId: lineId, runId: 'x' })).toEqual({
+      marketId: 'AU',
+      payoutLineId: lineId,
+    });
+    expect(read({ marketId: 'au; drop', payoutLineId: 'not-a-uuid' })).toEqual({
+      marketId: undefined,
+      payoutLineId: undefined,
+    });
+    expect(read({ marketId: 7 })).toEqual({ marketId: undefined, payoutLineId: undefined });
   });
 
   it('reads a transfer reversal as a running total in minor units', () => {

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import { err, ok, type Result, type Temporal } from '@mondapac-drive/shared-kernel';
+import { err, ok, Temporal, type Result } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
 import type { ProviderSecret } from '../../../platform/config/payment-provider';
 import type { ProviderEvent, ProviderWebhookVerifier, WebhookRefusal } from '../application/ports';
@@ -17,6 +17,8 @@ const envelope = z.object({
     .string()
     .regex(/^[a-z0-9_]+(\.[a-z0-9_]+)+$/)
     .max(64),
+  /** Unix seconds; required where it is acted on (an account update's order). */
+  created: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   data: z.object({ object: z.record(z.string(), z.unknown()) }),
 });
 const account = z.object({ id: ID, payouts_enabled: z.boolean() });
@@ -24,7 +26,21 @@ const transfer = z.object({
   id: ID,
   amount_reversed: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   currency: z.string().regex(/^[a-z]{3}$/),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
+/** What Drive writes into a transfer's metadata (RunPayouts); anything else is not Drive's. */
+const MARKET_ID = /^[A-Z][A-Z0-9_]{1,7}$/;
+const LINE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The metadata value `key` when it is text matching `pattern`. */
+function metadataOf(
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+  pattern: RegExp,
+): string | undefined {
+  const value = metadata?.[key];
+  return typeof value === 'string' && pattern.test(value) ? value : undefined;
+}
 
 /** The `t` and every `v1` of a `Stripe-Signature` header; undefined when malformed. */
 function parseHeader(
@@ -92,22 +108,25 @@ function parseEvent(rawBody: Buffer): Result<ProviderEvent, WebhookRefusal> {
   }
   const event = envelope.safeParse(json);
   if (!event.success) return err('payload-invalid');
-  const { id, type } = event.data;
+  const { id, type, created } = event.data;
   const object = event.data.data.object;
   if (type === 'account.updated') {
     const parsed = account.safeParse(object);
-    if (!parsed.success) return err('payload-invalid');
+    if (!parsed.success || created === undefined) return err('payload-invalid');
     return ok({
       kind: 'account-updated',
       id,
       type,
       accountId: parsed.data.id,
       payoutsEnabled: parsed.data.payouts_enabled,
+      created: Temporal.Instant.fromEpochMilliseconds(created * 1000),
     });
   }
   if (type === 'transfer.reversed') {
     const parsed = transfer.safeParse(object);
     if (!parsed.success) return err('payload-invalid');
+    const marketId = metadataOf(parsed.data.metadata, 'marketId', MARKET_ID);
+    const payoutLineId = metadataOf(parsed.data.metadata, 'payoutLineId', LINE_ID);
     return ok({
       kind: 'transfer-reversed',
       id,
@@ -115,6 +134,8 @@ function parseEvent(rawBody: Buffer): Result<ProviderEvent, WebhookRefusal> {
       transferId: parsed.data.id,
       amountReversed: BigInt(parsed.data.amount_reversed),
       currency: parsed.data.currency.toUpperCase(),
+      ...(marketId === undefined ? {} : { marketId }),
+      ...(payoutLineId === undefined ? {} : { payoutLineId }),
     });
   }
   return ok({ kind: 'ignored', id, type });

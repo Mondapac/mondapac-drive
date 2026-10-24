@@ -8,7 +8,8 @@ import { testDatabaseUrl } from './test-database';
 // The payment provider's webhook on the real application and database, for both Market
 // fixtures: the Market comes from the path, the signature is checked over the exact bytes the
 // provider sent (the application keeps the raw body), a redelivery is answered 200 and changes
-// nothing, and an unsigned or re-serialised body is refused with 400.
+// nothing, and an unsigned or re-serialised body is refused with 400. The route has its own body
+// limit of 512 KB (Hassan L4).
 
 const WEBHOOK_SECRET = 'whsec_apitest0123456789';
 
@@ -82,6 +83,32 @@ describe('payouts provider webhook (database integration)', () => {
 
       expect(response.status).toBe(400);
     });
+
+    it('takes a signed event larger than the global 64 KB limit, up to its own 512 KB (L4)', async () => {
+      // Stripe's account events can exceed the application's limit; the padding is a field the
+      // verifier ignores.
+      const padded = (bytes: number) =>
+        eventBody().replace('{"id": "po_1"}', `{"id": "po_1", "pad": "${'x'.repeat(bytes)}"}`);
+      const large = padded(100 * 1024);
+      const tooLarge = padded(600 * 1024);
+
+      expect((await post(path, large, signature(large))).status).toBe(200);
+      expect((await post(path, tooLarge, signature(tooLarge))).status).toBe(413);
+    });
+  });
+
+  it('keeps the 64 KB limit for an unhosted Market and any other path or method (L-a)', async () => {
+    const body = `{"id": "evt_1", "pad": "${'x'.repeat(100 * 1024)}"}`;
+    const server = () => request(app.getHttpServer());
+
+    for (const call of [
+      () => server().post('/payouts/QQ/provider-webhook'),
+      () => server().post(`/payouts/${TEST_MARKETS[0]}/provider-webhook/x`),
+      () => server().put(`/payouts/${TEST_MARKETS[0]}/provider-webhook`),
+    ]) {
+      const response = await call().set('content-type', 'application/json').send(body);
+      expect(response.status).toBe(413);
+    }
   });
 
   it('refuses a Market this deployment does not host, before reading the body', async () => {
