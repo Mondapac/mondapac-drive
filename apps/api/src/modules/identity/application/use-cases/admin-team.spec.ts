@@ -95,6 +95,7 @@ const LEAD_KEYS = [
   'identity.courier-account.view',
   'identity.platform-role.assign',
   'identity.platform-role.view',
+  'tracking.map.view',
 ];
 /** The keys of the custom viewer role: it holds less than every other admin role. */
 const VIEWER_KEYS = ['identity.admin-account.view', 'identity.platform-role.view'];

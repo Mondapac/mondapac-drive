@@ -1,26 +1,27 @@
 import type { OnApplicationShutdown } from '@nestjs/common';
-import type { GeoPoint, MarketId } from '@mondapac-drive/shared-kernel';
+import type { GeoPoint, MarketContext } from '@mondapac-drive/shared-kernel';
 import type { Redis } from 'ioredis';
 import type { LivePositionStore } from '../application/ports';
 import type { LivePosition, NearbyCourier } from '../domain/live-position';
 import { decodePosition, encodePosition } from './live-position-codec';
 
 /**
- * Every key of a Market shares the hash tag `{<market>}`, so one script can touch them together
- * on a Redis Cluster too:
- * - `tracking:{AU}:pos:<courier>`  hash: `at` (epoch ms of the reading) and `json`, with the TTL
- * - `tracking:{AU}:geo`            GEO set of the Market's couriers
- * - `tracking:{AU}:geo:<area>`     GEO set of one service area
- * - `tracking:{AU}:slot:<courier>` the ping throttle
+ * Every key of a Market's tenant shares the hash tag `{<market>:<tenant>}`, so one script can
+ * touch them together on a Redis Cluster too, and no tenant ever reads another's couriers:
+ * - `tracking:{AU:default}:pos:<courier>`  hash: `at` (epoch ms of the reading) and `json`, with
+ *   the TTL
+ * - `tracking:{AU:default}:geo`            GEO set of the tenant's couriers
+ * - `tracking:{AU:default}:geo:<area>`     GEO set of one service area
+ * - `tracking:{AU:default}:slot:<courier>` the ping throttle
  * A GEO member has no TTL of its own: a member whose position key expired, or whose latest ping
  * named another area, is removed when a search meets it. The sets themselves expire when no
  * courier of the Market pings for a whole TTL.
  */
-const positionKey = (market: MarketId, courierId: string) =>
-  `tracking:{${market}}:pos:${courierId}`;
-const geoKey = (market: MarketId, area?: string) =>
-  area === undefined ? `tracking:{${market}}:geo` : `tracking:{${market}}:geo:${area}`;
-const slotKey = (market: MarketId, courierId: string) => `tracking:{${market}}:slot:${courierId}`;
+const tag = (market: MarketContext) => `tracking:{${market.marketId}:${market.tenantId}}`;
+const positionKey = (market: MarketContext, courierId: string) => `${tag(market)}:pos:${courierId}`;
+const geoKey = (market: MarketContext, area?: string) =>
+  area === undefined ? `${tag(market)}:geo` : `${tag(market)}:geo:${area}`;
+const slotKey = (market: MarketContext, courierId: string) => `${tag(market)}:slot:${courierId}`;
 
 /**
  * Saves the position only when it is later than the stored one, and adds the courier to the
@@ -46,7 +47,7 @@ const OVERFETCH = 2;
 export class RedisLivePositionStore implements LivePositionStore, OnApplicationShutdown {
   constructor(private readonly redis: Redis) {}
 
-  async claimPingSlot(market: MarketId, courierId: string, intervalSeconds: number) {
+  async claimPingSlot(market: MarketContext, courierId: string, intervalSeconds: number) {
     const claimed = await this.redis.set(
       slotKey(market, courierId),
       '1',
@@ -57,7 +58,7 @@ export class RedisLivePositionStore implements LivePositionStore, OnApplicationS
     return claimed === 'OK';
   }
 
-  async save(market: MarketId, position: LivePosition, ttlSeconds: number): Promise<boolean> {
+  async save(market: MarketContext, position: LivePosition, ttlSeconds: number): Promise<boolean> {
     const keys = [positionKey(market, position.courierId), geoKey(market)];
     if (position.serviceAreaCode !== undefined) {
       keys.push(geoKey(market, position.serviceAreaCode));
@@ -76,13 +77,13 @@ export class RedisLivePositionStore implements LivePositionStore, OnApplicationS
     return saved === 1;
   }
 
-  async lastKnown(market: MarketId, courierId: string): Promise<LivePosition | undefined> {
+  async lastKnown(market: MarketContext, courierId: string): Promise<LivePosition | undefined> {
     const json = await this.redis.hget(positionKey(market, courierId), 'json');
     return json === null ? undefined : decodePosition(json);
   }
 
   async nearest(
-    market: MarketId,
+    market: MarketContext,
     point: GeoPoint,
     radiusMetres: number,
     limit: number,

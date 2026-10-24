@@ -48,7 +48,8 @@ function contentLengthOf(headers: SerializedRequest['headers']): number | undefi
  * logged as its route parameter, never its value.
  */
 const CREDENTIAL_SEGMENTS: readonly [RegExp, string][] = [
-  [/^\/tracking\/links\/[^/]+/, '/tracking/links/:token'],
+  // Express matches routes case-insensitively, so the redaction does too.
+  [/^\/tracking\/links\/[^/]+/i, '/tracking/links/:token'],
 ];
 
 function redactPath(path: string): string {

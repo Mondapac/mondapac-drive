@@ -9,7 +9,7 @@ import {
   DISPATCH_SETTINGS,
 } from '../application/ports';
 import { FleetDirectory } from '../../fleet';
-import { NearestCouriers } from '../../tracking';
+import { CourierPositions } from '../../tracking';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
 import { FleetCourierAvailability } from './fleet-courier-availability';
 import { PrismaDispatchJobRepository } from './prisma-dispatch-job.repository';
@@ -36,8 +36,8 @@ export const dispatchProviders: Provider[] = [
   },
   {
     provide: COURIER_PROXIMITY,
-    inject: [NearestCouriers],
-    useFactory: (nearest: NearestCouriers) => new TrackingCourierProximity(nearest),
+    inject: [CourierPositions],
+    useFactory: (positions: CourierPositions) => new TrackingCourierProximity(positions),
   },
   { provide: DELIVERY_LINK, useValue: new UnlinkedDelivery() },
 ];

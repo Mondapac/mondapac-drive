@@ -49,7 +49,7 @@ export interface CourierAvailability {
 }
 export const COURIER_AVAILABILITY = Symbol('CourierAvailability');
 
-/** Couriers' last known distance from a point (tracking's `NearestCouriers`). */
+/** Couriers' last known distance from a point (tracking's `CourierPositions`). */
 export interface CourierProximity {
   nearestCouriers(
     context: CallContext,

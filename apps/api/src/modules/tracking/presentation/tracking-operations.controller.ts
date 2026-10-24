@@ -8,23 +8,45 @@ import {
   Post,
   Query,
   Sse,
+  SseSignal,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { parseId, type MarketContext } from '@mondapac-drive/shared-kernel';
-import { concatMap, from, map, take, timer, type Observable } from 'rxjs';
-import { Market } from '../../../platform/market-context/market.decorator';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { CallContext } from '@mondapac-drive/shared-kernel';
+import {
+  concatMap,
+  EMPTY,
+  finalize,
+  from,
+  map,
+  take,
+  takeWhile,
+  timer,
+  type Observable,
+} from 'rxjs';
+import { Call } from '../../../platform/call-context/call-context.decorator';
+import {
+  ReadsSession,
+  RoutePopulation,
+} from '../../../platform/call-context/route-population.decorator';
 import { DeliveryTrail } from '../application/use-cases/delivery-trail.use-case';
-import { LastKnownPosition } from '../application/use-cases/last-known-position.use-case';
-import { NearestCouriers } from '../application/use-cases/nearest-couriers.use-case';
 import { RecordLocationPing } from '../application/use-cases/record-location-ping.use-case';
+import {
+  ViewCourierPosition,
+  ViewNearbyCouriers,
+  type NearbyQuery,
+} from '../application/use-cases/view-courier-positions.use-case';
 import type { Breadcrumb } from '../domain/breadcrumb';
 import type { LivePosition, NearbyCourier } from '../domain/live-position';
-import { answer, fail, parsed } from './tracking-http';
+import { StreamLimits } from './stream-limits';
+import { answer, fail, parsed, refusal } from './tracking-http';
 import { nearestQuery, pingBody } from './tracking.schemas';
 
 /** The dispatcher map refreshes this often and closes after half an hour, like the tracking page. */
 const MAP_REFRESH_MS = 5000;
 const MAP_MAX_EVENTS = 360;
+/** Open map streams of one admin, and of this API instance. */
+const MAP_STREAMS_PER_ADMIN = 3;
+const MAP_STREAMS_PER_INSTANCE = 500;
 
 const positionBody = (position: LivePosition) => ({
   courierId: position.courierId,
@@ -50,87 +72,130 @@ const crumbBody = (crumb: Breadcrumb) => ({
   recordedAt: crumb.recordedAt.toString(),
 });
 
+const nearbyQueryOf = (query: unknown): NearbyQuery => {
+  const input = parsed(() => nearestQuery.parse(query));
+  return {
+    point: { lat: input.lat, lng: input.lng },
+    radiusMetres: input.radiusM,
+    limit: input.limit,
+    ...(input.serviceArea === undefined ? {} : { serviceArea: input.serviceArea }),
+  };
+};
+
+/** The admin's account id: the key of its map streams. The gate admitted it already. */
+function adminKey(context: CallContext): string {
+  return context.actor.kind === 'authenticated' ? context.actor.accountId : 'unknown';
+}
+
 /**
- * Courier location ingestion and the dispatcher's live map and trails.
- *
- * NOT REGISTERED in `TrackingModule` until identity (work package 2) merges: every route here
- * reads or writes live location, which is personal data, and needs a courier session (pings,
- * with the courier id taken from the session, not the path) or a dispatcher session (the rest).
- * Registering it before then would ship unauthenticated personal data; the module test checks
- * that it is not registered.
+ * The courier app's location API (`Authorization: Bearer <session token>`): the courier sends
+ * batches of its own fixes. The courier is the session's account, never a path or body field.
  */
 @ApiTags('tracking')
-@Controller('tracking')
-export class TrackingOperationsController {
+@ApiBearerAuth()
+@RoutePopulation('courier')
+@Controller('tracking/courier')
+export class CourierTrackingController {
+  constructor(private readonly recordPing: RecordLocationPing) {}
+
+  @Post('pings')
+  @HttpCode(202)
+  @ReadsSession()
+  @ApiOperation({
+    summary: "Record a batch of the courier's location pings",
+    description:
+      'At most 20 pings, each checked against the Market (accuracy, speed, age); the latest ' +
+      'valid one becomes the live position. 429 `ping.throttled` when the last batch was too ' +
+      'recent. Invalid pings of a batch are listed by index, never echoed.',
+  })
+  async ping(@Call() context: CallContext, @Body() body: unknown) {
+    const input = parsed(() => pingBody.parse(body));
+    return answer(await this.recordPing.execute(context, input));
+  }
+}
+
+/**
+ * The admin panel's live map for operators and dispatchers (the admin session cookie): couriers
+ * near a point, one courier's position, a delivery's trail, and the map's live channel. Every
+ * route reads live location, personal data: rule `permissions [tracking.map.view]`.
+ */
+@ApiTags('tracking')
+@RoutePopulation('admin')
+@Controller('tracking/admin')
+export class DispatcherTrackingController {
+  readonly #streams = new StreamLimits(MAP_STREAMS_PER_ADMIN, MAP_STREAMS_PER_INSTANCE);
+
   constructor(
-    private readonly recordPing: RecordLocationPing,
-    private readonly nearestCouriers: NearestCouriers,
-    private readonly lastKnownPosition: LastKnownPosition,
+    private readonly viewNearby: ViewNearbyCouriers,
+    private readonly viewPosition: ViewCourierPosition,
     private readonly deliveryTrail: DeliveryTrail,
   ) {}
 
-  @Post('couriers/:courierId/pings')
-  @HttpCode(202)
-  @ApiOperation({ summary: "Record a courier's location ping" })
-  async ping(
-    @Market() market: MarketContext,
-    @Param('courierId') courierId: string,
-    @Body() body: unknown,
-  ) {
-    const input = parsed(() => pingBody.parse(body));
-    return answer(await this.recordPing.perform(market, { ...input, courierId }));
-  }
-
   @Get('couriers/nearest')
+  @ReadsSession()
   @ApiOperation({ summary: 'Couriers with a fresh position near a point, nearest first' })
-  async nearest(@Market() market: MarketContext, @Query() query: unknown) {
-    const input = parsed(() => nearestQuery.parse(query));
-    const found = await this.nearestCouriers.perform(
-      market,
-      { lat: input.lat, lng: input.lng },
-      input.radiusM,
-      input.limit,
-      input.serviceArea === undefined ? {} : { serviceArea: input.serviceArea },
-    );
+  async nearest(@Call() context: CallContext, @Query() query: unknown) {
+    const found = answer(await this.viewNearby.execute(context, nearbyQueryOf(query)));
     return { couriers: found.map(nearbyBody) };
   }
 
   @Get('couriers/:courierId/position')
+  @ReadsSession()
   @ApiOperation({ summary: "A courier's latest fresh position" })
-  async position(@Market() market: MarketContext, @Param('courierId') courierId: string) {
-    const position = await this.lastKnownPosition.perform(market, courierId);
-    if (position === undefined) throw fail(404, 'tracking.position-not-found');
-    return positionBody(position);
+  async position(@Call() context: CallContext, @Param('courierId') courierId: string) {
+    return positionBody(answer(await this.viewPosition.execute(context, { courierId })));
   }
 
   @Get('deliveries/:deliveryId/trail')
+  @ReadsSession()
   @ApiOperation({ summary: "A delivery's breadcrumb trail" })
-  async trail(@Market() market: MarketContext, @Param('deliveryId') id: string) {
-    const deliveryId = parseId<'Delivery'>(id);
-    if (!deliveryId.ok) throw fail(404, 'tracking.delivery-not-found');
-    const crumbs = answer(await this.deliveryTrail.perform(market, deliveryId.value));
+  async trail(@Call() context: CallContext, @Param('deliveryId') deliveryId: string) {
+    const crumbs = answer(await this.deliveryTrail.execute(context, { deliveryId }));
     return { points: crumbs.map(crumbBody) };
   }
 
   @Sse('map/stream')
-  @ApiOperation({ summary: 'Server-sent events of the couriers near a point (dispatcher map)' })
-  map(@Market() market: MarketContext, @Query() query: unknown): Observable<MessageEvent> {
-    const input = parsed(() => nearestQuery.parse(query));
-    const options = input.serviceArea === undefined ? {} : { serviceArea: input.serviceArea };
+  @ReadsSession()
+  @ApiOperation({
+    summary: 'Server-sent events of the couriers near a point (dispatcher map)',
+    description:
+      'A `couriers` event every five seconds for half an hour. Each event asks the gate again, ' +
+      'so a revoked role ends the stream with one `end` event. At most three streams per admin ' +
+      '(429 `tracking.too-many-streams`).',
+  })
+  async map(
+    @Call() context: CallContext,
+    @Query() query: unknown,
+    @SseSignal() signal: AbortSignal,
+  ): Promise<Observable<MessageEvent>> {
+    const input = nearbyQueryOf(query);
+    // The first read answers a refusal as an HTTP error, before the stream opens.
+    const first = await this.viewNearby.execute(context, input);
+    if (!first.ok) throw refusal(first.error);
+    const release = this.#streams.acquire(adminKey(context));
+    if (release === undefined) {
+      throw fail(429, 'tracking.too-many-streams', { retryAfterSeconds: 60 });
+    }
+    // The signal aborts on every end of the response, also when the client left during the
+    // first read, before Nest subscribes: the slot is never kept (security review of 06b, M1).
+    signal.addEventListener('abort', release, { once: true });
+    if (signal.aborted) {
+      release();
+      return EMPTY;
+    }
     return timer(0, MAP_REFRESH_MS).pipe(
       take(MAP_MAX_EVENTS),
-      concatMap(() =>
-        from(
-          this.nearestCouriers.perform(
-            market,
-            { lat: input.lat, lng: input.lng },
-            input.radiusM,
-            input.limit,
-            options,
-          ),
-        ),
+      concatMap((tick) =>
+        tick === 0 ? from([first]) : from(this.viewNearby.execute(context, input)),
       ),
-      map((found) => ({ type: 'couriers', data: { couriers: found.map(nearbyBody) } })),
+      takeWhile((result) => result.ok, true),
+      map((result) =>
+        result.ok
+          ? { type: 'couriers', data: { couriers: result.value.map(nearbyBody) } }
+          : { type: 'end', data: { code: result.error.code } },
+      ),
+      // Runs on completion and when the client disconnects (Nest unsubscribes on close).
+      finalize(release),
     );
   }
 }
