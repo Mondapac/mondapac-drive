@@ -81,6 +81,36 @@ export const vehicleDeactivated = defineAuditAction({
   after: { courierId: auditField.id() },
 });
 
+/** Payouts adds the Market's sales tax to a registered contractor's earnings: money moves on it. */
+export const courierTaxRegistrationSet = defineAuditAction({
+  action: 'fleet.courier.tax-registration-set',
+  targetType: 'fleet.courier',
+  actors: ['authenticated'],
+  before: { taxRegistered: auditField.boolean() },
+  after: { taxRegistered: auditField.boolean() },
+});
+
+/** An operator replaced a vehicle's capacity (the rate card's default, or the courier's). */
+export const vehicleCapacitySet = defineAuditAction({
+  action: 'fleet.vehicle.capacity-set',
+  targetType: 'fleet.vehicle',
+  actors: ['authenticated'],
+  before: { maxWeightGrams: auditField.integer(), maxVolumeLitres: auditField.integer() },
+  after: {
+    courierId: auditField.id(),
+    maxWeightGrams: auditField.integer(),
+    maxVolumeLitres: auditField.integer(),
+  },
+});
+
+/** Recorded when an operator downloads a courier's document file (identity documents). */
+export const documentDownloaded = defineAuditAction({
+  action: 'fleet.document.downloaded',
+  targetType: 'fleet.document',
+  actors: ['authenticated'],
+  after: { courierId: auditField.id() },
+});
+
 export const FLEET_AUDIT_ACTIONS = [
   courierApproved,
   courierSuspendedAudit,
@@ -90,4 +120,7 @@ export const FLEET_AUDIT_ACTIONS = [
   documentRejected,
   documentRevoked,
   vehicleDeactivated,
+  courierTaxRegistrationSet,
+  vehicleCapacitySet,
+  documentDownloaded,
 ] as const;

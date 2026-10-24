@@ -26,7 +26,10 @@ export const courierNotFound = (): FleetFailure => ({
   message: 'No such courier',
 });
 
-export const forbidden = (): FleetFailure => ({
-  code: 'fleet.forbidden',
-  message: 'Not allowed',
+/** A caller of the wrong population, after the gate admitted its keys. */
+export const forbidden = (): FleetFailure => ({ code: 'access.denied', message: 'Not allowed' });
+
+export const documentNotFound = (): FleetFailure => ({
+  code: 'fleet.document.not-found',
+  message: 'No such document',
 });

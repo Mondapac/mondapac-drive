@@ -1,7 +1,7 @@
 import type { MarketId } from '@mondapac-drive/shared-kernel';
 import type { MarketRegistry } from '../../../platform/market-config/market-registry';
 import type { ServiceAreaDirectory } from '../../../platform/market-config/service-area-directory';
-import type { FleetRulesProvider } from '../application/ports';
+import type { CourierAppSettings, FleetRulesProvider } from '../application/ports';
 import type { MarketFleetRules, VehicleClass } from '../domain/fleet-rules';
 import { VEHICLE_TYPES, type VehicleType } from '../domain/vehicle';
 
@@ -51,6 +51,23 @@ export class ConfigFleetRulesProvider implements FleetRulesProvider {
     });
     this.#rules.set(marketId, rules);
     return rules;
+  }
+
+  courierAppSettings(marketId: MarketId): CourierAppSettings {
+    const market = this.markets.get(marketId);
+    const { chilled, frozen } = market.delivery.coldChain;
+    return {
+      marketId,
+      locale: market.defaultLocale,
+      currency: market.defaultCurrency,
+      distanceUnit: market.fleet.courierApp.distanceUnit,
+      supportPhone: market.fleet.courierApp.supportPhone,
+      offerAcceptSeconds: market.dispatch.offerTimeoutSeconds,
+      coldChain: {
+        chilled: { maxCelsius: chilled.maxCelsius },
+        frozen: { maxCelsius: frozen.maxCelsius },
+      },
+    };
   }
 
   hasServiceArea(marketId: MarketId, code: string): boolean {

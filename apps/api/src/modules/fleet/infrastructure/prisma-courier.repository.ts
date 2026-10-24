@@ -190,6 +190,39 @@ export class PrismaCourierRepository implements CourierRepository {
     return this.withChildren(market, rows);
   }
 
+  async list(
+    market: MarketContext,
+    query: {
+      readonly status?: CourierStatus;
+      readonly after?: Id<'Courier'>;
+      readonly limit: number;
+    },
+  ) {
+    const rows = await this.prisma.tx(market).fleetCourier.findMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        ...(query.status === undefined ? {} : { status: query.status }),
+        ...(query.after === undefined ? {} : { id: { gt: query.after } }),
+      },
+      orderBy: { id: 'asc' },
+      take: query.limit,
+      select: SELECT_COURIER,
+    });
+    return this.withChildren(market, rows);
+  }
+
+  async namedFileKeys(market: MarketContext, fileKeys: readonly string[]) {
+    if (fileKeys.length === 0) return new Set<string>();
+    const rows = await this.prisma.tx(market).fleetDocument.findMany({
+      // Every tenant's rows: a file key names no tenant, so a sweep that saw only its own
+      // tenant's documents would delete another tenant's live files.
+      where: { marketId: market.marketId, fileKey: { in: [...fileKeys] } },
+      select: { fileKey: true },
+    });
+    return new Set(rows.map((row) => row.fileKey));
+  }
+
   async findOnlineInArea(market: MarketContext, serviceAreaCode: string) {
     const rows = await this.prisma.tx(market).fleetCourier.findMany({
       where: {
