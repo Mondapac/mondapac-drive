@@ -13,7 +13,8 @@ export function advanceDispatchJobsJob(advance: AdvanceDispatchJobs): JobDefinit
     every: Temporal.Duration.from({ seconds: 5 }),
     maxRunMs: 30_000,
     run: async (context) => {
-      await advance.run(context);
+      const swept = await advance.execute(context, {});
+      if (!swept.ok) throw new Error(`dispatch.advance-jobs refused: ${swept.error.code}`);
     },
   };
 }

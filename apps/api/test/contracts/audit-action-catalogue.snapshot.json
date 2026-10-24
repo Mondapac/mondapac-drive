@@ -1,5 +1,32 @@
 [
   {
+    "action": "dispatch.job.courier-assigned",
+    "targetType": "dispatch.job",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "courierId": "optional(id)",
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)"
+    },
+    "after": {
+      "courierId": "id",
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)",
+      "vehicle": "enumOf(bicycle|motorbike|car|van)"
+    }
+  },
+  {
+    "action": "dispatch.job.offering-restarted",
+    "targetType": "dispatch.job",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)"
+    },
+    "after": {
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)"
+    }
+  },
+  {
     "action": "fleet.courier.approved",
     "targetType": "fleet.courier",
     "targetId": "id",

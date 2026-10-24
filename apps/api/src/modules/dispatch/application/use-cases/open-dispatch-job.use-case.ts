@@ -1,78 +1,144 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
+  err,
   ok,
   type CallContext,
   type Clock,
   type Id,
   type IdGenerator,
   type Result,
-  type Temporal,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import type { EventDelivery } from '../../../../platform/events/event-delivery';
+import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import { openDispatchJob, type DispatchJob } from '../../domain/dispatch-job';
+import { stopsOf } from '../offer-stops';
 import type { DispatchRequirements } from '../../domain/matching';
-import { refusingBrokenRules, type DispatchFailure } from '../failure';
-import { JobAdvancer } from '../job-advancer';
+import { isSystem } from '../callers';
 import {
-  DISPATCH_JOB_REPOSITORY,
-  DISPATCH_SETTINGS,
-  type DispatchJobRepository,
-  type DispatchSettingsProvider,
+  accessDenied,
+  deliveryNotFound,
+  refusingBrokenRules,
+  type DispatchFailure,
+} from '../failure';
+import type { JobAdvancer } from '../job-advancer';
+import type {
+  DeliveryFacts,
+  DeliveryForDispatch,
+  DispatchJobRepository,
+  DispatchSettingsProvider,
 } from '../ports';
 
 export interface OpenDispatchJobInput {
+  /** The booking event's delivery: the job is opened once per event and subscriber. */
+  readonly delivery: EventDelivery;
   readonly deliveryId: Id<'Delivery'>;
-  readonly requirements: DispatchRequirements;
-  /** The start of a scheduled delivery's window; absent for on-demand. */
-  readonly windowStart?: Temporal.Instant;
+  /** The booking event's aggregate version. */
+  readonly deliveryVersion: number;
+}
+
+export interface OpenDispatchJobDependencies {
+  readonly jobs: DispatchJobRepository;
+  readonly facts: DeliveryFacts;
+  readonly settings: DispatchSettingsProvider;
+  readonly unitOfWork: UnitOfWork;
+  readonly ids: IdGenerator;
+  readonly clock: Clock;
+  readonly advancer: JobAdvancer;
+}
+
+/** The delivery statuses in which a delivery still waits for a courier. */
+const WAITING_FOR_COURIER = new Set(['SCHEDULED', 'DISPATCHING']);
+
+/** What the delivery needs from its courier, and what the courier's offer shows. */
+export function requirementsOf(delivery: DeliveryForDispatch): DispatchRequirements {
+  return {
+    serviceAreaCode: delivery.serviceAreaCode,
+    pickup: delivery.pickup.point,
+    minimumVehicle: delivery.vehicle,
+    weightGrams: delivery.weightGrams,
+    volumeLitres: delivery.volumeLitres,
+    temperature: delivery.temperature,
+  };
 }
 
 /**
- * Opens the dispatch job of a booked delivery (system). Idempotent per delivery: a repeated
- * booking event returns the job already opened. An on-demand job sends its first wave at once.
+ * Opens the dispatch job of a booked delivery, from the `delivery.booked` subscriber: the
+ * requirements and the offer's stops come from delivery's read for dispatch. Idempotent per
+ * delivery: a repeated booking event returns the job already opened. A delivery that no longer
+ * waits for a courier (cancelled before the event arrived) opens nothing. An on-demand job
+ * sends its first wave at once; a scheduled one waits until the Market's lead time before its
+ * window. Rule `system`.
  */
-@Injectable()
-export class OpenDispatchJob {
-  constructor(
-    @Inject(DISPATCH_JOB_REPOSITORY) private readonly jobs: DispatchJobRepository,
-    @Inject(DISPATCH_SETTINGS) private readonly settings: DispatchSettingsProvider,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
-    @Inject(CLOCK) private readonly clock: Clock,
-    private readonly advancer: JobAdvancer,
-  ) {}
+export class OpenDispatchJob extends UseCase<
+  OpenDispatchJobInput,
+  DispatchJob | null,
+  DispatchFailure
+> {
+  static override readonly access: AccessDeclaration = {
+    name: 'dispatch.open-dispatch-job',
+    rule: { kind: 'system' },
+  };
 
-  async run(
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: OpenDispatchJobDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected async handle(
     context: CallContext,
     input: OpenDispatchJobInput,
-  ): Promise<Result<DispatchJob, DispatchFailure>> {
+  ): Promise<Result<DispatchJob | null, DispatchFailure>> {
+    if (!isSystem(context)) return err(accessDenied());
+    const { jobs, facts, unitOfWork, ids, clock, advancer } = this.deps;
     const { market } = context;
-    const settings = this.settings.get(market.marketId);
-    const opened = await this.unitOfWork.run(market, () =>
+    const delivery = await facts.forDispatch(context, input.deliveryId);
+    if (delivery === undefined) return err(deliveryNotFound());
+    if (!WAITING_FOR_COURIER.has(delivery.status)) return ok(null);
+    const settings = this.deps.settings.get(market.marketId);
+
+    const opened = await unitOfWork.runOnce(market, input.delivery, () =>
       refusingBrokenRules(async () => {
-        const existing = await this.jobs.findByDelivery(market, input.deliveryId);
+        const existing = await jobs.findByDelivery(market, input.deliveryId);
         if (existing !== undefined) return ok(existing);
         const job = openDispatchJob(
           {
-            id: this.ids.next<'DispatchJob'>(),
+            id: ids.next<'DispatchJob'>(),
             marketId: market.marketId,
             deliveryId: input.deliveryId,
-            requirements: input.requirements,
-            ...(input.windowStart === undefined ? {} : { windowStart: input.windowStart }),
+            requirements: requirementsOf(delivery),
+            stops: stopsOf(delivery),
+            deliveryVersion: input.deliveryVersion,
+            ...(delivery.window === undefined ? {} : { windowStart: delivery.window.start }),
           },
-          this.clock.now(),
+          clock.now(),
           settings,
         );
-        if (await this.jobs.insert(market, job)) return ok(job);
+        if (await jobs.insert(market, job)) return ok(job);
         // Another delivery of the same booking event won the race.
-        return ok((await this.jobs.findByDelivery(market, input.deliveryId)) ?? job);
+        return ok((await jobs.findByDelivery(market, input.deliveryId)) ?? job);
       }),
     );
-    if (opened.ok && opened.value.status === 'OFFERING' && opened.value.round === 0) {
-      await this.advancer.advance(context, opened.value.id);
+    if (!opened.ok) return opened;
+    if (!opened.value.handled) {
+      return ok((await this.peek(context, input.deliveryId)) ?? null);
     }
-    return opened;
+    const job = opened.value.value;
+    if (job.status === 'OFFERING' && job.round === 0) await advancer.advance(context, job.id);
+    return ok(job);
+  }
+
+  private async peek(
+    context: CallContext,
+    deliveryId: Id<'Delivery'>,
+  ): Promise<DispatchJob | undefined> {
+    const { market } = context;
+    const read = await this.deps.unitOfWork.run(
+      market,
+      async () => ok(await this.deps.jobs.findByDelivery(market, deliveryId)),
+      { readOnly: true },
+    );
+    return read.ok ? read.value : undefined;
   }
 }

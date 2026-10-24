@@ -15,23 +15,26 @@ import {
   couriersNotToOffer,
   sendWave,
   sweep,
+  withStops,
   type DispatchJob,
   type JobChange,
+  type OfferStops,
 } from '../domain/dispatch-job';
 import type { DispatchSettings } from '../domain/dispatch-settings';
 import { rankCandidates, type RankedCandidate } from '../domain/matching';
 import {
   COURIER_AVAILABILITY,
   COURIER_PROXIMITY,
-  DELIVERY_LINK,
+  DELIVERY_FACTS,
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
   type CourierAvailability,
   type CourierProximity,
-  type DeliveryLink,
+  type DeliveryFacts,
   type DispatchJobRepository,
   type DispatchSettingsProvider,
 } from './ports';
+import { stopsOf } from './offer-stops';
 
 /** What advancing one job did. */
 export type Advanced = 'unchanged' | 'advanced' | 'stale';
@@ -39,7 +42,10 @@ export type Advanced = 'unchanged' | 'advanced' | 'stale';
 /**
  * Moves one job forward in time: opens it, expires offers, sends the next wave or exhausts it
  * (domain `sweep` and `sendWave`). Candidates are read before the unit opens, since they come
- * from other modules; the unit reloads the job and applies the change to what it finds.
+ * from other modules; the unit reloads the job and applies the change to what it finds. A job
+ * with no stops (a scheduled job opening, a restart after every round lapsed) reads them from
+ * the delivery for its wave. Run by the system actor only (the sweep and the event
+ * subscribers): delivery, fleet and tracking are asked as the system.
  */
 @Injectable()
 export class JobAdvancer {
@@ -48,7 +54,7 @@ export class JobAdvancer {
     @Inject(DISPATCH_SETTINGS) private readonly settings: DispatchSettingsProvider,
     @Inject(COURIER_AVAILABILITY) private readonly availability: CourierAvailability,
     @Inject(COURIER_PROXIMITY) private readonly proximity: CourierProximity,
-    @Inject(DELIVERY_LINK) private readonly delivery: DeliveryLink,
+    @Inject(DELIVERY_FACTS) private readonly facts: DeliveryFacts,
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriter,
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
@@ -72,17 +78,22 @@ export class JobAdvancer {
     const candidates = preview.waveDue
       ? await this.candidatesFor(context, preview.job, settings)
       : undefined;
+    const stops =
+      preview.waveDue && preview.job.stops === undefined
+        ? await this.stopsFor(context, preview.job)
+        : undefined;
 
-    let opened = false;
     try {
       const saved = await this.unitOfWork.run(market, async () => {
         const job = await this.jobs.findById(market, jobId);
         if (job === undefined) return ok(false);
         const swept = sweep(job, now, settings);
         let change: JobChange = swept;
-        // A wave found due only now (a race with an answer) waits for the next sweep.
-        if (swept.waveDue && candidates !== undefined) {
-          const wave = sendWave(swept.job, candidates, now, settings, () =>
+        const ready = stops === undefined ? swept.job : withStops(swept.job, stops);
+        // A wave found due only now (a race with an answer), or with no stops to show, waits
+        // for the next sweep.
+        if (swept.waveDue && candidates !== undefined && ready.stops !== undefined) {
+          const wave = sendWave(ready, candidates, now, settings, () =>
             this.ids.next<'DispatchOffer'>(),
           );
           // One saved change, one version step, however many steps the domain took.
@@ -94,15 +105,18 @@ export class JobAdvancer {
         if (change.job.version === job.version) return ok(false);
         await this.jobs.update(market, change.job);
         if (change.events.length > 0) await this.outbox.append(context, change.events);
-        opened = swept.opened;
         return ok(true);
       });
-      if (opened) await this.delivery.dispatchOpened(context, before.deliveryId);
       return saved.ok && saved.value ? 'advanced' : 'unchanged';
     } catch (error) {
       if (error instanceof StaleAggregateError) return 'stale';
       throw error;
     }
+  }
+
+  private async stopsFor(context: CallContext, job: DispatchJob): Promise<OfferStops | undefined> {
+    const delivery = await this.facts.forDispatch(context, job.deliveryId);
+    return delivery === undefined ? undefined : stopsOf(delivery);
   }
 
   private async candidatesFor(

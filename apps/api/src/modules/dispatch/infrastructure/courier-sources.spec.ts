@@ -1,4 +1,4 @@
-import type { MarketId } from '@mondapac-drive/shared-kernel';
+import { Temporal, type MarketId } from '@mondapac-drive/shared-kernel';
 import { testCallContext, testMarketContext } from '@mondapac-drive/shared-kernel/testing';
 import { AU, courierId, requirements, ZZ } from '../../../../test/support/dispatch-markets';
 import { TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS } from '../../../../test/support/test-config';
@@ -18,56 +18,78 @@ describe.each([
   const context = testCallContext(testMarketContext(marketId, 'mondapac'), 'system');
   const offered = Object.keys(registry.get(marketId).delivery.rateCard.vehicles);
 
-  /** A fleet where courier 1 holds a van, courier 2 a car and a van, courier 3 a motorbike. */
+  const vehicle = (
+    type: string,
+    maxWeightGrams = 50_000,
+    temperatures = ['ambient', 'chilled'],
+  ) => ({
+    vehicleId: `vehicle-${type}`,
+    type,
+    maxWeightGrams,
+    maxVolumeLitres: 300,
+    temperatures,
+  });
+  const idle = (minute: number) =>
+    Temporal.Instant.from('2026-11-02T08:00:00Z').add({ minutes: minute });
+
+  /**
+   * A fleet where courier 1 holds a van, courier 2 a car and a van, courier 3 a motorbike too
+   * small for 5 kg and a car, and courier 4 only that motorbike; one answer has a malformed id.
+   */
   function fleet(asked: unknown[]) {
-    const byType: Record<string, number[]> = { motorbike: [3], car: [2], van: [1, 2] };
     return {
-      findEligibleCouriers: (_c: unknown, query: { vehicleTypes: string[] }) => {
+      findAvailableCouriers: (_c: unknown, query: unknown) => {
         asked.push(query);
-        return Promise.resolve(query.vehicleTypes.flatMap((t) => (byType[t] ?? []).map(courierId)));
+        return Promise.resolve([
+          {
+            courierId: courierId(2),
+            vehicles: [vehicle('car'), vehicle('van')],
+            idleSince: idle(1),
+          },
+          { courierId: courierId(1), vehicles: [vehicle('van')], idleSince: idle(2) },
+          {
+            courierId: courierId(3),
+            vehicles: [vehicle('motorbike', 1000), vehicle('car')],
+            idleSince: idle(3),
+          },
+          { courierId: courierId(4), vehicles: [vehicle('motorbike', 1000)], idleSince: idle(4) },
+          { courierId: 'not-an-id', vehicles: [vehicle('van')], idleSince: idle(5) },
+        ]);
       },
     } as unknown as FleetDirectory;
   }
 
-  it("asks fleet type by type from the delivery's vehicle up, and keeps each courier's smallest", async () => {
+  it("asks fleet once for the Market's types from the delivery's vehicle up", async () => {
     const asked: unknown[] = [];
-    const found = await new FleetCourierAvailability(fleet(asked), registry).findEligibleCouriers(
+    await new FleetCourierAvailability(fleet(asked), registry).findEligibleCouriers(
       context,
       requirements({ minimumVehicle: 'motorbike', temperature: 'chilled' }),
     );
 
     const types = ['motorbike', 'car', 'van'].filter((t) => offered.includes(t));
-    expect(asked).toEqual(
-      types.map((t) => ({ vehicleTypes: [t], coldChain: true, serviceArea: 'area-1' })),
-    );
-    const vehicleOf = Object.fromEntries(found.map((c) => [c.courierId, c.vehicle.type]));
-    expect(vehicleOf[courierId(3)]).toBe('motorbike');
-    expect(vehicleOf[courierId(2)]).toBe(offered.includes('car') ? 'car' : 'van');
-    expect(vehicleOf[courierId(1)]).toBe('van');
-    expect(found.every((c) => c.vehicle.temperatures.includes('chilled'))).toBe(true);
+    expect(asked).toEqual([{ vehicleTypes: types, coldChain: true, serviceArea: 'area-1' }]);
   });
 
-  it('takes the capacity of a type from the rate card of the Market', async () => {
+  it("keeps each courier's smallest vehicle that carries the parcel, with fleet's account id and idle time", async () => {
     const found = await new FleetCourierAvailability(fleet([]), registry).findEligibleCouriers(
       context,
-      requirements({ minimumVehicle: 'van', temperature: 'ambient' }),
+      requirements({ minimumVehicle: 'motorbike', temperature: 'chilled', weightGrams: 5000 }),
     );
-    const van = registry.get(marketId).delivery.rateCard.vehicles.van!;
 
-    expect(found.map((c) => c.vehicle)).toEqual([
-      {
-        type: 'van',
-        maxWeightGrams: van.maxWeightGrams,
-        maxVolumeLitres: van.maxVolumeLitres,
-        temperatures: ['ambient'],
-      },
-      {
-        type: 'van',
-        maxWeightGrams: van.maxWeightGrams,
-        maxVolumeLitres: van.maxVolumeLitres,
-        temperatures: ['ambient'],
-      },
-    ]);
+    const byId = Object.fromEntries(found.map((c) => [c.courierId, c]));
+    const carOrVan = offered.includes('car') ? 'car' : 'van';
+    expect(Object.keys(byId).sort()).toEqual(
+      [courierId(1), courierId(2), ...(offered.includes('car') ? [courierId(3)] : [])].sort(),
+    );
+    expect(byId[courierId(2)]?.vehicle.type).toBe(carOrVan);
+    expect(byId[courierId(1)]?.vehicle).toEqual({
+      type: 'van',
+      maxWeightGrams: 50_000,
+      maxVolumeLitres: 300,
+      temperatures: ['ambient', 'chilled'],
+    });
+    expect(byId[courierId(1)]?.idleSince).toEqual(idle(2));
+    expect(found.every((c) => c.serviceAreaCodes.includes('area-1'))).toBe(true);
   });
 
   it('asks tracking for the service area and drops a position without a courier id', async () => {

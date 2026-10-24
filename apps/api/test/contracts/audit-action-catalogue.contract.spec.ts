@@ -44,11 +44,13 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
  * The Nest modules that bind their own audit writer and register their actions. A module joins
  * this list only with the audited actions its approved design names: fleet (work package 05)
  * with its operator decisions on couriers and documents; identity with its access-management
- * actions (accounts, roles, sessions, merchants and API keys); notifications (package 25) with
- * merchants' webhook subscription changes and operators' re-sends; payouts (work package 24) with
- * an operator's ledger adjustment and the settling of an unresolved payout line.
+ * actions (accounts, roles, sessions, merchants and API keys); dispatch (handoff 22) with a
+ * dispatcher's assignments and restarts; notifications (package 25) with merchants' webhook
+ * subscription changes and operators' re-sends; payouts (work package 24) with an operator's
+ * ledger adjustment and the settling of an unresolved payout line.
  */
 const AUDITING_MODULES: readonly string[] = [
+  'DispatchModule',
   'FleetModule',
   'IdentityModule',
   'NotificationsModule',
@@ -377,6 +379,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     await moduleRef.close();
 
     expect(binders.sort()).toEqual([
+      ['DispatchModule', 'dispatch'],
       ['FleetModule', 'fleet'],
       ['IdentityModule', 'identity'],
       ['NotificationsModule', 'notifications'],
@@ -402,6 +405,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     await moduleRef.close();
 
     expect(found.map((entry) => [entry.module, entry.kind]).sort()).toEqual([
+      ['DispatchModule', 'actions'],
+      ['DispatchModule', 'writer'],
       ['FleetModule', 'actions'],
       ['FleetModule', 'writer'],
       ['IdentityModule', 'actions'],
@@ -488,6 +493,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
 
     expect(offenders).toEqual([]);
     expect(calls.sort()).toEqual([
+      `${path.join('modules', 'dispatch', 'dispatch.module.ts')}: auditWriterFor('dispatch')`,
+      `${path.join('modules', 'dispatch', 'dispatch.module.ts')}: registerAuditActions('dispatch')`,
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: auditWriterFor('fleet')`,
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: registerAuditActions('fleet')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: auditWriterFor('identity')`,

@@ -27,6 +27,15 @@ model DispatchJob {
   assignedAt         DateTime? @map("assigned_at") @db.Timestamptz(6)
   /// Couriers who dropped the delivery and are never offered it again.
   excludedCourierIds String[]  @map("excluded_courier_ids") @db.Uuid
+  /// What a courier's offer shows (personal data): set only while the job is OFFERING. All five
+  /// are set or null together.
+  pickupAddress      String?   @map("pickup_address") @db.VarChar(500)
+  dropoffAddress     String?   @map("dropoff_address") @db.VarChar(500)
+  dropoffLat         Float?    @map("dropoff_lat")
+  dropoffLng         Float?    @map("dropoff_lng")
+  tripDistanceMetres Int?      @map("trip_distance_metres")
+  /// The delivery's aggregate version of the last delivery event the job followed.
+  deliveryVersion    Int       @default(0) @map("delivery_version")
   createdAt          DateTime  @map("created_at") @db.Timestamptz(6)
   version            Int
 

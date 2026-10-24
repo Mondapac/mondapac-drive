@@ -150,7 +150,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     'identity.invitations': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
     // The dispatch module: a job keeps its delivery and requirements, an offer only gets its
-    // answer; the outbox envelope is append-only (20261025070000).
+    // answer; the outbox envelope is append-only (20261025070000). The offer's stops, the
+    // followed delivery version and an early opening change too (20261026020000).
     'dispatch.jobs': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [
@@ -158,10 +159,17 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
         'assigned_courier_id',
         'assigned_vehicle',
         'assignment_method',
+        'delivery_version',
+        'dropoff_address',
+        'dropoff_lat',
+        'dropoff_lng',
         'excluded_courier_ids',
         'next_action_at',
+        'opens_at',
+        'pickup_address',
         'round',
         'status',
+        'trip_distance_metres',
         'version',
       ],
     },
