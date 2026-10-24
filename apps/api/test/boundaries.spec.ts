@@ -181,6 +181,7 @@ describe('architecture boundaries (ADR-0008 decision 6)', () => {
         'contexts-are-built-by-platform: src/modules/alpha/application/uses-context-types.ts',
         'core-does-not-import-verticals: src/platform/uses-vertical.ts',
         'courier-positions-are-for-dispatch: src/modules/alpha/application/reads-courier-positions.ts',
+        'courier-positions-are-for-dispatch: src/modules/dispatch/index.ts',
         'database-driver-only-in-infrastructure: src/platform/uses-database-driver.ts',
         'domain-is-pure: src/modules/alpha/domain/does-io.ts',
         'domain-is-pure: src/modules/alpha/domain/imports-application.ts',

@@ -23,6 +23,16 @@ export interface SessionCredential {
 export type CredentialRejected = { readonly code: 'credential.rejected' };
 
 /**
+ * How a call reads the session. `touch: false` checks the session without recording activity
+ * (no `lastSeenAt` write), for a re-check while a long-lived stream is open: the stream is not
+ * the admin's activity, so it must not keep an idle session alive (security review of tracking
+ * PR #18, M1). Absent, the call records activity as every request does.
+ */
+export interface AuthenticateOptions {
+  readonly touch?: boolean;
+}
+
+/**
  * The port `identity` implements from slice 2 (foundations 6.3; identity design 5.1, 6.2).
  * The actor guard calls it once per request that presents a session credential for the route's
  * population, after the Market guard and the rate limiter.
@@ -41,6 +51,7 @@ export interface Authenticator {
   authenticate(
     market: MarketContext,
     credential: SessionCredential,
+    options?: AuthenticateOptions,
   ): Promise<Result<AuthenticatedActor, CredentialRejected>>;
 }
 

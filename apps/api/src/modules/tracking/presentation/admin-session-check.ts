@@ -30,10 +30,13 @@ export class AdminSessionCheck {
     const token = cookie.value;
     return async () => {
       try {
-        const again = await this.authenticator.authenticate(market, {
-          token,
-          transport: 'cookie',
-        });
+        // `touch: false`: an open map is not the admin's activity, so the session still idles
+        // out (security review of PR #18, M1).
+        const again = await this.authenticator.authenticate(
+          market,
+          { token, transport: 'cookie' },
+          { touch: false },
+        );
         return (
           again.ok &&
           again.value.sessionId === actor.sessionId &&

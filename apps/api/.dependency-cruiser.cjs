@@ -379,12 +379,13 @@ module.exports = {
     {
       name: 'courier-positions-are-for-dispatch',
       comment:
-        "Only dispatch imports tracking's CourierPositions (contracts/courier-positions.contract.ts): " +
+        "Only dispatch's infrastructure imports tracking's CourierPositions (contracts/courier-positions.contract.ts): " +
         "it reads couriers' live positions, personal data, without the UseCaseGate, so every " +
         'other reader goes through the gated tracking.map.view use cases (security review of ' +
-        "tracking 06b, L2). tracking's index.ts does not export the contract file.",
+        "tracking 06b, L2). Not dispatch's index.ts, so no re-export carries it further (review " +
+        "of PR #18, L1). tracking's index.ts does not export the contract file.",
       severity: 'error',
-      from: { pathNot: ['^src/modules/tracking/', '^src/modules/dispatch/'] },
+      from: { pathNot: ['^src/modules/tracking/', '^src/modules/dispatch/infrastructure/'] },
       to: { path: COURIER_POSITIONS_CONTRACT_FILE },
     },
     {

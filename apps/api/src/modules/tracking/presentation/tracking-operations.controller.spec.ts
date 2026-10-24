@@ -39,7 +39,9 @@ const request = {
 /** identity's Authenticator, answering the admin's session while `live` says so. */
 function authenticator(live: () => boolean | 'throws'): Authenticator {
   return {
-    authenticate: (_market, credential) => {
+    authenticate: (_market, credential, options) => {
+      // A stream's re-check never records activity (security review of PR #18, M1).
+      if (options?.touch !== false) return Promise.reject(new Error('a re-check must not touch'));
       const state = live();
       if (state === 'throws') return Promise.reject(new Error('database down'));
       const actor = admin.actor;
