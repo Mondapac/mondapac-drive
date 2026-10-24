@@ -1,5 +1,5 @@
 import { parseId, Temporal } from '@mondapac-drive/shared-kernel';
-import type { Id } from '@mondapac-drive/shared-kernel';
+import type { Id, Population } from '@mondapac-drive/shared-kernel';
 import {
   FixedClock,
   testAuthenticatedActor,
@@ -29,9 +29,9 @@ const id = <T extends string>(text: string): Id<T> => {
   return parsed.value as Id<T>;
 };
 const ADMIN_ID = id<'Account'>('01990000-0000-7000-8000-0000000000a1');
-const SELLER_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-0000000000b1');
-const CUSTOMER_ID = id<'Account'>('01990000-0000-7000-8000-0000000000c1');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-0000000000d1');
+const COURIER_ID = id<'Account'>('01990000-0000-7000-8000-0000000000b1');
+const MERCHANT_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-0000000000c1');
+const MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-0000000000d1');
 const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000a001');
 const markets = new MarketRegistry(loadMarketConfigs(TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS));
 const allow: AuthorisationCheck = {
@@ -49,7 +49,7 @@ describe.each(TEST_MARKETS)('ChangeDisplayName in market %s', (code) => {
 
   function seed(
     accountId: Id<'Account'>,
-    population: 'admin' | 'seller' | 'customer',
+    population: Population,
     overrides: Partial<AccountState> = {},
   ) {
     fakes.seedAccount({
@@ -57,10 +57,9 @@ describe.each(TEST_MARKETS)('ChangeDisplayName in market %s', (code) => {
       marketId: market.marketId,
       population,
       email: { typed: 'Me@Example.com', normalized: 'me@example.com' },
-      displayName: population === 'customer' ? null : 'Amina Rahman',
+      displayName: 'Amina Rahman',
       status: 'active',
       emailVerifiedAt: START.subtract({ hours: 48 }),
-      existingAccountNoticeAt: null,
       signedUpAt: START.subtract({ hours: 49 }),
       createdAt: START.subtract({ hours: 49 }),
       version: 3,
@@ -75,30 +74,29 @@ describe.each(TEST_MARKETS)('ChangeDisplayName in market %s', (code) => {
       outbox: fakes.outbox,
       clock: new FixedClock(START),
     });
-  const contextOf = (population: 'admin' | 'seller' | 'customer', accountId: Id<'Account'>) =>
+  const contextOf = (population: Population, accountId: Id<'Account'>) =>
     testCallContext(
       market,
       testAuthenticatedActor(market, {
         population,
         accountId,
         sessionId: SESSION_ID,
-        sellerId: population === 'seller' ? SELLER_ID : null,
+        merchantId: population === 'merchant' ? MERCHANT_ID : null,
       }),
     );
   const events = () =>
     fakes.events.filter((e) => e.type === 'identity.account-display-name-changed.v1');
 
-  it('declares own-resources, allowed for a seller that is not approved', () => {
+  it('declares own-resources', () => {
     expect(ChangeDisplayName.access).toEqual({
       name: 'identity.change-display-name',
       rule: { kind: 'own-resources' },
-      whenSellerNotApproved: 'allow',
     });
   });
 
   it.each([
     ['admin', ADMIN_ID],
-    ['seller', SELLER_ACCOUNT_ID],
+    ['courier', COURIER_ID],
   ] as const)(
     'renames the own %s account, trimmed, and records one event without the name',
     async (population, accountId) => {
@@ -150,37 +148,33 @@ describe.each(TEST_MARKETS)('ChangeDisplayName in market %s', (code) => {
     ).resolves.toMatchObject({ ok: false, error: { code: 'validation.failed' } });
   });
 
-  it('sets the first name of a customer account, which starts with none', async () => {
-    seed(CUSTOMER_ID, 'customer');
+  it("refuses a merchant's API key, an unverified courier and the anonymous caller", async () => {
+    seed(MERCHANT_ACCOUNT_ID, 'merchant');
+    seed(COURIER_ID, 'courier', { emailVerifiedAt: null });
 
     await expect(
-      useCase().execute(contextOf('customer', CUSTOMER_ID), { displayName: '  Amina  ' }),
-    ).resolves.toEqual({ ok: true, value: { code: 'display-name-changed', changed: true } });
-    expect(fakes.accounts.get(CUSTOMER_ID)).toMatchObject({ displayName: 'Amina', version: 4 });
-  });
-
-  it('refuses an unverified customer and the anonymous caller', async () => {
-    seed(CUSTOMER_ID, 'customer', { emailVerifiedAt: null });
-
+      useCase().execute(contextOf('merchant', MERCHANT_ACCOUNT_ID), { displayName: 'Amina' }),
+    ).resolves.toEqual({ ok: false, error: { code: 'access.denied' } });
     await expect(
-      useCase().execute(contextOf('customer', CUSTOMER_ID), { displayName: 'Amina' }),
+      useCase().execute(contextOf('courier', COURIER_ID), { displayName: 'Amina' }),
     ).resolves.toEqual({ ok: false, error: { code: 'access.denied' } });
     await expect(
       useCase().execute(testCallContext(market, 'anonymous'), { displayName: 'Amina' }),
     ).resolves.toEqual({ ok: false, error: { code: 'access.unauthenticated' } });
-    expect(fakes.accounts.get(CUSTOMER_ID)!.displayName).toBeNull();
+    expect(fakes.accounts.get(MERCHANT_ACCOUNT_ID)!.displayName).toBe('Amina Rahman');
+    expect(fakes.accounts.get(COURIER_ID)!.displayName).toBe('Amina Rahman');
   });
 
   it('refuses a disabled account and an account of another population than the session', async () => {
     seed(ADMIN_ID, 'admin', { status: 'disabled' });
-    seed(SELLER_ACCOUNT_ID, 'seller');
+    seed(COURIER_ID, 'courier');
 
     await expect(
       useCase().execute(contextOf('admin', ADMIN_ID), { displayName: 'Amina' }),
     ).resolves.toEqual({ ok: false, error: { code: 'access.denied' } });
     await expect(
-      useCase().execute(contextOf('admin', SELLER_ACCOUNT_ID), { displayName: 'Amina' }),
+      useCase().execute(contextOf('admin', COURIER_ID), { displayName: 'Amina' }),
     ).resolves.toEqual({ ok: false, error: { code: 'access.denied' } });
-    expect(fakes.accounts.get(SELLER_ACCOUNT_ID)!.displayName).toBe('Amina Rahman');
+    expect(fakes.accounts.get(COURIER_ID)!.displayName).toBe('Amina Rahman');
   });
 });

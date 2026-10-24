@@ -1,5 +1,5 @@
 import { parseId, Temporal } from '@mondapac-drive/shared-kernel';
-import type { Id } from '@mondapac-drive/shared-kernel';
+import type { Id, Population } from '@mondapac-drive/shared-kernel';
 import {
   testAuthenticatedActor,
   testCallContext,
@@ -28,9 +28,9 @@ const id = <T extends string>(text: string): Id<T> => {
   return parsed.value as Id<T>;
 };
 const ADMIN_ID = id<'Account'>('01990000-0000-7000-8000-0000000000a1');
-const SELLER_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-0000000000b1');
-const CUSTOMER_ID = id<'Account'>('01990000-0000-7000-8000-0000000000c1');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-0000000000d1');
+const COURIER_ID = id<'Account'>('01990000-0000-7000-8000-0000000000b1');
+const MERCHANT_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-0000000000c1');
+const MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-0000000000d1');
 const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000a001');
 const markets = new MarketRegistry(loadMarketConfigs(TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS));
 const allow: AuthorisationCheck = {
@@ -48,7 +48,7 @@ describe.each(TEST_MARKETS)('ChangePanelPreferences in market %s', (code) => {
 
   function seed(
     accountId: Id<'Account'>,
-    population: 'admin' | 'seller' | 'customer',
+    population: Population,
     overrides: Partial<AccountState> = {},
   ) {
     fakes.seedAccount({
@@ -56,10 +56,9 @@ describe.each(TEST_MARKETS)('ChangePanelPreferences in market %s', (code) => {
       marketId: market.marketId,
       population,
       email: { typed: 'Me@Example.com', normalized: 'me@example.com' },
-      displayName: population === 'customer' ? null : 'Amina Rahman',
+      displayName: 'Amina Rahman',
       status: 'active',
       emailVerifiedAt: START.subtract({ hours: 48 }),
-      existingAccountNoticeAt: null,
       signedUpAt: START.subtract({ hours: 49 }),
       createdAt: START.subtract({ hours: 49 }),
       version: 3,
@@ -72,28 +71,27 @@ describe.each(TEST_MARKETS)('ChangePanelPreferences in market %s', (code) => {
       unitOfWork: fakes.unitOfWork,
       accounts: fakes.accountRepository,
     });
-  const contextOf = (population: 'admin' | 'seller' | 'customer', accountId: Id<'Account'>) =>
+  const contextOf = (population: Population, accountId: Id<'Account'>) =>
     testCallContext(
       market,
       testAuthenticatedActor(market, {
         population,
         accountId,
         sessionId: SESSION_ID,
-        sellerId: population === 'seller' ? SELLER_ID : null,
+        merchantId: population === 'merchant' ? MERCHANT_ID : null,
       }),
     );
 
-  it('declares own-resources, allowed for a seller that is not approved', () => {
+  it('declares own-resources', () => {
     expect(ChangePanelPreferences.access).toEqual({
       name: 'identity.change-panel-preferences',
       rule: { kind: 'own-resources' },
-      whenSellerNotApproved: 'allow',
     });
   });
 
   it.each([
     ['admin', ADMIN_ID],
-    ['seller', SELLER_ACCOUNT_ID],
+    ['courier', COURIER_ID],
   ] as const)(
     'stores the zone and language of the own %s account',
     async (population, accountId) => {
@@ -151,13 +149,13 @@ describe.each(TEST_MARKETS)('ChangePanelPreferences in market %s', (code) => {
     expect(fakes.accounts.get(ADMIN_ID)!.timezone ?? null).toBeNull();
   });
 
-  it('refuses a customer, an anonymous caller, a disabled account and another population', async () => {
-    seed(CUSTOMER_ID, 'customer');
+  it("refuses a merchant's API key, an anonymous caller, a disabled account and another population", async () => {
+    seed(MERCHANT_ACCOUNT_ID, 'merchant');
     seed(ADMIN_ID, 'admin', { status: 'disabled' });
-    seed(SELLER_ACCOUNT_ID, 'seller');
+    seed(COURIER_ID, 'courier');
     const input = { timezone: 'UTC', locale: null };
 
-    await expect(useCase().execute(contextOf('customer', CUSTOMER_ID), input)).resolves.toEqual({
+    await expect(useCase().execute(contextOf('merchant', MERCHANT_ACCOUNT_ID), input)).resolves.toEqual({
       ok: false,
       error: { code: 'access.denied' },
     });
@@ -169,10 +167,10 @@ describe.each(TEST_MARKETS)('ChangePanelPreferences in market %s', (code) => {
       ok: false,
       error: { code: 'access.denied' },
     });
-    await expect(useCase().execute(contextOf('admin', SELLER_ACCOUNT_ID), input)).resolves.toEqual({
+    await expect(useCase().execute(contextOf('admin', COURIER_ID), input)).resolves.toEqual({
       ok: false,
       error: { code: 'access.denied' },
     });
-    expect(fakes.accounts.get(SELLER_ACCOUNT_ID)!.timezone ?? null).toBeNull();
+    expect(fakes.accounts.get(COURIER_ID)!.timezone ?? null).toBeNull();
   });
 });

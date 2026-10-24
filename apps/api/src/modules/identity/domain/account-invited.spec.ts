@@ -59,12 +59,12 @@ describe.each(['AU', 'ZZ'] as const)('Account.acceptInvitation in market %s', (c
     expect(account.pendingEvents).toEqual([]);
   });
 
-  it('refuses a customer (customers are never invited) and an empty name', () => {
+  it('refuses a merchant (merchants are never invited) and an empty name', () => {
     expect(() =>
       Account.acceptInvitation({
         id: ACCOUNT_ID,
         marketId,
-        population: 'customer' as 'admin',
+        population: 'merchant' as 'admin',
         email: email('a@example.test'),
         displayName: 'Someone',
         passwordHash: '$argon2id$fake',

@@ -26,7 +26,7 @@ class GoodController {
   session(): void {}
 }
 
-@RoutePopulation('seller')
+@RoutePopulation('merchant')
 @ReadsSession()
 @Controller('class-session')
 class ClassSessionController {
@@ -47,7 +47,7 @@ class SessionWithoutPopulationController {
   write(): void {}
 }
 
-@RoutePopulation('customer')
+@RoutePopulation('courier')
 @Controller('method-level')
 class MethodLevelController {
   @Post()

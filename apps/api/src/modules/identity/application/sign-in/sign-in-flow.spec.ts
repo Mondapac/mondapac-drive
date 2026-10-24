@@ -23,22 +23,19 @@ import type { AccountState } from '../../domain/account';
 import { MarketConfigIdentityPolicy } from '../../infrastructure/market-config-identity-policy';
 import type { PasswordHasher } from '../ports/password-hasher';
 import type { SessionTokens, ThrottleKeys } from '../ports/session-secrets';
-import { RandomPrefixedTokens } from '../../infrastructure/second-factor/second-factor-tokens';
-import { SignInCustomer } from '../use-cases/sign-in-customer.use-case';
-import { SignInSeller } from '../use-cases/sign-in-seller.use-case';
+import { SignInCourier } from '../use-cases/sign-in-courier.use-case';
 
 // The invariants of the shared sign-in sequence (identity design 6.3, 6.8; HF1, HF12; Hassan L1,
-// Sajad gap 1 of slice 5), for both populations that sign in with a password alone and both
-// Market fixtures: one dummy hash for an unknown address, the same steps for every refusal before
-// the password is known right, the throttle block and its wait, and fail-closed answers when the
-// counters or the closing unit cannot be reached. The customer-only details stay in
-// sign-in-customer.use-case.spec.ts; the seller-only refusals in seller-use-cases.spec.ts.
+// Sajad gap 1 of slice 5), for the population that signs in with a password alone (couriers; an
+// admin adds a second step, a merchant has API keys only) and both Market fixtures: one dummy
+// hash for an unknown address, the same steps for every refusal before the password is known
+// right, the throttle block and its wait, and fail-closed answers when the counters or the
+// closing unit cannot be reached.
 
 const START = Temporal.Instant.from('2026-10-08T10:00:00Z');
 const PASSWORD = 'correct horse battery staple';
 const EMAIL = 'Person@Example.com';
 const CLIENT = { origin: '203.0.113.7', address: '203.0.113.7' };
-const SELLER_ID = '01992222-0000-7000-8000-00000000b001' as Id<'Seller'>;
 const markets = new MarketRegistry(loadMarketConfigs(TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS));
 const policy = new MarketConfigIdentityPolicy(markets);
 
@@ -57,10 +54,9 @@ const tokens: SessionTokens = {
   hashOf: (token) => new Uint8Array(createHash('sha256').update(token).digest()),
 };
 
-type Population = 'customer' | 'seller';
 type Step = 'unit' | 'verify' | 'hash';
 
-function setUp(population: Population) {
+function setUp() {
   const fakes = new IdentityFakes();
   const steps: Step[] = [];
   const clock = new FixedClock(START);
@@ -95,25 +91,12 @@ function setUp(population: Population) {
     ids: new SequenceIdGenerator(clock),
   };
   const gate = createUseCaseGate(markets, null);
-  const useCase =
-    population === 'customer'
-      ? new SignInCustomer(gate, deps)
-      : new SignInSeller(gate, {
-          ...deps,
-          memberships: fakes.membershipRepository,
-          sellerAccess: fakes.sellerAccessRepository,
-          decisions: fakes.decisionRepository,
-          grants: fakes.grantReader,
-          factors: fakes.factorRepository,
-          challenges: fakes.challengeRepository,
-          challengeTokens: new RandomPrefixedTokens('mc1_'),
-        });
+  const useCase = new SignInCourier(gate, deps);
   return { fakes, steps, clock, useCase };
 }
 
-describe.each(
-  TEST_MARKETS.flatMap((code) => [['customer', code] as const, ['seller', code] as const]),
-)('the shared sign-in sequence for the %s population in market %s', (population, code) => {
+describe.each(TEST_MARKETS)('the shared sign-in sequence for couriers in market %s', (code) => {
+  const population = 'courier' as const;
   const market = testMarketContext(code, PLATFORM_TENANT_ID);
   const context = testCallContext(market, 'anonymous', 'sign-in-flow-0001');
   const rule = policy.signInThrottles(market).accountOrigin;
@@ -133,10 +116,9 @@ describe.each(
       email: fields.email ?? EMAIL,
       password: fields.password ?? PASSWORD,
       client: fields.client ?? CLIENT,
-      keepSignedIn: false,
     });
 
-  /** An account of the population (with an approved seller for the seller population). */
+  /** A courier account. */
   function seed(fakes: IdentityFakes, overrides: Partial<AccountState> = {}): void {
     const id = `01992222-0000-7000-8000-${code === 'AU' ? '0000000000a1' : '0000000000b1'}`;
     fakes.seedAccount({
@@ -144,42 +126,19 @@ describe.each(
       marketId,
       population,
       email: { typed: EMAIL, normalized: EMAIL.toLowerCase() },
-      displayName: population === 'seller' ? 'Amina' : null,
+      displayName: 'Amina',
       status: 'active',
       emailVerifiedAt: START.subtract({ hours: 1 }),
-      existingAccountNoticeAt: null,
       signedUpAt: START.subtract({ hours: 2 }),
       createdAt: START.subtract({ hours: 2 }),
       version: 2,
       credential: { passwordHash: fakeHashOf(PASSWORD), changedAt: START.subtract({ hours: 2 }) },
       ...overrides,
     });
-    if (population !== 'seller') return;
-    fakes.seedSellerAccess({
-      sellerId: SELLER_ID,
-      marketId,
-      origin: 'self',
-      state: 'approved',
-      stateChangedAt: START,
-      reapplyCount: 0,
-      registeredAt: START,
-      version: 1,
-      createdAt: START,
-    });
-    fakes.seedMembership({
-      id: '01992222-0000-7000-8000-00000000c001' as Id<'SellerMembership'>,
-      marketId,
-      accountId: id as Id<'Account'>,
-      sellerId: SELLER_ID,
-      state: 'active',
-      removedAt: null,
-      version: 1,
-      createdAt: START,
-    });
   }
 
   it('signs in with the right password (the baseline of the cases below)', async () => {
-    const s = setUp(population);
+    const s = setUp();
     seed(s.fakes);
 
     await expect(execute(s)).resolves.toMatchObject({ ok: true });
@@ -187,7 +146,7 @@ describe.each(
   });
 
   it('answers credentials.invalid to an unknown address after one dummy verification (HF12)', async () => {
-    const s = setUp(population);
+    const s = setUp();
 
     await expect(execute(s)).resolves.toEqual({
       ok: false,
@@ -206,7 +165,7 @@ describe.each(
       [(fakes: IdentityFakes) => seed(fakes), `${PASSWORD}!`],
       [(fakes: IdentityFakes) => seed(fakes, { emailVerifiedAt: null }), PASSWORD],
     ] as const) {
-      const s = setUp(population);
+      const s = setUp();
       arrange(s.fakes);
       await execute(s, { password });
       paths.push(s.steps);
@@ -220,7 +179,7 @@ describe.each(
   });
 
   it("blocks at the Market's limit: request.throttled with the wait, even for the right password, hashing nothing", async () => {
-    const s = setUp(population);
+    const s = setUp();
     seed(s.fakes);
     for (let n = 0; n < rule.limit; n += 1) await execute(s, { password: 'wrong' });
     s.steps.length = 0;
@@ -236,7 +195,7 @@ describe.each(
   });
 
   it('answers the same throttle to an unknown address', async () => {
-    const s = setUp(population);
+    const s = setUp();
     for (let n = 0; n < rule.limit; n += 1) await execute(s, { password: 'wrong' });
 
     await expect(execute(s)).resolves.toMatchObject({
@@ -246,7 +205,7 @@ describe.each(
   });
 
   it('fails closed with access.unavailable when the counters cannot be reached, hashing nothing', async () => {
-    const s = setUp(population);
+    const s = setUp();
     seed(s.fakes);
     s.fakes.throttlesDown = true;
 
@@ -261,7 +220,7 @@ describe.each(
   });
 
   it('fails closed with access.unavailable when the closing unit throws, opening no session', async () => {
-    const s = setUp(population);
+    const s = setUp();
     seed(s.fakes);
     s.fakes.sessionRepository.add = () => Promise.reject(new Error('session table unreachable'));
 
@@ -273,7 +232,7 @@ describe.each(
   });
 
   it('answers request.busy when the hash queue is full and gives the reservation back', async () => {
-    const s = setUp(population);
+    const s = setUp();
     seed(s.fakes);
     s.fakes.busy = true;
 
@@ -285,13 +244,12 @@ describe.each(
   });
 
   it('answers credentials.invalid for an account of the other population with that email (AC 3)', async () => {
-    const s = setUp(population);
+    const s = setUp();
     seed(s.fakes);
     const [stored] = [...s.fakes.accounts.values()];
     s.fakes.seedAccount({
       ...stored!,
-      population: population === 'seller' ? 'customer' : 'seller',
-      displayName: 'Amina',
+      population: 'admin',
     });
 
     await expect(execute(s)).resolves.toEqual({

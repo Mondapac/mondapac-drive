@@ -31,7 +31,7 @@ describe.each([
       id: LINK_ID,
       marketId,
       accountId: ACCOUNT_ID,
-      purpose: 'verify-email',
+      purpose: 'enrol-second-factor',
       now: NOW,
       notify,
     });
@@ -49,7 +49,7 @@ describe.each([
       id: LINK_ID,
       marketId,
       accountId: ACCOUNT_ID,
-      purpose: 'verify-email',
+      purpose: 'enrol-second-factor',
       requestedAt: NOW,
       tokenHash: null,
       issuedAt: null,
@@ -64,7 +64,7 @@ describe.each([
         aggregateType: 'one-time-link',
         aggregateId: LINK_ID,
         aggregateVersion: 1,
-        payload: { linkId: LINK_ID, accountId: ACCOUNT_ID, purpose: 'verify-email' },
+        payload: { linkId: LINK_ID, accountId: ACCOUNT_ID, purpose: 'enrol-second-factor' },
       }),
     ]);
   });
@@ -89,8 +89,8 @@ describe.each([
   it('is usable until just before its expiry, and expired from it', () => {
     const link = issued();
 
-    expect(link.usableFor('verify-email', expiry.subtract({ milliseconds: 1 }))).toBe(true);
-    expect(link.usableFor('verify-email', expiry)).toBe(false);
+    expect(link.usableFor('enrol-second-factor', expiry.subtract({ milliseconds: 1 }))).toBe(true);
+    expect(link.usableFor('enrol-second-factor', expiry)).toBe(false);
     expect(link.statusAt(expiry)).toBe('expired');
     expect(link.usableFor('reset-password', NOW)).toBe(false);
   });

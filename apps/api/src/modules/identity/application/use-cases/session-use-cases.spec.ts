@@ -58,10 +58,10 @@ const allow: AuthorisationCheck = {
 describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
   const market = testMarketContext(code, PLATFORM_TENANT_ID);
   const actor = testAuthenticatedActor(market, {
-    population: 'customer',
+    population: 'courier',
     accountId: ACCOUNT_ID,
     sessionId: SESSION_ID,
-    sellerId: null,
+    merchantId: null,
   });
   const context = testCallContext(market, actor);
   const gate = createUseCaseGate(markets, allow);
@@ -76,14 +76,13 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
     fakes.seedAccount({
       id: ACCOUNT_ID,
       marketId: market.marketId,
-      population: 'customer',
+      population: 'courier',
       email: { typed: 'Me@Example.com', normalized: 'me@example.com' },
-      displayName: null,
+      displayName: 'Amina Rahman',
       timezone: null,
       locale: null,
       status: 'active',
       emailVerifiedAt: START,
-      existingAccountNoticeAt: null,
       signedUpAt: START,
       createdAt: START,
       version: 1,
@@ -95,9 +94,9 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
         id: SESSION_ID,
         marketId: market.marketId,
         accountId: ACCOUNT_ID,
-        population: 'customer',
-        transport: 'cookie',
-        lifetime: policy.sessionLifetime(market, 'customer')!,
+        population: 'courier',
+        transport: 'bearer',
+        lifetime: policy.sessionLifetime(market, 'courier')!,
         now: START,
       }),
       new Uint8Array(createHash('sha256').update('token').digest()),
@@ -109,11 +108,10 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
     const signOut = () =>
       new SignOut(gate, { unitOfWork: fakes.unitOfWork, sessions: fakes.sessionRepository, clock });
 
-    it('declares own-resources, allowed for a seller that is not approved', () => {
+    it('declares own-resources', () => {
       expect(SignOut.access).toEqual({
         name: 'identity.sign-out',
         rule: { kind: 'own-resources' },
-        whenSellerNotApproved: 'allow',
       });
     });
 
@@ -143,7 +141,7 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
         unitOfWork: fakes.unitOfWork,
         accounts: fakes.accountRepository,
         sessions: fakes.sessionRepository,
-        sellerAccess: fakes.sellerAccessRepository,
+        merchants: fakes.merchantRepository,
         grants: fakes.grantReader,
         effectiveKeys: realEffectiveKeys(),
         factors: fakes.factorRepository,
@@ -153,33 +151,26 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
     const facadeOf = (describe: DescribeActor) =>
       new IdentityFacadeImplementation({
         describeActor: describe,
-        membershipOf: undefined as never,
-        teamMembershipOf: undefined as never,
-        confirmSellerSecondFactor: undefined as never,
         contactEmailOf: undefined as never,
-        requireStepUp: undefined as never,
-        customerAccountSummaries: undefined as never,
-        customerShortNames: undefined as never,
-        teamMemberLabels: undefined as never,
       });
 
     it("answers the actor's ids, email and session times; the facade drops the email", async () => {
-      const lifetime = policy.sessionLifetime(market, 'customer')!;
+      const lifetime = policy.sessionLifetime(market, 'courier')!;
       const summary = await describeActor().execute(context, {});
 
       expect(summary).toEqual({
         ok: true,
         value: {
           accountId: ACCOUNT_ID,
-          population: 'customer',
-          sellerId: null,
+          population: 'courier',
+          merchantId: null,
           roleId: null,
           permissionKeys: [],
-          sellerAccessState: null,
+          merchantState: null,
           secondFactorActive: false,
           lastSignInAt: null,
           email: 'Me@Example.com',
-          displayName: null,
+          displayName: 'Amina Rahman',
           timezone: null,
           locale: null,
           appearance: null,
@@ -194,11 +185,11 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
         ok: true,
         value: {
           accountId: ACCOUNT_ID,
-          population: 'customer',
-          sellerId: null,
+          population: 'courier',
+          merchantId: null,
           roleId: null,
           permissionKeys: [],
-          sellerAccessState: null,
+          merchantState: null,
           secondFactorActive: false,
         },
       });
@@ -211,7 +202,7 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
           id: id<'SignInRecord'>(
             `01990000-0000-7000-8000-0000000b${String(fakes.records.length).padStart(4, '0')}`,
           ),
-          population: 'customer',
+          population: 'courier',
           accountId: ACCOUNT_ID,
           outcome,
           occurredAt: at,
@@ -243,13 +234,13 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
           population: 'admin',
           accountId: ADMIN_ID,
           sessionId: ADMIN_SESSION,
-          sellerId: null,
+          merchantId: null,
         }),
       );
 
       /** An admin account with one role, as test fixtures (no seed or route creates one). */
       function adminWith(role: {
-        scope: 'platform' | 'seller';
+        scope: 'platform' | 'courier';
         kind: 'system' | 'default' | 'custom';
         keys: string[];
       }) {
@@ -263,7 +254,6 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
           locale: null,
           status: 'active',
           emailVerifiedAt: START,
-          existingAccountNoticeAt: null,
           signedUpAt: START,
           createdAt: START,
           version: 1,
@@ -290,7 +280,6 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
           kind: role.kind,
           seedCode: seeded ? 'fixture-role' : null,
           seedVersion: seeded ? 1 : null,
-          sellerId: null,
           permissionKeys: role.kind === 'system' ? [] : [...role.keys].sort(),
           version: 1,
           createdAt: START,
@@ -312,25 +301,25 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
         return result.value;
       };
 
-      it('a default role (Onboarding and Compliance) answers its keys, sorted, and its role id', async () => {
+      it('a default role (Dispatcher) answers its keys, sorted, and its role id', async () => {
         adminWith({
           scope: 'platform',
           kind: 'default',
           keys: [
-            'identity.seller-access.view',
-            'identity.seller-access.approve',
-            'identity.seller-access.suspend',
-            'identity.seller-account.create',
+            'identity.courier-account.view',
+            'identity.courier-account.invite',
+            'delivery.delivery.view',
+            'delivery.delivery.dispatch',
           ],
         });
 
         await expect(summaryOf()).resolves.toMatchObject({
           roleId: ROLE_ID,
           permissionKeys: [
-            'identity.seller-access.approve',
-            'identity.seller-access.suspend',
-            'identity.seller-access.view',
-            'identity.seller-account.create',
+            'delivery.delivery.dispatch',
+            'delivery.delivery.view',
+            'identity.courier-account.invite',
+            'identity.courier-account.view',
           ],
         });
       });
@@ -350,14 +339,14 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
         adminWith({
           scope: 'platform',
           kind: 'custom',
-          keys: ['identity.seller-access.view', 'identity.ledger.view'],
+          keys: ['identity.merchant.view', 'identity.ledger.view'],
         });
 
-        expect((await summaryOf()).permissionKeys).toEqual(['identity.seller-access.view']);
+        expect((await summaryOf()).permissionKeys).toEqual(['identity.merchant.view']);
       });
 
-      it('a seller-scope role on an admin account grants nothing', async () => {
-        adminWith({ scope: 'seller', kind: 'system', keys: [] });
+      it('a courier-scope role on an admin account grants nothing', async () => {
+        adminWith({ scope: 'courier', kind: 'system', keys: [] });
 
         await expect(summaryOf()).resolves.toMatchObject({ roleId: ROLE_ID, permissionKeys: [] });
       });

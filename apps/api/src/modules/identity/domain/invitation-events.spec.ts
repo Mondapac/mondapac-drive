@@ -51,7 +51,6 @@ describe.each([
       kind: 'admin',
       email: email('New.Admin@Example.test'),
       roleId: ROLE_ID,
-      sellerId: null,
       invitedByAccountId: null,
       now: at,
     });
@@ -62,7 +61,7 @@ describe.each([
         type: 'identity.invitation-issued.v1',
         aggregateId: INVITATION_ID,
         aggregateVersion: 1,
-        payload: { invitationId: INVITATION_ID, kind: 'admin', sellerId: null },
+        payload: { invitationId: INVITATION_ID, kind: 'admin' },
       },
     ]);
   });
@@ -80,7 +79,6 @@ describe.each([
         payload: {
           invitationId: INVITATION_ID,
           kind: 'admin',
-          sellerId: null,
           accountId: ACCOUNT_ID,
         },
       },

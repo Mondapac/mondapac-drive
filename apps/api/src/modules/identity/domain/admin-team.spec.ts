@@ -38,7 +38,6 @@ const SYSTEM_ROLE_ID = id<'Role'>('01990000-0000-7000-8000-0000000000d1');
 const DEFAULT_ROLE_ID = id<'Role'>('01990000-0000-7000-8000-0000000000d2');
 const ASSIGNMENT_ID = id<'RoleAssignment'>('01990000-0000-7000-8000-0000000000e1');
 const INVITATION_ID = id<'Invitation'>('01990000-0000-7000-8000-0000000000c1');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-0000000000f1');
 
 describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
   const marketId = market(code);
@@ -49,10 +48,9 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
       marketId,
       population,
       email: { typed: 'Person@Example.com', normalized: 'person@example.com' },
-      displayName: population === 'customer' ? null : 'Person',
+      displayName: 'Person',
       status,
       emailVerifiedAt: NOW,
-      existingAccountNoticeAt: null,
       signedUpAt: NOW,
       createdAt: NOW,
       version: 3,
@@ -60,7 +58,7 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
     });
 
   describe('Account.disable and enable (identity design 3.1)', () => {
-    it.each<Population>(['admin', 'customer'])(
+    it.each<Population>(['admin', 'courier'])(
       'disables an active %s account: version +1 and account-disabled',
       (population) => {
         const account = accountOf(population);
@@ -81,7 +79,7 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
       },
     );
 
-    it.each<Population>(['admin', 'customer'])(
+    it.each<Population>(['admin', 'courier'])(
       'enables a disabled %s account: version +1 and account-enabled',
       (population) => {
         const account = accountOf(population, 'disabled');
@@ -116,23 +114,26 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
       expect([...disabled.pendingEvents, ...active.pendingEvents]).toEqual([]);
     });
 
-    it('never disables or enables a seller-side account by this path (3.1)', () => {
-      const seller = accountOf('seller');
-      const disabledSeller = accountOf('seller', 'disabled');
+    it("never disables or enables a merchant's integration account by this path (3.1)", () => {
+      const merchant = accountOf('merchant');
+      const disabledMerchant = accountOf('merchant', 'disabled');
 
-      expect(seller.disable(LATER)).toEqual({ ok: false, error: { code: 'account.not-eligible' } });
-      expect(disabledSeller.enable(LATER)).toEqual({
+      expect(merchant.disable(LATER)).toEqual({
         ok: false,
         error: { code: 'account.not-eligible' },
       });
-      expect(seller.state.status).toBe('active');
-      expect(seller.pendingEvents).toEqual([]);
+      expect(disabledMerchant.enable(LATER)).toEqual({
+        ok: false,
+        error: { code: 'account.not-eligible' },
+      });
+      expect(merchant.state.status).toBe('active');
+      expect(merchant.pendingEvents).toEqual([]);
     });
   });
 
   describe('statusChangeRefusal (slice 8c: the one answer of disable, enable and the hint)', () => {
     it('answers what disable and enable answer, for every population and status', () => {
-      for (const population of ['admin', 'customer', 'seller'] as const) {
+      for (const population of ['admin', 'courier', 'merchant'] as const) {
         for (const status of ['active', 'disabled'] as const) {
           for (const to of ['active', 'disabled'] as const) {
             const account = accountOf(population, status);
@@ -160,23 +161,18 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
       scope: 'platform',
       seedCode: 'viewer',
       seedVersion: 1,
-      permissionKeys: ['identity.seller-access.view'],
+      permissionKeys: ['identity.merchant.view'],
       now: NOW,
     });
-    const sellerCustomRole = Role.restore({
+    const courierRole = Role.seedSystem({
       id: id<'Role'>('01990000-0000-7000-8000-0000000000d3'),
       marketId,
-      scope: 'seller',
-      kind: 'custom',
-      seedCode: null,
-      seedVersion: null,
-      sellerId: SELLER_ID,
-      name: 'Custom role',
-      permissionKeys: [],
-      version: 1,
-      createdAt: NOW,
+      scope: 'courier',
+      seedCode: 'courier',
+      seedVersion: 1,
+      now: NOW,
     });
-    const admin = { id: ACCOUNT_ID, marketId, population: 'admin' as const, sellerId: null };
+    const admin = { id: ACCOUNT_ID, marketId, population: 'admin' as const };
 
     it('grants a role with its assigner, version 1 and no event (the acceptance names it)', () => {
       const assignment = RoleAssignment.grant({
@@ -200,19 +196,14 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
     });
 
     it.each<[string, Population, Role]>([
-      ['a customer (R2)', 'customer', defaultRole],
-      ['a seller account a platform role', 'seller', defaultRole],
-      ['an admin account a seller role', 'admin', sellerCustomRole],
+      ['a courier a platform role (R2)', 'courier', defaultRole],
+      ['a merchant account a platform role', 'merchant', defaultRole],
+      ['an admin account the courier role', 'admin', courierRole],
     ])('refuses to grant %s', (_name, population, role) => {
       expect(() =>
         RoleAssignment.grant({
           id: ASSIGNMENT_ID,
-          account: {
-            id: ACCOUNT_ID,
-            marketId,
-            population,
-            sellerId: population === 'seller' ? SELLER_ID : null,
-          },
+          account: { id: ACCOUNT_ID, marketId, population },
           role,
           assignedBy: ADMIN_ID,
           now: NOW,
@@ -220,21 +211,15 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
       ).toThrow(RoleInvariantError);
     });
 
-    it("refuses another seller's custom role (R9; Hassan I-2)", () => {
+    it('founds a courier on the courier system role, and never on a default role', () => {
+      const courier = { id: ACCOUNT_ID, marketId, population: 'courier' as const };
+      expect(
+        RoleAssignment.found({ id: ASSIGNMENT_ID, account: courier, role: courierRole, now: NOW })
+          .state,
+      ).toMatchObject({ roleId: courierRole.state.id, assignedByAccountId: null, version: 1 });
       expect(() =>
-        RoleAssignment.grant({
-          id: ASSIGNMENT_ID,
-          account: {
-            id: ACCOUNT_ID,
-            marketId,
-            population: 'seller',
-            sellerId: id<'Seller'>('01990000-0000-7000-8000-0000000000f2'),
-          },
-          role: sellerCustomRole,
-          assignedBy: ADMIN_ID,
-          now: NOW,
-        }),
-      ).toThrow(new RoleInvariantError('seller'));
+        RoleAssignment.found({ id: ASSIGNMENT_ID, account: admin, role: defaultRole, now: NOW }),
+      ).toThrow(new RoleInvariantError('founding-role'));
     });
 
     it('reassigns: the new role, the assigner, version +1 and account-role-changed', () => {
@@ -272,7 +257,6 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
           payload: {
             accountId: ACCOUNT_ID,
             scope: 'platform',
-            sellerId: null,
             previousRoleId: SYSTEM_ROLE_ID,
             roleId: DEFAULT_ROLE_ID,
           },
@@ -325,7 +309,7 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
       expect(() =>
         assignment.reassign({
           account: admin,
-          role: sellerCustomRole,
+          role: courierRole,
           assignedBy: ADMIN_ID,
           now: LATER,
         }),
@@ -341,7 +325,6 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
         kind: 'admin',
         email: email('New.Admin@Example.test'),
         roleId: DEFAULT_ROLE_ID,
-        sellerId: null,
         invitedByAccountId: ADMIN_ID,
         now: NOW,
       });
@@ -368,7 +351,7 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
         expect.objectContaining({
           type: 'identity.invitation-issued.v1',
           aggregateVersion: 3,
-          payload: { invitationId: INVITATION_ID, kind: 'admin', sellerId: null },
+          payload: { invitationId: INVITATION_ID, kind: 'admin' },
         }),
       ]);
     });
@@ -442,7 +425,7 @@ describe.each(['AU', 'ZZ'])('slice 8a-2 and 8b domain in market %s', (code) => {
         expect.objectContaining({
           type: 'identity.invitation-revoked.v1',
           aggregateVersion: 3,
-          payload: { invitationId: INVITATION_ID, kind: 'admin', sellerId: null },
+          payload: { invitationId: INVITATION_ID, kind: 'admin' },
         }),
       ]);
     });

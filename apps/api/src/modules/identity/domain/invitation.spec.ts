@@ -31,7 +31,6 @@ const email = (raw: string) => {
 
 const INVITATION_ID = id<'Invitation'>('01990000-0000-7000-8000-0000000000c1');
 const ROLE_ID = id<'Role'>('01990000-0000-7000-8000-0000000000d1');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-0000000000e1');
 const ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-000000000001');
 const CHALLENGE_ID = id<'SignInChallenge'>('01990000-0000-7000-8000-0000000000b1');
 
@@ -49,7 +48,6 @@ describe.each([
       kind: 'admin',
       email: email('New.Admin@Example.test'),
       roleId: ROLE_ID,
-      sellerId: null,
       invitedByAccountId: null,
       now: NOW,
     });
@@ -103,7 +101,6 @@ describe.each([
       decidedAt: at,
       acceptedAccountId: ACCOUNT_ID,
       email: null,
-      displayName: null,
     });
     expect(invitation.statusAt(at)).toBe('accepted');
     expect(invitation.accept(ACCOUNT_ID, at).ok).toBe(false);
@@ -119,37 +116,24 @@ describe.each([
     expect(invitation.accept(ACCOUNT_ID, NOW).ok).toBe(false);
   });
 
-  it('names the invitee only on a seller-owner invitation, and needs a seller there', () => {
-    const owner = Invitation.issue({
+  it('issues a courier invitation the same way', () => {
+    const courier = Invitation.issue({
       id: INVITATION_ID,
       marketId,
-      kind: 'seller-owner',
-      email: email('owner@example.test'),
-      displayName: 'Corner Grocer',
+      kind: 'courier',
+      email: email('rider@example.test'),
       roleId: ROLE_ID,
-      sellerId: SELLER_ID,
       invitedByAccountId: ACCOUNT_ID,
       now: NOW,
     });
-    expect(owner.state.displayName).toBe('Corner Grocer');
-    owner.dispatch(HASH, NOW, lifetimeMinutes);
-    owner.accept(ACCOUNT_ID, NOW);
-    expect(owner.state.displayName).toBeNull();
+    expect(courier.state).toMatchObject({ kind: 'courier', state: 'pending' });
+    expect(courier.dispatch(HASH, NOW, lifetimeMinutes).ok).toBe(true);
+    expect(courier.accept(ACCOUNT_ID, NOW).ok).toBe(true);
+    expect(courier.state.email).toBeNull();
   });
 
   it.each<[string, Partial<InvitationState>]>([
-    ['an admin invitation with a seller', { sellerId: SELLER_ID }],
-    ['a staff invitation without a seller', { kind: 'staff' }],
-    ['a name on an admin invitation', { displayName: 'Someone' }],
-    ['a seller-owner invitation without a name', { kind: 'seller-owner', sellerId: SELLER_ID }],
-    [
-      'a seller-owner name with a bidi control',
-      { kind: 'seller-owner', sellerId: SELLER_ID, displayName: 'Shop\u202eOwner' },
-    ],
-    [
-      'an untrimmed seller-owner name',
-      { kind: 'seller-owner', sellerId: SELLER_ID, displayName: ' Shop Owner' },
-    ],
+    ['an unknown kind', { kind: 'staff' as never }],
     ['a token without an expiry', { tokenHash: HASH }],
     ['a pending invitation without an address', { email: null }],
     [

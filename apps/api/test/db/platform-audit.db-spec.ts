@@ -238,7 +238,7 @@ describe('platform audit writer and seal tables (database integration, slice 6a)
           population: 'admin',
           accountId: account,
           sessionId: newId<'Session'>(),
-          sellerId: null,
+          merchantId: null,
         }),
         correlationId,
       );

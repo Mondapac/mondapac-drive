@@ -32,36 +32,35 @@ describe.each(['AU', 'ZZ'])(
   'Role and RoleAssignment in market %s (identity design 2.1, 5.5)',
   (code) => {
     const marketId = market(code);
-    const systemRole = (scope: 'platform' | 'seller') =>
+    const systemRole = (scope: 'platform' | 'merchant' | 'courier') =>
       Role.seedSystem({
         id: ROLE_ID,
         marketId,
         scope,
-        seedCode: scope === 'seller' ? 'seller-owner' : 'platform-administrator',
+        seedCode: scope === 'platform' ? 'platform-administrator' : scope,
         seedVersion: 1,
         now: NOW,
       });
 
     describe('Role.seedSystem (R3; 5.6)', () => {
-      it('is a seeded system row of one scope, with no stored keys and no seller', () => {
-        expect(systemRole('seller').state).toEqual<RoleState>({
+      it('is a seeded system row of one scope, with no stored keys', () => {
+        expect(systemRole('courier').state).toEqual<RoleState>({
           id: ROLE_ID,
           marketId,
-          scope: 'seller',
+          scope: 'courier',
           kind: 'system',
-          seedCode: 'seller-owner',
+          seedCode: 'courier',
           seedVersion: 1,
-          sellerId: null,
           name: null,
           permissionKeys: [],
           version: 1,
           createdAt: NOW,
         });
-        expect(systemRole('seller').isSystem).toBe(true);
+        expect(systemRole('courier').isSystem).toBe(true);
       });
 
       it.each([
-        ['a seed code that is not a code', { seedCode: 'Seller Owner' }],
+        ['a seed code that is not a code', { seedCode: 'Courier Role' }],
         ['seed version 0', { seedVersion: 0 }],
         ['an unknown scope', { scope: 'customer' }],
       ] as const)('refuses %s', (_name, overrides) => {
@@ -69,8 +68,8 @@ describe.each(['AU', 'ZZ'])(
           Role.seedSystem({
             id: ROLE_ID,
             marketId,
-            scope: 'seller',
-            seedCode: 'seller-owner',
+            scope: 'courier',
+            seedCode: 'courier',
             seedVersion: 1,
             now: NOW,
             ...(overrides as object),
@@ -78,43 +77,45 @@ describe.each(['AU', 'ZZ'])(
         ).toThrow(RoleInvariantError);
       });
 
-      it('refuses to restore a system role with a seller (R9: only custom seller roles have one)', () => {
+      it('refuses to restore a custom role outside the platform scope', () => {
         expect(() =>
           Role.restore({
-            ...systemRole('seller').state,
-            sellerId: id<'Seller'>('01990000-0000-7000-8000-0000000000a1'),
+            ...systemRole('merchant').state,
+            kind: 'custom',
+            seedCode: null,
+            seedVersion: null,
+            name: 'Custom role',
           }),
-        ).toThrow(RoleInvariantError);
+        ).toThrow(new RoleInvariantError('custom-scope'));
       });
     });
 
     describe('Role.seedDefault and applySeed (5.6, R3, R10; slice 8a-1)', () => {
-      const storeManager = (keys: readonly string[] = ['identity.team-member.view']) =>
+      const storeManager = (keys: readonly string[] = ['identity.courier-account.view']) =>
         Role.seedDefault({
           id: ROLE_ID,
           marketId,
-          scope: 'seller',
-          seedCode: 'store-manager',
+          scope: 'platform',
+          seedCode: 'dispatcher',
           seedVersion: 1,
           permissionKeys: keys,
           now: NOW,
         });
 
-      it('is a shared default row of its scope (no seller, R9) with sorted stored keys', () => {
-        const role = storeManager(['identity.seller-role.view', 'identity.team-member.view']);
+      it('is a default row of its scope with sorted stored keys', () => {
+        const role = storeManager(['identity.courier-account.view', 'delivery.delivery.view']);
         expect(role.state).toMatchObject({
           kind: 'default',
-          sellerId: null,
           seedVersion: 1,
-          permissionKeys: ['identity.seller-role.view', 'identity.team-member.view'],
+          permissionKeys: ['delivery.delivery.view', 'identity.courier-account.view'],
         });
         expect(Object.isFrozen(role.state.permissionKeys)).toBe(true);
         expect(role.persistedVersion).toBeNull();
       });
 
       it.each([
-        ['a malformed key', ['identity.Team.view']],
-        ['a duplicate key', ['identity.team-member.view', 'identity.team-member.view']],
+        ['a malformed key', ['identity.Courier.view']],
+        ['a duplicate key', ['identity.courier-account.view', 'identity.courier-account.view']],
       ])('refuses %s', (_name, keys) => {
         expect(() => storeManager(keys)).toThrow(RoleInvariantError);
       });
@@ -122,8 +123,8 @@ describe.each(['AU', 'ZZ'])(
       it('refuses a system role with stored keys (R3)', () => {
         expect(() =>
           Role.restore({
-            ...systemRole('seller').state,
-            permissionKeys: ['identity.team-member.view'],
+            ...systemRole('courier').state,
+            permissionKeys: ['delivery.assignment.view'],
           }),
         ).toThrow(new RoleInvariantError('keys'));
       });
@@ -132,15 +133,18 @@ describe.each(['AU', 'ZZ'])(
         const stored = Role.restore({ ...storeManager().state, version: 3 });
         const upgrade = stored.applySeed({
           seedVersion: 2,
-          permissionKeys: ['identity.seller-role.view', 'catalog.offer.edit'],
+          permissionKeys: ['identity.courier-account.invite', 'delivery.delivery.dispatch'],
         });
         expect(upgrade.fromSeedVersion).toBe(1);
-        expect(upgrade.addedKeys).toEqual(['catalog.offer.edit', 'identity.seller-role.view']);
-        expect(upgrade.removedKeys).toEqual(['identity.team-member.view']);
+        expect(upgrade.addedKeys).toEqual([
+          'delivery.delivery.dispatch',
+          'identity.courier-account.invite',
+        ]);
+        expect(upgrade.removedKeys).toEqual(['identity.courier-account.view']);
         expect(upgrade.role.state).toMatchObject({
           seedVersion: 2,
           version: 4,
-          permissionKeys: ['catalog.offer.edit', 'identity.seller-role.view'],
+          permissionKeys: ['delivery.delivery.dispatch', 'identity.courier-account.invite'],
         });
         expect(upgrade.role.persistedVersion).toBe(3);
       });
@@ -172,7 +176,6 @@ describe.each(['AU', 'ZZ'])(
           kind: 'custom',
           seedCode: null,
           seedVersion: null,
-          sellerId: id<'Seller'>('01990000-0000-7000-8000-0000000000a1'),
           name: 'Custom role',
         });
         expect(() => custom.applySeed({ seedVersion: 2, permissionKeys: [] })).toThrow(
@@ -182,10 +185,10 @@ describe.each(['AU', 'ZZ'])(
     });
 
     describe('scopeOfPopulation (R2)', () => {
-      it.each<[Population, 'platform' | 'seller' | null]>([
-        ['seller', 'seller'],
+      it.each<[Population, 'platform' | 'merchant' | 'courier']>([
+        ['merchant', 'merchant'],
         ['admin', 'platform'],
-        ['customer', null],
+        ['courier', 'courier'],
       ])('%s -> %s', (population, scope) => {
         expect(scopeOfPopulation(population)).toBe(scope);
       });
@@ -195,8 +198,8 @@ describe.each(['AU', 'ZZ'])(
       it('gives the system role of the matching scope, with no assigner, version 1', () => {
         const assignment = RoleAssignment.found({
           id: ASSIGNMENT_ID,
-          account: { id: ACCOUNT_ID, marketId, population: 'seller' },
-          role: systemRole('seller'),
+          account: { id: ACCOUNT_ID, marketId, population: 'courier' },
+          role: systemRole('courier'),
           now: NOW,
         });
 
@@ -212,10 +215,10 @@ describe.each(['AU', 'ZZ'])(
         expect(assignment.persistedVersion).toBeNull();
       });
 
-      it.each<[string, Population, 'platform' | 'seller']>([
-        ['a customer, whatever the role (R2)', 'customer', 'seller'],
-        ['a seller account a platform role', 'seller', 'platform'],
-        ['an admin account a seller role', 'admin', 'seller'],
+      it.each<[string, Population, 'platform' | 'merchant' | 'courier']>([
+        ['a courier account the merchant role (R2)', 'courier', 'merchant'],
+        ['a merchant account a platform role', 'merchant', 'platform'],
+        ['an admin account the courier role', 'admin', 'courier'],
       ])('refuses %s', (_name, population, scope) => {
         expect(() =>
           RoleAssignment.found({
@@ -233,8 +236,8 @@ describe.each(['AU', 'ZZ'])(
         expect(() =>
           RoleAssignment.found({
             id: ASSIGNMENT_ID,
-            account: { id: ACCOUNT_ID, marketId: other, population: 'seller' },
-            role: systemRole('seller'),
+            account: { id: ACCOUNT_ID, marketId: other, population: 'merchant' },
+            role: systemRole('merchant'),
             now: NOW,
           }),
         ).toThrow(RoleInvariantError);
@@ -247,15 +250,13 @@ describe.each(['AU', 'ZZ'])(
   'the custom role in market %s (identity design 2.1, 5.4; slice 10)',
   (code) => {
     const marketId = market(code);
-    const SELLER = id<'Seller'>('01990000-0000-7000-8000-0000000000a1');
     const created = (overrides: Partial<Parameters<typeof Role.createCustom>[0]> = {}) =>
       Role.createCustom({
         id: ROLE_ID,
         marketId,
         scope: 'platform',
-        sellerId: null,
         name: 'Night shift',
-        permissionKeys: ['identity.seller-access.view', 'identity.customer-account.view'],
+        permissionKeys: ['identity.merchant.view', 'identity.courier-account.view'],
         now: NOW,
         ...overrides,
       });
@@ -270,7 +271,7 @@ describe.each(['AU', 'ZZ'])(
         seedVersion: null,
         name: 'Night shift',
         version: 1,
-        permissionKeys: ['identity.customer-account.view', 'identity.seller-access.view'],
+        permissionKeys: ['identity.courier-account.view', 'identity.merchant.view'],
       });
       expect(role.nameNormalized).toBe('night shift');
       expect(role.persistedVersion).toBeNull();
@@ -279,20 +280,17 @@ describe.each(['AU', 'ZZ'])(
         type: 'identity.role-created.v1',
         payload: {
           scope: 'platform',
-          sellerId: null,
-          addedKeys: ['identity.customer-account.view', 'identity.seller-access.view'],
+          addedKeys: ['identity.courier-account.view', 'identity.merchant.view'],
           removedKeys: [],
         },
       });
       expect(JSON.stringify(role.pendingEvents)).not.toContain('Night');
     });
 
-    it('keeps the seller of a seller-scope role and refuses a seller on a platform role (R9)', () => {
-      expect(created({ scope: 'seller', sellerId: SELLER }).state.sellerId).toBe(SELLER);
-      expect(() => created({ sellerId: SELLER })).toThrow(new RoleInvariantError('seller'));
-      expect(() => created({ scope: 'seller', sellerId: null })).toThrow(
-        new RoleInvariantError('seller'),
-      );
+    it('refuses a custom role of the merchant or courier scope (they hold their system role)', () => {
+      for (const scope of ['merchant', 'courier'] as const) {
+        expect(() => created({ scope })).toThrow(new RoleInvariantError('custom-scope'));
+      }
     });
 
     it('refuses a malformed, repeated name or key, and a name on a seeded role', () => {
@@ -302,7 +300,7 @@ describe.each(['AU', 'ZZ'])(
         new RoleInvariantError('keys'),
       );
       expect(() =>
-        created({ permissionKeys: ['identity.seller-access.view', 'identity.seller-access.view'] }),
+        created({ permissionKeys: ['identity.merchant.view', 'identity.merchant.view'] }),
       ).toThrow(new RoleInvariantError('keys'));
       const seeded = Role.seedDefault({
         id: ROLE_ID,
@@ -323,13 +321,13 @@ describe.each(['AU', 'ZZ'])(
 
       const edit = stored.edit({
         name: 'Day shift',
-        permissionKeys: ['identity.seller-access.view', 'identity.admin-account.view'],
+        permissionKeys: ['identity.merchant.view', 'identity.admin-account.view'],
         isDeclared: declared,
         now: NOW,
       });
 
       expect(edit.addedKeys).toEqual(['identity.admin-account.view']);
-      expect(edit.removedKeys).toEqual(['identity.customer-account.view']);
+      expect(edit.removedKeys).toEqual(['identity.courier-account.view']);
       expect(edit.renamed).toBe(true);
       expect(edit.role.state).toMatchObject({ name: 'Day shift', version: 4 });
       expect(edit.role.persistedVersion).toBe(3);
@@ -344,13 +342,13 @@ describe.each(['AU', 'ZZ'])(
     it('lists only keys the registry still declares in an edit, delete and event (R7)', () => {
       const stored = Role.restore({
         ...created().state,
-        permissionKeys: ['identity.retired.key', 'identity.seller-access.view'],
+        permissionKeys: ['identity.retired.key', 'identity.merchant.view'],
       });
       const isDeclared = (key: string) => key !== 'identity.retired.key';
 
       const edit = stored.edit({
         name: 'Night shift',
-        permissionKeys: ['identity.seller-access.view'],
+        permissionKeys: ['identity.merchant.view'],
         isDeclared,
         now: NOW,
       });
@@ -360,7 +358,7 @@ describe.each(['AU', 'ZZ'])(
       expect(edit.renamed).toBe(false);
       expect(removed.pendingEvents[0]).toMatchObject({
         type: 'identity.role-deleted.v1',
-        payload: { removedKeys: ['identity.seller-access.view'], addedKeys: [] },
+        payload: { removedKeys: ['identity.merchant.view'], addedKeys: [] },
       });
     });
 

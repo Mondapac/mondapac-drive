@@ -26,7 +26,6 @@ const EXPECTED: Readonly<Record<Code, number>> = {
   'validation.failed': 400,
   'access.unauthenticated': 401,
   'access.denied': 403,
-  'access.seller-not-approved': 403,
   'member.self': 403,
   'member.outranks-actor': 403,
   'role.not-grantable': 403,

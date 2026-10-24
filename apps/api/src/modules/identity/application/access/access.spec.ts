@@ -16,22 +16,18 @@ import {
 import { TEST_MARKETS } from '../../../../../test/support/test-config';
 import { PLATFORM_TENANT_ID } from '../../../../platform/market-context/tenant';
 import type { UnitOfWork, UnitOfWorkOptions } from '../../../../platform/unit-of-work/unit-of-work';
-import {
-  SELLER_ACCESS_APPROVE,
-  SELLER_ACCESS_VIEW,
-  TEAM_MEMBER_INVITE,
-  TEAM_MEMBER_VIEW,
-} from '../../contracts/permissions';
+import { COURIER_ACCOUNT_INVITE, MERCHANT_VIEW } from '../../contracts/permissions';
 import type { AccountState } from '../../domain/account';
+import type { MerchantStateCode } from '../../domain/merchant';
 import type { RoleKind, RoleScope } from '../../domain/role';
-import type { SellerAccessStateCode } from '../../domain/seller-access';
 import { openSession, type Session } from '../../domain/session';
 import type { SessionTokens } from '../ports/session-secrets';
 import { AccountAuthorisationCheck } from './account-authorisation-check';
 import { SessionAuthenticator } from './session-authenticator';
 
-// sellers' key by its literal: identity's tests never import another module's contracts.
-const SELLERS_BUSINESS_IDENTITY_EDIT = { key: 'sellers.business-identity.edit' } as const;
+// delivery's keys by their literal: identity's tests never import another module's contracts.
+const BOOKING_CREATE = { key: 'delivery.booking.create' } as const;
+const ASSIGNMENT_REPORT = { key: 'delivery.assignment.report' } as const;
 
 // identity design 4, 5.2, 6.2 (slice 2): the Authenticator and the AuthorisationCheck, for both
 // Market fixtures.
@@ -47,8 +43,8 @@ const id = <T extends string>(text: string): Id<T> => {
 };
 const ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-000000000001');
 const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000a001');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-00000000b001');
-const OTHER_SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-00000000b002');
+const MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-00000000b001');
+const OTHER_MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-00000000b002');
 const ROLE_ID = id<'Role'>('01990000-0000-7000-8000-00000000d001');
 const ASSIGNMENT_ID = id<'RoleAssignment'>('01990000-0000-7000-8000-00000000e001');
 
@@ -63,7 +59,6 @@ function grantRole(
     readonly scope: RoleScope;
     readonly kind: RoleKind;
     readonly keys?: readonly string[];
-    readonly sellerId?: Id<'Seller'> | null;
   },
 ): void {
   const marketId = code as AccountState['marketId'];
@@ -75,7 +70,6 @@ function grantRole(
     kind: role.kind,
     seedCode: seeded ? 'fixture-role' : null,
     seedVersion: seeded ? 1 : null,
-    sellerId: role.sellerId ?? null,
     permissionKeys: role.keys ?? [],
     version: 1,
     createdAt: START,
@@ -103,12 +97,11 @@ function account(code: string, overrides: Partial<AccountState> = {}): AccountSt
   return {
     id: ACCOUNT_ID,
     marketId: code as AccountState['marketId'],
-    population: 'customer',
+    population: 'courier',
     email: { typed: 'a@example.com', normalized: 'a@example.com' },
-    displayName: null,
+    displayName: 'Amina',
     status: 'active',
     emailVerifiedAt: START,
-    existingAccountNoticeAt: null,
     signedUpAt: START,
     createdAt: START,
     version: 1,
@@ -117,33 +110,31 @@ function account(code: string, overrides: Partial<AccountState> = {}): AccountSt
   };
 }
 
-/** A seller-side account working for {@link SELLER_ID}, in the given access state. */
-function seedSeller(
+/** A merchant's integration account working for {@link MERCHANT_ID}, in the given state. */
+function seedMerchant(
   fakes: IdentityFakes,
   code: string,
-  state: SellerAccessStateCode,
-  membership: 'active' | 'none' | 'other-seller' = 'active',
+  state: MerchantStateCode,
+  membership: 'active' | 'none' | 'other-merchant' = 'active',
 ): void {
   const marketId = code as AccountState['marketId'];
-  fakes.seedAccount(account(code, { population: 'seller', displayName: 'Amina' }));
-  fakes.seedSellerAccess({
-    sellerId: SELLER_ID,
+  fakes.seedAccount(account(code, { population: 'merchant', emailVerifiedAt: null }));
+  fakes.seedMerchant({
+    id: MERCHANT_ID,
     marketId,
-    origin: 'self',
+    name: 'Corner Grocer',
     state,
     stateChangedAt: START,
-    reapplyCount: 0,
-    registeredAt: START,
     version: 1,
     createdAt: START,
   });
   fakes.memberships.clear();
   if (membership === 'none') return;
   fakes.seedMembership({
-    id: id<'SellerMembership'>('01990000-0000-7000-8000-00000000c001'),
+    id: id<'MerchantMembership'>('01990000-0000-7000-8000-00000000c001'),
     marketId,
     accountId: ACCOUNT_ID,
-    sellerId: membership === 'active' ? SELLER_ID : OTHER_SELLER_ID,
+    merchantId: membership === 'active' ? MERCHANT_ID : OTHER_MERCHANT_ID,
     state: 'active',
     removedAt: null,
     version: 1,
@@ -185,8 +176,8 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
         id: SESSION_ID,
         marketId: market.marketId,
         accountId: ACCOUNT_ID,
-        population: 'customer',
-        transport: 'cookie',
+        population: 'courier',
+        transport: 'bearer',
         lifetime: LIFETIME,
         now: START,
       }),
@@ -200,16 +191,17 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
     const authenticator = () =>
       new SessionAuthenticator({ unitOfWork, sessions: fakes.sessionRepository, tokens, clock });
 
-    function seedSellerSession(): void {
+    function seedApiKey(): void {
       void fakes.sessionRepository.add(
         market,
         openSession({
           id: SESSION_ID,
           marketId: market.marketId,
           accountId: ACCOUNT_ID,
-          population: 'seller',
-          sellerId: SELLER_ID,
-          transport: 'cookie',
+          population: 'merchant',
+          merchantId: MERCHANT_ID,
+          transport: 'api-key',
+          label: 'Warehouse',
           lifetime: LIFETIME,
           now: START,
         }),
@@ -217,45 +209,46 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       );
     }
 
-    it.each<SellerAccessStateCode>(['pending', 'approved', 'rejected'])(
-      'builds a seller actor carrying the session seller (%s seller; slice 5)',
-      async (state) => {
-        seedSeller(fakes, code, state);
-        seedSellerSession();
+    it('builds a merchant actor carrying the API key merchant', async () => {
+      seedMerchant(fakes, code, 'active');
+      seedApiKey();
 
-        const result = await authenticator().authenticate(market, {
-          token: TOKEN,
-          transport: 'cookie',
-        });
+      const result = await authenticator().authenticate(market, {
+        token: TOKEN,
+        transport: 'api-key',
+      });
 
-        expect(result.ok && result.value).toMatchObject({
-          kind: 'authenticated',
-          population: 'seller',
-          accountId: ACCOUNT_ID,
-          sellerId: SELLER_ID,
-        });
-      },
-    );
+      expect(result.ok && result.value).toMatchObject({
+        kind: 'authenticated',
+        population: 'merchant',
+        accountId: ACCOUNT_ID,
+        merchantId: MERCHANT_ID,
+      });
+    });
 
-    it.each<[string, SellerAccessStateCode, 'none' | 'other-seller' | 'active']>([
-      ['a seller session without an active membership', 'approved', 'none'],
-      ['a seller session whose membership is of another seller', 'approved', 'other-seller'],
-      ['a seller session of a suspended seller', 'suspended', 'active'],
-    ])('rejects %s with the one credential.rejected', async (_case, state, membership) => {
-      seedSeller(fakes, code, state, membership);
-      seedSellerSession();
+    it.each<[string, MerchantStateCode, 'none' | 'other-merchant' | 'active', string]>([
+      ['an API key without an active membership', 'active', 'none', 'api-key'],
+      ['an API key whose membership is of another merchant', 'active', 'other-merchant', 'api-key'],
+      ['an API key of a suspended merchant', 'suspended', 'active', 'api-key'],
+      ['an API key presented as a courier bearer token', 'active', 'active', 'bearer'],
+    ])('rejects %s with the one credential.rejected', async (_case, state, membership, transport) => {
+      seedMerchant(fakes, code, state, membership);
+      seedApiKey();
 
       await expect(
-        authenticator().authenticate(market, { token: TOKEN, transport: 'cookie' }),
+        authenticator().authenticate(market, {
+          token: TOKEN,
+          transport: transport as 'api-key' | 'bearer',
+        }),
       ).resolves.toEqual({ ok: false, error: { code: 'credential.rejected' } });
     });
 
-    it('builds a minted customer actor from a live session, in a read-only unit', async () => {
+    it('builds a minted courier actor from a live session, in a read-only unit', async () => {
       seedSession();
 
       const result = await authenticator().authenticate(market, {
         token: TOKEN,
-        transport: 'cookie',
+        transport: 'bearer',
       });
 
       expect(result.ok).toBe(true);
@@ -264,10 +257,10 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       expect(actor).toMatchObject({
         kind: 'authenticated',
         marketId: code,
-        population: 'customer',
+        population: 'courier',
         accountId: ACCOUNT_ID,
         sessionId: SESSION_ID,
-        sellerId: null,
+        merchantId: null,
       });
       // The read is read-only; no lastSeenAt write within the minute.
       expect(units).toEqual([{ readOnly: true }]);
@@ -277,7 +270,7 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       seedSession();
       clock.advance(Temporal.Duration.from({ seconds: 61 }));
 
-      await authenticator().authenticate(market, { token: TOKEN, transport: 'cookie' });
+      await authenticator().authenticate(market, { token: TOKEN, transport: 'bearer' });
 
       expect(units).toEqual([{ readOnly: true }, undefined]);
       expect(fakes.sessions.get(SESSION_ID)!.session.lastSeenAt).toEqual(clock.now());
@@ -290,7 +283,7 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
 
       const result = await authenticator().authenticate(market, {
         token: TOKEN,
-        transport: 'cookie',
+        transport: 'bearer',
       });
 
       expect(result.ok).toBe(true);
@@ -299,10 +292,11 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       );
     });
 
-    it.each<[string, () => void, { token?: string; transport?: 'cookie' | 'bearer' }]>([
+    it.each<[string, () => void, { token?: string; transport?: 'cookie' | 'api-key' }]>([
       ['an unknown token', () => seedSession(), { token: `ms1_${'Z'.repeat(43)}` }],
       ['a malformed token', () => seedSession(), { token: 'not-a-token' }],
-      ['the other transport', () => seedSession(), { transport: 'bearer' }],
+      ['the cookie transport', () => seedSession(), { transport: 'cookie' }],
+      ['the API key transport', () => seedSession(), { transport: 'api-key' }],
       ['a revoked session', () => seedSession({ revokedAt: START, revokedReason: 'sign-out' }), {}],
       [
         'an idle session',
@@ -334,7 +328,7 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       await expect(
         authenticator().authenticate(market, {
           token: credential.token ?? TOKEN,
-          transport: credential.transport ?? 'cookie',
+          transport: credential.transport ?? 'bearer',
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'credential.rejected' } });
     });
@@ -347,7 +341,7 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       );
 
       await expect(
-        authenticator().authenticate(other, { token: TOKEN, transport: 'cookie' }),
+        authenticator().authenticate(other, { token: TOKEN, transport: 'bearer' }),
       ).resolves.toEqual({ ok: false, error: { code: 'credential.rejected' } });
     });
   });
@@ -358,7 +352,7 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
         unitOfWork,
         accounts: fakes.accountRepository,
         memberships: fakes.membershipRepository,
-        sellerAccess: fakes.sellerAccessRepository,
+        merchants: fakes.merchantRepository,
         grants: fakes.grantReader,
         effectiveKeys: realEffectiveKeys(),
       });
@@ -368,20 +362,19 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
     });
     const ALLOWED = { allowed: true };
     const DENIED = { allowed: false, denial: { code: 'access.denied' } };
-    const actorContext = (population: 'customer' | 'admin' = 'customer') =>
+    const actorContext = (population: 'courier' | 'admin' = 'courier') =>
       testCallContext(
         market,
         testAuthenticatedActor(market, {
           population,
           accountId: ACCOUNT_ID,
           sessionId: SESSION_ID,
-          sellerId: null,
+          merchantId: null,
         }),
       );
     const ownResources = {
       name: 'identity.sign-out',
       rule: { kind: 'own-resources' as const },
-      whenSellerNotApproved: 'allow' as const,
     };
 
     it('allows own-resources for an active account of the actor, read in a read-only unit', async () => {
@@ -401,11 +394,14 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       });
     });
 
-    it('denies a permissions rule to a customer before any read: a customer holds no key (R2)', async () => {
-      await expect(check().check(actorContext(), needs(SELLER_ACCESS_VIEW.key))).resolves.toEqual(
+    it('denies a courier a platform key, even with the courier system role (R2)', async () => {
+      grantRole(fakes, code, { scope: 'courier', kind: 'system' });
+      await expect(check().check(actorContext(), needs(MERCHANT_VIEW.key))).resolves.toEqual(
         DENIED,
       );
-      expect(units).toEqual([]);
+      await expect(check().check(actorContext(), needs(ASSIGNMENT_REPORT.key))).resolves.toEqual(
+        ALLOWED,
+      );
     });
 
     describe('the permission path for an admin fixture account (slice 8a-1)', () => {
@@ -433,15 +429,15 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
         grantRole(fakes, code, {
           scope: 'platform',
           kind: 'default',
-          keys: [SELLER_ACCESS_VIEW.key, SELLER_ACCESS_APPROVE.key],
+          keys: [MERCHANT_VIEW.key, COURIER_ACCOUNT_INVITE.key],
         });
         await expect(
-          check().check(actorContext('admin'), needs(SELLER_ACCESS_APPROVE.key)),
+          check().check(actorContext('admin'), needs(COURIER_ACCOUNT_INVITE.key)),
         ).resolves.toEqual(ALLOWED);
         await expect(
           check().check(
             actorContext('admin'),
-            needs(SELLER_ACCESS_APPROVE.key, 'identity.customer-account.view'),
+            needs(COURIER_ACCOUNT_INVITE.key, 'identity.admin-account.view'),
           ),
         ).resolves.toEqual(DENIED);
       });
@@ -450,35 +446,35 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
         grantRole(fakes, code, {
           scope: 'platform',
           kind: 'custom',
-          keys: ['identity.seller-access.approve-all'],
+          keys: ['identity.merchant.approve-all'],
         });
         await expect(
-          check().check(actorContext('admin'), needs('identity.seller-access.approve-all')),
+          check().check(actorContext('admin'), needs('identity.merchant.approve-all')),
         ).resolves.toEqual(DENIED);
       });
 
-      it('R2: a key of the seller scope is never held by an admin, even the Platform Administrator', async () => {
+      it('R2: a merchant key is never held by an admin, even the Platform Administrator', async () => {
         grantRole(fakes, code, { scope: 'platform', kind: 'system' });
         await expect(
-          check().check(actorContext('admin'), needs(TEAM_MEMBER_VIEW.key)),
+          check().check(actorContext('admin'), needs(BOOKING_CREATE.key)),
         ).resolves.toEqual(DENIED);
-        // A seller-scope role assigned to an admin (a corrupt row) grants nothing either.
-        grantRole(fakes, code, { scope: 'seller', kind: 'system' });
+        // A merchant-scope role assigned to an admin (a corrupt row) grants nothing either.
+        grantRole(fakes, code, { scope: 'merchant', kind: 'system' });
         await expect(
-          check().check(actorContext('admin'), needs(TEAM_MEMBER_VIEW.key)),
+          check().check(actorContext('admin'), needs(BOOKING_CREATE.key)),
         ).resolves.toEqual(DENIED);
       });
 
       it('no role, no key; and a disabled admin is denied whatever its role', async () => {
         await expect(
-          check().check(actorContext('admin'), needs(SELLER_ACCESS_VIEW.key)),
+          check().check(actorContext('admin'), needs(MERCHANT_VIEW.key)),
         ).resolves.toEqual(DENIED);
         grantRole(fakes, code, { scope: 'platform', kind: 'system' });
         fakes.seedAccount(
           account(code, { population: 'admin', displayName: 'Admin', status: 'disabled' }),
         );
         await expect(
-          check().check(actorContext('admin'), needs(SELLER_ACCESS_VIEW.key)),
+          check().check(actorContext('admin'), needs(MERCHANT_VIEW.key)),
         ).resolves.toEqual(DENIED);
       });
 
@@ -486,152 +482,78 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
         grantRole(fakes, code, {
           scope: 'platform',
           kind: 'default',
-          keys: [SELLER_ACCESS_VIEW.key],
+          keys: [MERCHANT_VIEW.key],
         });
         await expect(
-          check().check(actorContext('admin'), needs(SELLER_ACCESS_VIEW.key)),
+          check().check(actorContext('admin'), needs(MERCHANT_VIEW.key)),
         ).resolves.toEqual(ALLOWED);
         fakes.assignments.clear();
         await expect(
-          check().check(actorContext('admin'), needs(SELLER_ACCESS_VIEW.key)),
+          check().check(actorContext('admin'), needs(MERCHANT_VIEW.key)),
         ).resolves.toEqual(DENIED);
       });
     });
 
-    describe('for the seller population (slice 5)', () => {
-      const sellerContext = (sellerId: Id<'Seller'> = SELLER_ID) =>
+    describe('for the merchant population (API keys)', () => {
+      const merchantContext = (merchantId: Id<'Merchant'> = MERCHANT_ID) =>
         testCallContext(
           market,
           testAuthenticatedActor(market, {
-            population: 'seller',
+            population: 'merchant',
             accountId: ACCOUNT_ID,
             sessionId: SESSION_ID,
-            sellerId,
+            merchantId,
           }),
         );
-      const notAllowListed = {
-        name: 'identity.anything',
-        rule: { kind: 'own-resources' as const },
-      };
 
-      it('allows an approved seller, reading account, membership and seller in one read-only unit', async () => {
-        seedSeller(fakes, code, 'approved');
+      it('allows an active merchant, reading account, membership and merchant in one read-only unit', async () => {
+        seedMerchant(fakes, code, 'active');
 
-        await expect(check().check(sellerContext(), notAllowListed)).resolves.toEqual({
-          allowed: true,
-        });
+        await expect(check().check(merchantContext(), ownResources)).resolves.toEqual(ALLOWED);
         expect(units).toEqual([{ readOnly: true }]);
       });
 
-      it.each<'pending' | 'rejected'>(['pending', 'rejected'])(
-        'answers access.seller-not-approved with the state to a %s seller off the allow-list',
-        async (state) => {
-          seedSeller(fakes, code, state);
+      it('denies a suspended merchant, whatever the rule', async () => {
+        grantRole(fakes, code, { scope: 'merchant', kind: 'system' });
+        seedMerchant(fakes, code, 'suspended');
 
-          await expect(check().check(sellerContext(), notAllowListed)).resolves.toEqual({
-            allowed: false,
-            denial: { code: 'access.seller-not-approved', details: { state } },
-          });
-          await expect(check().check(sellerContext(), ownResources)).resolves.toEqual({
-            allowed: true,
-          });
-        },
-      );
-
-      it('denies a suspended seller even on the allow-list', async () => {
-        seedSeller(fakes, code, 'suspended');
-
-        await expect(check().check(sellerContext(), ownResources)).resolves.toEqual({
-          allowed: false,
-          denial: { code: 'access.denied' },
-        });
-      });
-
-      it('denies without a membership, or with a membership of another seller than the actor', async () => {
-        seedSeller(fakes, code, 'approved', 'none');
-        await expect(check().check(sellerContext(), ownResources)).resolves.toMatchObject({
-          allowed: false,
-        });
-        seedSeller(fakes, code, 'approved', 'other-seller');
-        await expect(check().check(sellerContext(), ownResources)).resolves.toMatchObject({
-          allowed: false,
-        });
-        seedSeller(fakes, code, 'approved');
-        await expect(
-          check().check(sellerContext(OTHER_SELLER_ID), ownResources),
-        ).resolves.toMatchObject({ allowed: false });
-      });
-
-      it('decides the seller state first under a permissions rule, then the keys', async () => {
-        grantRole(fakes, code, { scope: 'seller', kind: 'system' });
-        seedSeller(fakes, code, 'pending');
-        await expect(
-          check().check(sellerContext(), needs(TEAM_MEMBER_VIEW.key)),
-        ).resolves.toMatchObject({ denial: { code: 'access.seller-not-approved' } });
-        seedSeller(fakes, code, 'approved');
-        await expect(check().check(sellerContext(), needs(TEAM_MEMBER_VIEW.key))).resolves.toEqual(
-          ALLOWED,
+        await expect(check().check(merchantContext(), ownResources)).resolves.toEqual(DENIED);
+        await expect(check().check(merchantContext(), needs(BOOKING_CREATE.key))).resolves.toEqual(
+          DENIED,
         );
       });
 
-      it('the Seller Owner holds every seller key of every module, protected ones too (R3)', async () => {
-        grantRole(fakes, code, { scope: 'seller', kind: 'system' });
-        seedSeller(fakes, code, 'approved');
-        for (const key of [
-          TEAM_MEMBER_VIEW.key,
-          TEAM_MEMBER_INVITE.key,
-          SELLERS_BUSINESS_IDENTITY_EDIT.key,
-        ]) {
-          await expect(check().check(sellerContext(), needs(key))).resolves.toEqual(ALLOWED);
+      it('denies without a membership, or with a membership of another merchant than the actor', async () => {
+        seedMerchant(fakes, code, 'active', 'none');
+        await expect(check().check(merchantContext(), ownResources)).resolves.toEqual(DENIED);
+        seedMerchant(fakes, code, 'active', 'other-merchant');
+        await expect(check().check(merchantContext(), ownResources)).resolves.toEqual(DENIED);
+        seedMerchant(fakes, code, 'active');
+        await expect(check().check(merchantContext(OTHER_MERCHANT_ID), ownResources)).resolves.toEqual(
+          DENIED,
+        );
+      });
+
+      it('the merchant system role holds every merchant key and no platform or courier key (R2, R3)', async () => {
+        grantRole(fakes, code, { scope: 'merchant', kind: 'system' });
+        seedMerchant(fakes, code, 'active');
+        const registry = realPermissionRegistry();
+        for (const { key } of registry.list('merchant')) {
+          await expect(check().check(merchantContext(), needs(key))).resolves.toEqual(ALLOWED);
         }
+        await expect(check().check(merchantContext(), needs(MERCHANT_VIEW.key))).resolves.toEqual(
+          DENIED,
+        );
         await expect(
-          check().check(sellerContext(), needs(SELLER_ACCESS_VIEW.key)),
+          check().check(merchantContext(), needs(ASSIGNMENT_REPORT.key)),
         ).resolves.toEqual(DENIED);
       });
 
-      it('a Staff member holds its default role keys only', async () => {
-        grantRole(fakes, code, {
-          scope: 'seller',
-          kind: 'default',
-          keys: [TEAM_MEMBER_VIEW.key, 'identity.seller-role.view'],
-        });
-        seedSeller(fakes, code, 'approved');
-        await expect(check().check(sellerContext(), needs(TEAM_MEMBER_VIEW.key))).resolves.toEqual(
-          ALLOWED,
-        );
-        await expect(
-          check().check(sellerContext(), needs(SELLERS_BUSINESS_IDENTITY_EDIT.key)),
-        ).resolves.toEqual(DENIED);
-      });
+      it('denies a merchant actor whose account is of another population (a corrupt session)', async () => {
+        seedMerchant(fakes, code, 'active');
+        fakes.seedAccount(account(code, { population: 'courier' }));
 
-      it("R9: a custom role of another seller grants nothing to this seller's member", async () => {
-        seedSeller(fakes, code, 'approved');
-        grantRole(fakes, code, {
-          scope: 'seller',
-          kind: 'custom',
-          keys: [TEAM_MEMBER_VIEW.key],
-          sellerId: OTHER_SELLER_ID,
-        });
-        await expect(check().check(sellerContext(), needs(TEAM_MEMBER_VIEW.key))).resolves.toEqual(
-          DENIED,
-        );
-        grantRole(fakes, code, {
-          scope: 'seller',
-          kind: 'custom',
-          keys: [TEAM_MEMBER_VIEW.key],
-          sellerId: SELLER_ID,
-        });
-        await expect(check().check(sellerContext(), needs(TEAM_MEMBER_VIEW.key))).resolves.toEqual(
-          ALLOWED,
-        );
-      });
-
-      it('a suspended seller is denied even with the system role', async () => {
-        grantRole(fakes, code, { scope: 'seller', kind: 'system' });
-        seedSeller(fakes, code, 'suspended');
-        await expect(check().check(sellerContext(), needs(TEAM_MEMBER_VIEW.key))).resolves.toEqual(
-          DENIED,
-        );
+        await expect(check().check(merchantContext(), ownResources)).resolves.toEqual(DENIED);
       });
     });
   });

@@ -1,5 +1,5 @@
 import { parseId, Temporal } from '@mondapac-drive/shared-kernel';
-import type { Id } from '@mondapac-drive/shared-kernel';
+import type { Id, Population } from '@mondapac-drive/shared-kernel';
 import {
   FixedClock,
   testAuthenticatedActor,
@@ -41,9 +41,9 @@ const id = <T extends string>(text: string): Id<T> => {
 };
 const ADMIN_ID = id<'Account'>('01990000-0000-7000-8000-0000000000a1');
 const OTHER_ADMIN_ID = id<'Account'>('01990000-0000-7000-8000-0000000000a2');
-const SELLER_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-0000000000b1');
-const CUSTOMER_ID = id<'Account'>('01990000-0000-7000-8000-0000000000c1');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-0000000000d1');
+const COURIER_ID = id<'Account'>('01990000-0000-7000-8000-0000000000b1');
+const MERCHANT_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-0000000000c1');
+const MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-0000000000d1');
 const CURRENT = id<'Session'>('01990000-0000-7000-8000-00000000a001');
 const LAPTOP = id<'Session'>('01990000-0000-7000-8000-00000000a002');
 const PHONE = id<'Session'>('01990000-0000-7000-8000-00000000a003');
@@ -79,16 +79,15 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
   const gate = createUseCaseGate(markets, allow);
   let fakes: IdentityFakes;
 
-  function seedAccount(accountId: Id<'Account'>, population: 'admin' | 'seller' | 'customer') {
+  function seedAccount(accountId: Id<'Account'>, population: Population) {
     fakes.seedAccount({
       id: accountId,
       marketId: market.marketId,
       population,
       email: { typed: `${accountId}@example.com`, normalized: `${accountId}@example.com` },
-      displayName: population === 'customer' ? null : 'Amina Rahman',
+      displayName: 'Amina Rahman',
       status: 'active',
       emailVerifiedAt: START.subtract({ hours: 48 }),
-      existingAccountNoticeAt: null,
       signedUpAt: START.subtract({ hours: 49 }),
       createdAt: START.subtract({ hours: 49 }),
       version: 3,
@@ -102,15 +101,14 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
     openedMinutesAgo: number,
     lastSeenMinutesAgo: number,
     device: DeviceCode | null,
-    population: 'admin' | 'seller' = 'admin',
+    population: 'admin' | 'courier' = 'admin',
   ) {
     const opened = openSession({
       id: sessionId,
       marketId: market.marketId,
       accountId,
       population,
-      sellerId: population === 'seller' ? SELLER_ID : null,
-      transport: 'cookie',
+      transport: population === 'admin' ? 'cookie' : 'bearer',
       device,
       lifetime: LIFETIME,
       now: START.subtract({ minutes: openedMinutesAgo }),
@@ -156,7 +154,7 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
   const signedOutEvents = () =>
     fakes.events.filter((e) => e.type === 'identity.account-other-sessions-signed-out.v1');
   const contextOf = (
-    population: 'admin' | 'seller' | 'customer',
+    population: Population,
     accountId: Id<'Account'>,
     sessionId: Id<'Session'> = CURRENT,
   ) =>
@@ -166,7 +164,7 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
         population,
         accountId,
         sessionId,
-        sellerId: population === 'seller' ? SELLER_ID : null,
+        merchantId: population === 'merchant' ? MERCHANT_ID : null,
       }),
     );
   const sessionOf = (sessionId: Id<'Session'>) => fakes.sessions.get(sessionId)!.session;
@@ -220,12 +218,12 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
       }
     });
 
-    it('lists a seller-side member the same way', async () => {
-      seedAccount(SELLER_ACCOUNT_ID, 'seller');
-      const SELLER_SESSION = id<'Session'>('01990000-0000-7000-8000-00000000b001');
-      seedSession(SELLER_SESSION, SELLER_ACCOUNT_ID, 10, 0, 'samsung.android', 'seller');
+    it('lists a courier the same way', async () => {
+      seedAccount(COURIER_ID, 'courier');
+      const COURIER_SESSION = id<'Session'>('01990000-0000-7000-8000-00000000b001');
+      seedSession(COURIER_SESSION, COURIER_ID, 10, 0, 'samsung.android', 'courier');
       const result = await new ListOwnSessions(gate, deps()).execute(
-        contextOf('seller', SELLER_ACCOUNT_ID, SELLER_SESSION),
+        contextOf('courier', COURIER_ID, COURIER_SESSION),
         {},
       );
       expect(result.ok && result.value.items.map((item) => item.device)).toEqual([
@@ -233,10 +231,10 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
       ]);
     });
 
-    it('refuses a customer', async () => {
-      seedAccount(CUSTOMER_ID, 'customer');
+    it("refuses a merchant's API key", async () => {
+      seedAccount(MERCHANT_ACCOUNT_ID, 'merchant');
       const result = await new ListOwnSessions(gate, deps()).execute(
-        contextOf('customer', CUSTOMER_ID),
+        contextOf('merchant', MERCHANT_ACCOUNT_ID),
         {},
       );
       expect(result).toEqual({ ok: false, error: { code: 'access.denied' } });
@@ -363,10 +361,10 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
       expect(sessionOf(LAPTOP).revokedAt).toBeNull();
     });
 
-    it('refuses a customer', async () => {
-      seedAccount(CUSTOMER_ID, 'customer');
+    it("refuses a merchant's API key", async () => {
+      seedAccount(MERCHANT_ACCOUNT_ID, 'merchant');
       const result = await new SignOutOtherSessions(gate, deps()).execute(
-        contextOf('customer', CUSTOMER_ID),
+        contextOf('merchant', MERCHANT_ACCOUNT_ID),
         {},
       );
       expect(result).toEqual({ ok: false, error: { code: 'access.denied' } });
@@ -383,11 +381,11 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
       policy,
     });
 
-    it.each(['admin', 'seller'] as const)(
+    it.each(['admin', 'courier'] as const)(
       'tells the %s address when, with no link and no token',
       async (population) => {
-        const accountId = population === 'admin' ? ADMIN_ID : SELLER_ACCOUNT_ID;
-        if (population === 'seller') seedAccount(SELLER_ACCOUNT_ID, 'seller');
+        const accountId = population === 'admin' ? ADMIN_ID : COURIER_ID;
+        if (population === 'courier') seedAccount(COURIER_ID, 'courier');
         const result = await new SendOtherSessionsSignedOutMail(gate, mailDeps()).execute(system, {
           delivery: deliveryOf(),
           accountId,
@@ -414,7 +412,7 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
         value: { code: 'other-sessions-signed-out-mail.already-handled' },
       });
       await expect(
-        send.execute(system, { delivery: deliveryOf(), accountId: CUSTOMER_ID, occurredAt: START }),
+        send.execute(system, { delivery: deliveryOf(), accountId: MERCHANT_ACCOUNT_ID, occurredAt: START }),
       ).resolves.toEqual({
         ok: true,
         value: { code: 'other-sessions-signed-out-mail.skipped', reason: 'account.gone' },

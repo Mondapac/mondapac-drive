@@ -26,14 +26,14 @@ function market(code: string): MarketId {
 describe.each<[string, SessionLifetime]>([
   ['AU', { idleTimeoutSeconds: 14 * 86_400, absoluteLifetimeSeconds: 30 * 86_400 }],
   ['ZZ', { idleTimeoutSeconds: 7 * 86_400, absoluteLifetimeSeconds: 14 * 86_400 }],
-])('a customer session in %s (identity design 3.5, 6.1, 6.2)', (code, lifetime) => {
+])('a courier session in %s (identity design 3.5, 6.1, 6.2)', (code, lifetime) => {
   const open = (): Session =>
     openSession({
       id: id<'Session'>('01990000-0000-7000-8000-00000000a001'),
       marketId: market(code),
       accountId: id<'Account'>('01990000-0000-7000-8000-000000000001'),
-      population: 'customer',
-      transport: 'cookie',
+      population: 'courier',
+      transport: 'bearer',
       lifetime,
       now: NOW,
     });
@@ -42,9 +42,10 @@ describe.each<[string, SessionLifetime]>([
     const session = open();
 
     expect(session).toMatchObject({
-      population: 'customer',
-      sellerId: null,
-      transport: 'cookie',
+      population: 'courier',
+      merchantId: null,
+      transport: 'bearer',
+      label: null,
       createdAt: NOW,
       lastSeenAt: NOW,
       idleTimeoutSeconds: lifetime.idleTimeoutSeconds,
@@ -103,39 +104,57 @@ describe('openSession refuses', () => {
       { idleTimeoutSeconds: 10, absoluteLifetimeSeconds: 5 },
       { idleTimeoutSeconds: 0, absoluteLifetimeSeconds: 5 },
     ]) {
-      expect(() => openSession({ ...base, population: 'customer', lifetime })).toThrow(
+      expect(() => openSession({ ...base, population: 'courier', lifetime })).toThrow(
         SessionLifetimeError,
       );
     }
   });
 
-  it('a seller session without its seller, or a seller on another population (slice 5)', () => {
+  it('a merchant session without its merchant, or a merchant on another population', () => {
     const lifetime = { idleTimeoutSeconds: 1, absoluteLifetimeSeconds: 2 };
-    expect(() => openSession({ ...base, population: 'seller', lifetime })).toThrow(TypeError);
+    const key = { transport: 'api-key' as const, label: 'Shop' };
+    expect(() => openSession({ ...base, ...key, population: 'merchant', lifetime })).toThrow(
+      TypeError,
+    );
     expect(() =>
-      openSession({ ...base, population: 'customer', lifetime, sellerId: SELLER }),
+      openSession({ ...base, population: 'courier', lifetime, merchantId: MERCHANT }),
+    ).toThrow(TypeError);
+  });
+
+  it('an API key without its label, a label on another transport, or a label too long', () => {
+    const lifetime = { idleTimeoutSeconds: 1, absoluteLifetimeSeconds: 2 };
+    const merchant = { population: 'merchant' as const, merchantId: MERCHANT, lifetime };
+    expect(() => openSession({ ...base, ...merchant, transport: 'api-key' })).toThrow(TypeError);
+    expect(() =>
+      openSession({ ...base, population: 'admin', lifetime, label: 'Shop' }),
+    ).toThrow(TypeError);
+    expect(() =>
+      openSession({ ...base, ...merchant, transport: 'api-key', label: 'x'.repeat(65) }),
     ).toThrow(TypeError);
   });
 });
 
-const SELLER = id<'Seller'>('01990000-0000-7000-8000-0000000000a1');
+const MERCHANT = id<'Merchant'>('01990000-0000-7000-8000-0000000000a1');
 
-describe.each(['AU', 'ZZ'])('a seller session in %s (identity design 3.5; slice 5)', (code) => {
-  it('carries its seller (sessions_seller_id_check) and the lifetime it was given (M2)', () => {
+describe.each(['AU', 'ZZ'])('a merchant API key in %s (identity design 3.5)', (code) => {
+  it('carries its merchant, its label and the lifetime it was given', () => {
     const session = openSession({
       id: id<'Session'>('01990000-0000-7000-8000-00000000a001'),
       marketId: market(code),
       accountId: id<'Account'>('01990000-0000-7000-8000-000000000001'),
-      population: 'seller',
-      sellerId: SELLER,
-      transport: 'cookie',
+      population: 'merchant',
+      merchantId: MERCHANT,
+      transport: 'api-key',
+      label: 'Warehouse till',
       lifetime: { idleTimeoutSeconds: 12 * 3600, absoluteLifetimeSeconds: 24 * 3600 },
       now: NOW,
     });
 
     expect(session).toMatchObject({
-      population: 'seller',
-      sellerId: SELLER,
+      population: 'merchant',
+      merchantId: MERCHANT,
+      transport: 'api-key',
+      label: 'Warehouse till',
       idleTimeoutSeconds: 12 * 3600,
       absoluteExpiresAt: NOW.add({ hours: 24 }),
     });

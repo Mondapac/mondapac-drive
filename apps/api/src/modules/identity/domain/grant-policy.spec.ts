@@ -21,29 +21,27 @@ const id = <T extends string>(n: number): Id<T> => {
 const PROTECTED = new Set([
   'identity.admin-account.invite',
   'identity.platform-role.edit',
-  'identity.team-member.invite',
-  'sellers.business-identity.edit',
+  'identity.merchant.create',
 ]);
 const catalogue = { isProtected: (key: string) => PROTECTED.has(key) };
 
 const PLATFORM_KEYS = [
-  'identity.seller-access.view',
-  'identity.seller-access.approve',
-  'identity.customer-account.view',
+  'identity.merchant.view',
+  'identity.courier-account.invite',
+  'identity.courier-account.view',
   'identity.admin-account.invite',
   'identity.platform-role.edit',
 ];
-const SELLER_KEYS = [
-  'identity.team-member.view',
-  'identity.seller-role.view',
-  'identity.team-member.invite',
-  'sellers.business-identity.edit',
+const MERCHANT_KEYS = [
+  'delivery.quote.create',
+  'delivery.booking.create',
+  'delivery.booking.view',
+  'delivery.booking.cancel',
 ];
 
 const ADMIN_SYSTEM = id<'Role'>(1);
-const SELLER_SYSTEM = id<'Role'>(2);
+const MERCHANT_SYSTEM = id<'Role'>(2);
 const ONBOARDING = id<'Role'>(3);
-const STORE_MANAGER = id<'Role'>(4);
 
 const administrator: GrantingActor = {
   accountId: id<'Account'>(101),
@@ -57,14 +55,14 @@ const onboardingAdmin: GrantingActor = {
   scope: 'platform',
   roleId: ONBOARDING,
   holdsSystemRole: false,
-  effectiveKeys: new Set(['identity.seller-access.view', 'identity.seller-access.approve']),
+  effectiveKeys: new Set(['identity.merchant.view', 'identity.courier-account.invite']),
 };
-const sellerOwner: GrantingActor = {
+const merchant: GrantingActor = {
   accountId: id<'Account'>(201),
-  scope: 'seller',
-  roleId: SELLER_SYSTEM,
+  scope: 'merchant',
+  roleId: MERCHANT_SYSTEM,
   holdsSystemRole: true,
-  effectiveKeys: new Set(SELLER_KEYS),
+  effectiveKeys: new Set(MERCHANT_KEYS),
 };
 
 const role = (over: Partial<GrantedRole> & Pick<GrantedRole, 'id' | 'scope'>): GrantedRole => ({
@@ -96,7 +94,7 @@ describe('GrantPolicy.canGrant', () => {
         role({
           id: ONBOARDING,
           scope: 'platform',
-          effectiveKeys: new Set(['identity.seller-access.view', 'identity.customer-account.view']),
+          effectiveKeys: new Set(['identity.merchant.view', 'identity.courier-account.view']),
         }),
         catalogue,
       ),
@@ -110,7 +108,7 @@ describe('GrantPolicy.canGrant', () => {
         role({
           id: ONBOARDING,
           scope: 'platform',
-          effectiveKeys: new Set(['identity.seller-access.view']),
+          effectiveKeys: new Set(['identity.merchant.view']),
         }),
         catalogue,
       ).ok,
@@ -154,57 +152,21 @@ describe('GrantPolicy.canGrant', () => {
 
   it('R2: never across scopes, even for a role with no keys', () => {
     expect(
-      GrantPolicy.canGrant(administrator, role({ id: STORE_MANAGER, scope: 'seller' }), catalogue),
+      GrantPolicy.canGrant(administrator, role({ id: MERCHANT_SYSTEM, scope: 'merchant' }), catalogue),
     ).toEqual({ ok: false, error: { code: 'role.not-grantable', reason: 'scope' } });
   });
 
-  describe('Phase 2 narrowing in seller scope (brief s3; HF5 c)', () => {
-    it('lets the Seller Owner grant a default role without protected keys', () => {
+  it('never grants a merchant or courier role: it is founded with its account', () => {
+    for (const scope of ['merchant', 'courier'] as const) {
+      const actor: GrantingActor = { ...merchant, scope };
       expect(
         GrantPolicy.canGrant(
-          sellerOwner,
-          role({
-            id: STORE_MANAGER,
-            scope: 'seller',
-            effectiveKeys: new Set(['identity.team-member.view', 'identity.seller-role.view']),
-          }),
-          catalogue,
-        ).ok,
-      ).toBe(true);
-    });
-
-    it('refuses any protected seller key, even to the Seller Owner', () => {
-      expect(
-        GrantPolicy.canGrant(
-          sellerOwner,
-          role({
-            id: STORE_MANAGER,
-            scope: 'seller',
-            kind: 'custom',
-            effectiveKeys: new Set(['identity.team-member.invite']),
-          }),
+          actor,
+          role({ id: MERCHANT_SYSTEM, scope, kind: 'system', effectiveKeys: new Set() }),
           catalogue,
         ),
-      ).toEqual({
-        ok: false,
-        error: { code: 'role.not-grantable', reason: 'seller-protected-key' },
-      });
-    });
-
-    it('never grants the seller system role: a seller has one Seller Owner, its founder', () => {
-      expect(
-        GrantPolicy.canGrant(
-          sellerOwner,
-          role({
-            id: SELLER_SYSTEM,
-            scope: 'seller',
-            kind: 'system',
-            effectiveKeys: new Set(SELLER_KEYS),
-          }),
-          catalogue,
-        ),
-      ).toEqual({ ok: false, error: { code: 'role.not-grantable', reason: 'seller-system-role' } });
-    });
+      ).toEqual({ ok: false, error: { code: 'role.not-grantable', reason: 'founded-role' } });
+    }
   });
 });
 
@@ -220,7 +182,7 @@ describe('GrantPolicy.canActOn', () => {
     expect(
       GrantPolicy.canActOn(
         administrator,
-        target({ effectiveKeys: new Set(['identity.seller-access.view']) }),
+        target({ effectiveKeys: new Set(['identity.merchant.view']) }),
       ),
     ).toEqual({ ok: true, value: undefined });
   });
@@ -238,7 +200,7 @@ describe('GrantPolicy.canActOn', () => {
     expect(
       GrantPolicy.canActOn(
         onboardingAdmin,
-        target({ effectiveKeys: new Set(['identity.customer-account.view']) }),
+        target({ effectiveKeys: new Set(['identity.courier-account.view']) }),
       ),
     ).toEqual({ ok: false, error: { code: 'member.outranks-actor' } });
   });
@@ -247,18 +209,18 @@ describe('GrantPolicy.canActOn', () => {
     expect(
       GrantPolicy.canActOn(
         onboardingAdmin,
-        target({ scope: 'seller', effectiveKeys: new Set(SELLER_KEYS) }),
+        target({ scope: 'merchant', effectiveKeys: new Set(MERCHANT_KEYS) }),
       ).ok,
     ).toBe(true);
     expect(GrantPolicy.canActOn(onboardingAdmin, target({ scope: null })).ok).toBe(true);
   });
 
-  it('a seller-side actor never acts on an account outside its scope', () => {
-    expect(GrantPolicy.canActOn(sellerOwner, target({ scope: 'platform' }))).toEqual({
+  it('a merchant or courier actor never acts on an account outside its scope', () => {
+    expect(GrantPolicy.canActOn(merchant, target({ scope: 'platform' }))).toEqual({
       ok: false,
       error: { code: 'member.outranks-actor' },
     });
-    expect(GrantPolicy.canActOn(sellerOwner, target({ scope: null }))).toEqual({
+    expect(GrantPolicy.canActOn(merchant, target({ scope: null }))).toEqual({
       ok: false,
       error: { code: 'member.outranks-actor' },
     });
