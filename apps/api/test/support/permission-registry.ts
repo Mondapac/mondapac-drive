@@ -4,6 +4,7 @@ import {
   type EffectiveKeyResolver,
 } from '../../src/modules/identity/application/access/effective-keys';
 import { DELIVERY_PERMISSIONS } from '../../src/modules/delivery/contracts/permissions';
+import { FLEET_PERMISSIONS } from '../../src/modules/fleet/contracts/permissions';
 import { IDENTITY_PERMISSIONS } from '../../src/modules/identity/contracts/permissions';
 import { NOTIFICATIONS_PERMISSIONS } from '../../src/modules/notifications/contracts/permissions';
 import { PAYOUTS_PERMISSIONS } from '../../src/modules/payouts/contracts/permissions';
@@ -22,6 +23,7 @@ export function realPermissionRegistry(): PermissionRegistry {
   registry.register('delivery', DELIVERY_PERMISSIONS);
   registry.register('tracking', TRACKING_PERMISSIONS);
   registry.register('notifications', NOTIFICATIONS_PERMISSIONS);
+  registry.register('fleet', FLEET_PERMISSIONS);
   registry.register('payouts', PAYOUTS_PERMISSIONS);
   registry.seal();
   return registry;

@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { assertObjectKey, ObjectStoreUnavailableError, type ObjectStore } from './object-store';
+import { Temporal } from '@mondapac-drive/shared-kernel';
+import {
+  assertObjectKey,
+  isValidObjectKey,
+  ObjectStoreUnavailableError,
+  type ObjectStore,
+  type StoredObject,
+} from './object-store';
 
 /**
  * The local object store: one file per key under a root directory. It is the stand-in for the
@@ -47,6 +54,39 @@ export class DiskObjectStore implements ObjectStore {
       throw new ObjectStoreUnavailableError();
     }
   }
+
+  async list(prefix: string, limit: number, after?: string): Promise<StoredObject[]> {
+    const base = this.#pathOf(prefix);
+    let names: string[];
+    try {
+      names = await readdir(base, { recursive: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw new ObjectStoreUnavailableError();
+    }
+    // Temporary names of writes in flight hold a dot, which no key does.
+    const keys = names
+      .map((name) => `${prefix}/${name.split(path.sep).join('/')}`)
+      .filter((key) => isValidObjectKey(key) && (after === undefined || key > after))
+      .sort();
+    const found: StoredObject[] = [];
+    for (const key of keys) {
+      if (found.length >= limit) break;
+      let info;
+      try {
+        info = await stat(this.#pathOf(key));
+      } catch (error) {
+        // Removed since the directory was read.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw new ObjectStoreUnavailableError();
+      }
+      if (!info.isFile()) continue;
+      // mtimeMs carries a fraction of a millisecond, which Temporal refuses.
+      const writtenAt = Temporal.Instant.fromEpochMilliseconds(Math.floor(info.mtimeMs));
+      found.push({ key, writtenAt });
+    }
+    return found;
+  }
 }
 
 /** Used when `OBJECT_STORE_DIR` is not set: every call says storage is unavailable. */
@@ -60,14 +100,22 @@ export class UnconfiguredObjectStore implements ObjectStore {
   delete(): Promise<void> {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
+  list(): Promise<StoredObject[]> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
 }
 
-/** Test double: objects kept in memory. */
+/** Test double: objects kept in memory, written at the instant `now` answers (epoch by default). */
 export class MemoryObjectStore implements ObjectStore {
   readonly objects = new Map<string, Buffer>();
+  readonly writtenAt = new Map<string, Temporal.Instant>();
+  constructor(
+    private readonly now: () => Temporal.Instant = () => Temporal.Instant.fromEpochMilliseconds(0),
+  ) {}
   put(key: string, bytes: Buffer): Promise<void> {
     assertObjectKey(key);
     this.objects.set(key, Buffer.from(bytes));
+    this.writtenAt.set(key, this.now());
     return Promise.resolve();
   }
   get(key: string): Promise<Buffer | null> {
@@ -77,6 +125,17 @@ export class MemoryObjectStore implements ObjectStore {
   delete(key: string): Promise<void> {
     assertObjectKey(key);
     this.objects.delete(key);
+    this.writtenAt.delete(key);
     return Promise.resolve();
+  }
+  list(prefix: string, limit: number, after?: string): Promise<StoredObject[]> {
+    assertObjectKey(prefix);
+    return Promise.resolve(
+      [...this.objects.keys()]
+        .filter((key) => key.startsWith(`${prefix}/`) && (after === undefined || key > after))
+        .sort()
+        .slice(0, limit)
+        .map((key) => ({ key, writtenAt: this.writtenAt.get(key)! })),
+    );
   }
 }
