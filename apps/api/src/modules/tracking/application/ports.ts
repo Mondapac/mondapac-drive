@@ -1,7 +1,13 @@
-import type { GeoPoint, Id, MarketContext, MarketId } from '@mondapac-drive/shared-kernel';
+import type {
+  CallContext,
+  GeoPoint,
+  Id,
+  MarketContext,
+  MarketId,
+} from '@mondapac-drive/shared-kernel';
 import type { Breadcrumb, PurgeCutoffs } from '../domain/breadcrumb';
 import type { LivePosition, NearbyCourier } from '../domain/live-position';
-import type { TrackedDelivery } from '../domain/tracked-delivery';
+import type { DeliveryRoute, TrackedDelivery } from '../domain/tracked-delivery';
 import type { TrackingLink } from '../domain/tracking-link';
 import type { TrackingSettings } from '../domain/tracking-settings';
 import type { VehicleType } from '../domain/vehicle';
@@ -68,6 +74,16 @@ export interface TrackingRepository {
   ): Promise<{ breadcrumbs: number; deliveries: number; links: number }>;
 }
 export const TRACKING_REPOSITORY = Symbol('TrackingRepository');
+
+/**
+ * Where a delivery goes, read from the delivery module (its `DeliveryDispatchView`, system
+ * context) when a lifecycle event names a delivery tracking has not seen yet. Undefined when
+ * delivery does not know it, or has no point for a stop. Called outside any unit of work.
+ */
+export interface DeliveryRoutes {
+  routeOf(context: CallContext, deliveryId: Id<'Delivery'>): Promise<DeliveryRoute | undefined>;
+}
+export const DELIVERY_ROUTES = Symbol('DeliveryRoutes');
 
 /**
  * Time to travel from one point to another, in seconds, or undefined when no estimate can be

@@ -4,6 +4,7 @@ import type {
   Id,
   MarketContext,
   MarketId,
+  Temporal,
 } from '@mondapac-drive/shared-kernel';
 import type { DeliveryException, DeliveryState } from '../domain/delivery';
 import type { DeliveryStatus } from '../domain/delivery-status';
@@ -38,6 +39,13 @@ export interface DeliveryRepository {
    * (the flag is not a lifecycle step and publishes no event). Answers false, and writes nothing,
    * when the delivery is missing or has moved on. An assignment or a cancel clears the flag.
    */
+  /**
+   * Takes one of the delivery's `max` PIN attempts before the PIN is compared, without a new
+   * version: answers the attempts used after it, or null when none is left. The update locks the
+   * row until the unit ends, so parallel guesses queue and none slips past the limit. Run in the
+   * read-write unit that compares the PIN (a matching PIN's attempt commits with the step).
+   */
+  claimPinAttempt(market: MarketContext, id: Id<'Delivery'>, max: number): Promise<number | null>;
   raiseException(
     market: MarketContext,
     id: Id<'Delivery'>,
@@ -129,3 +137,50 @@ export interface CourierAccounts {
   isActive(context: CallContext, accountId: string): Promise<boolean | undefined>;
 }
 export const COURIER_ACCOUNTS = Symbol('CourierAccounts');
+
+/**
+ * The recipient's proof-of-delivery PIN of each delivery. The PIN is derived from the delivery's
+ * id with the deployment's secret key, so it is stored nowhere: a copy of the database tells
+ * nothing about any PIN, and notifications can still read it to text the recipient.
+ */
+export interface RecipientPins {
+  /** The delivery's PIN, `length` digits. */
+  pinFor(market: MarketContext, deliveryId: Id<'Delivery'>, length: number): string;
+  /** Whether `candidate` is the delivery's PIN, compared in constant time. */
+  matches(
+    market: MarketContext,
+    deliveryId: Id<'Delivery'>,
+    length: number,
+    candidate: string,
+  ): boolean;
+}
+export const RECIPIENT_PINS = Symbol('RecipientPins');
+
+/** The media types a proof photo may have, read from its first bytes. */
+export type ProofPhotoMediaType = 'image/jpeg' | 'image/png';
+
+/** One proof photo: its bytes are in object storage under a key only the server knows. */
+export interface ProofPhoto {
+  readonly id: Id<'ProofPhoto'>;
+  readonly deliveryId: Id<'Delivery'>;
+  readonly courierId: string;
+  readonly mediaType: ProofPhotoMediaType;
+  readonly sizeBytes: number;
+  readonly storageKey: string;
+  readonly createdAt: Temporal.Instant;
+}
+
+/** The proof photos of a Market's deliveries, inside the caller's unit of work. */
+export interface ProofPhotoRepository {
+  insert(market: MarketContext, photo: ProofPhoto): Promise<void>;
+  /** How many photos the delivery has. */
+  countFor(market: MarketContext, deliveryId: Id<'Delivery'>): Promise<number>;
+  /** Whether the photo exists and this courier uploaded it for this delivery. */
+  belongsTo(
+    market: MarketContext,
+    deliveryId: Id<'Delivery'>,
+    courierId: string,
+    photoId: Id<'ProofPhoto'>,
+  ): Promise<boolean>;
+}
+export const PROOF_PHOTOS = Symbol('ProofPhotoRepository');

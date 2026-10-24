@@ -8,6 +8,7 @@ import { registerSubscriptionsFrom } from '../../platform/events/event-subscript
 import { OUTBOX_WRITER, type OutboxWriter } from '../../platform/events/outbox-writer';
 import { PersistenceModule } from '../../platform/persistence/persistence.module';
 import { ID_GENERATOR } from '../../platform/ids/ids.module';
+import { OBJECT_STORE, type ObjectStore } from '../../platform/storage/object-store';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import type { DeliveryAccessDependencies } from './application/deliveries';
 import { DeliveryPricing } from './application/pricing';
@@ -17,12 +18,17 @@ import {
   DISTANCE_PROVIDER,
   GEOCODER,
   MARKET_SETTINGS,
+  PROOF_PHOTOS,
+  RECIPIENT_PINS,
   type CourierAccounts,
   type DeliveryRepository,
   type DistanceProvider,
   type Geocoder,
   type MarketSettingsProvider,
+  type ProofPhotoRepository,
+  type RecipientPins,
 } from './application/ports';
+import { UploadProofPhoto } from './application/use-cases/upload-proof-photo.use-case';
 import {
   CancelDelivery,
   DispatchDelivery,
@@ -65,20 +71,23 @@ const pricingProvider: FactoryProvider<DeliveryPricing> = {
   ) => new DeliveryPricing({ markets, distances, geocoder, clock }),
 };
 
+/** What every use case over one delivery is built with, in its constructor's order. */
+const DELIVERY_DEPENDENCIES = [
+  USE_CASE_GATE,
+  DELIVERY_REPOSITORY,
+  MARKET_SETTINGS,
+  UNIT_OF_WORK,
+  CLOCK,
+  OUTBOX_WRITER,
+] as const;
+
 /** The provider of a use case over one delivery: the gate and the delivery ports. */
 function deliveryUseCase<U>(
   type: new (gate: UseCaseGate, deps: DeliveryAccessDependencies) => U,
 ): FactoryProvider<U> {
   return {
     provide: type,
-    inject: [
-      USE_CASE_GATE,
-      DELIVERY_REPOSITORY,
-      MARKET_SETTINGS,
-      UNIT_OF_WORK,
-      CLOCK,
-      OUTBOX_WRITER,
-    ],
+    inject: [...DELIVERY_DEPENDENCIES],
     useFactory: (
       gate: UseCaseGate,
       deliveries: DeliveryRepository,
@@ -137,7 +146,54 @@ function deliveryUseCase<U>(
     deliveryUseCase(ViewBooking),
     deliveryUseCase(CancelBooking),
     deliveryUseCase(ViewAssignment),
-    deliveryUseCase(ReportAssignmentEvent),
+    {
+      provide: ReportAssignmentEvent,
+      inject: [...DELIVERY_DEPENDENCIES, RECIPIENT_PINS, PROOF_PHOTOS],
+      useFactory: (
+        gate: UseCaseGate,
+        deliveries: DeliveryRepository,
+        markets: MarketSettingsProvider,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+        outbox: OutboxWriter,
+        pins: RecipientPins,
+        photos: ProofPhotoRepository,
+      ) =>
+        new ReportAssignmentEvent(gate, {
+          deliveries,
+          markets,
+          unitOfWork,
+          clock,
+          outbox,
+          pins,
+          photos,
+        }),
+    },
+    {
+      provide: UploadProofPhoto,
+      inject: [...DELIVERY_DEPENDENCIES, PROOF_PHOTOS, OBJECT_STORE, ID_GENERATOR],
+      useFactory: (
+        gate: UseCaseGate,
+        deliveries: DeliveryRepository,
+        markets: MarketSettingsProvider,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+        outbox: OutboxWriter,
+        photos: ProofPhotoRepository,
+        files: ObjectStore,
+        ids: IdGenerator,
+      ) =>
+        new UploadProofPhoto(gate, {
+          deliveries,
+          markets,
+          unitOfWork,
+          clock,
+          outbox,
+          photos,
+          files,
+          ids,
+        }),
+    },
     deliveryUseCase(ListDeliveries),
     deliveryUseCase(ViewDelivery),
     {
@@ -165,7 +221,19 @@ function deliveryUseCase<U>(
     deliveryUseCase(RecordDispatchAssignment),
     deliveryUseCase(RecordDispatchExhausted),
     deliveryUseCase(DeliveryDispatchView),
-    deliveryUseCase(DeliveryRecipients),
+    {
+      provide: DeliveryRecipients,
+      inject: [...DELIVERY_DEPENDENCIES, RECIPIENT_PINS],
+      useFactory: (
+        gate: UseCaseGate,
+        deliveries: DeliveryRepository,
+        markets: MarketSettingsProvider,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+        outbox: OutboxWriter,
+        pins: RecipientPins,
+      ) => new DeliveryRecipients(gate, { deliveries, markets, unitOfWork, clock, outbox, pins }),
+    },
     PersistenceModule.outboxWriterFor('delivery'),
     registerEvents('delivery', DELIVERY_EVENTS),
     registerSubscriptionsFrom(

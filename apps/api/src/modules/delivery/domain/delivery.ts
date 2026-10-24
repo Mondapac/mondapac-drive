@@ -17,10 +17,12 @@ export interface Stop {
   readonly notes?: string;
 }
 
-/** How the courier proved the hand-over. */
+/**
+ * How the courier proved the hand-over, as the server checked it: the recipient's PIN (never
+ * stored, only that it matched), or a proof photo of this delivery (its id).
+ */
 export type ProofOfDelivery =
-  | { readonly kind: 'pin'; readonly pinMatched: true }
-  | { readonly kind: 'photo'; readonly photoRef: string };
+  { readonly kind: 'pin' } | { readonly kind: 'photo'; readonly photoRef: string };
 
 /** What a courier, a dispatcher or the system reports. Fields depend on the event type. */
 export interface DeliveryEventInput {
