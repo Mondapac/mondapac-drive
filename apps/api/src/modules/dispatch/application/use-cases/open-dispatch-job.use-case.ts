@@ -10,7 +10,8 @@ import {
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import type { EventDelivery } from '../../../../platform/events/event-delivery';
 import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
-import { openDispatchJob, type DispatchJob, type OfferStops } from '../../domain/dispatch-job';
+import { openDispatchJob, type DispatchJob } from '../../domain/dispatch-job';
+import { stopsOf } from '../offer-stops';
 import type { DispatchRequirements } from '../../domain/matching';
 import { isSystem } from '../callers';
 import {
@@ -57,15 +58,6 @@ export function requirementsOf(delivery: DeliveryForDispatch): DispatchRequireme
     weightGrams: delivery.weightGrams,
     volumeLitres: delivery.volumeLitres,
     temperature: delivery.temperature,
-  };
-}
-
-export function stopsOf(delivery: DeliveryForDispatch): OfferStops {
-  return {
-    pickupAddress: delivery.pickup.address,
-    dropoffAddress: delivery.dropoff.address,
-    dropoff: delivery.dropoff.point,
-    tripDistanceMetres: delivery.distanceMetres,
   };
 }
 

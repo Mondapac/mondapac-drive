@@ -13,7 +13,11 @@ model FleetCourier {
   status           String   @db.VarChar(16)
   serviceAreaCode  String   @map("service_area_code") @db.VarChar(64)
   coldChainCapable Boolean  @map("cold_chain_capable")
+  /// Registered for the Market's sales tax (GST in AU), as an operator recorded it.
+  taxRegistered    Boolean  @map("tax_registered")
   shift            String   @db.VarChar(16)
+  /// When the courier last went online from offline or from a delivery (dispatch's idle time).
+  idleSince        DateTime? @map("idle_since") @db.Timestamptz(6)
   createdAt        DateTime @map("created_at") @db.Timestamptz(6)
   version          Int
 
@@ -72,6 +76,8 @@ model FleetDocument {
   vehicle FleetVehicle? @relation(fields: [marketId, courierId, vehicleId], references: [marketId, courierId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([marketId, courierId])
+  /// The sweep of stored files no document names looks rows up by their key.
+  @@unique([marketId, fileKey])
   @@map("documents")
   @@schema("fleet")
 }

@@ -475,3 +475,84 @@ describe('relay allowlist of the Drive operations routes', () => {
     expect(await call(method, path)).toEqual({ status: 404, called: 0 });
   });
 });
+
+describe('relay of the live map routes (Drive)', () => {
+  const ID = '0190a000-0000-7000-8000-0000000000a1';
+  const get = (url: string, answer: () => Response = () => new Response('{}', { status: 200 })) => {
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve(answer()));
+    const path = new URL(url, 'http://admin.localhost:3002/api/').pathname
+      .replace(/^\/api\//, '')
+      .split('/');
+    return relay(
+      config,
+      new Request(`http://admin.localhost:3002/api/${url}`, {
+        headers: { host: 'admin.localhost:3002', accept: 'text/event-stream' },
+      }),
+      path,
+      fetchImpl,
+    ).then((response) => ({ response, fetchImpl }));
+  };
+
+  it.each(['tracking/admin/couriers/nearest', 'tracking/admin/map/stream'])(
+    'relays GET %s with the point, radius and limit only, in their shapes',
+    async (path) => {
+      const { response, fetchImpl } = await get(
+        `${path}?lat=-27.4698&lng=153.0251&radiusM=8000&limit=50&courierId=x&serviceArea=a`,
+      );
+      expect(response.status).toBe(200);
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+        `http://api.test/${path}?lat=-27.4698&lng=153.0251&radiusM=8000&limit=50`,
+      );
+    },
+  );
+
+  it('drops a point with more than 4 decimals and a radius that is not a whole number', async () => {
+    const { fetchImpl } = await get(
+      'tracking/admin/map/stream?lat=-27.469812&lng=153.0251&radiusM=8000.5&limit=10',
+    );
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      'http://api.test/tracking/admin/map/stream?lng=153.0251&limit=10',
+    );
+  });
+
+  it('relays a delivery trail with a UUID id only, and no other tracking route', async () => {
+    expect((await get(`tracking/admin/deliveries/${ID}/trail`)).response.status).toBe(200);
+    for (const path of [
+      'tracking/admin/deliveries/not-a-uuid/trail',
+      `tracking/admin/couriers/${ID}/position`,
+      'tracking/courier/pings',
+      'tracking/links/abc',
+    ]) {
+      const { response, fetchImpl } = await get(path);
+      expect(response.status, path).toBe(404);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  });
+
+  it('streams an event stream through without buffering it', async () => {
+    const encoder = new TextEncoder();
+    let push: ((text: string) => void) | undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (text) => controller.enqueue(encoder.encode(text));
+      },
+    });
+    const { response } = await get(
+      'tracking/admin/map/stream?lat=1&lng=2&radiusM=1000',
+      () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    );
+    expect(response.headers.get('content-type')).toBe('text/event-stream');
+    expect(response.headers.get('cache-control')).toBe('no-store, no-transform');
+    // The stream has not ended, yet the first event is readable: nothing waits for the whole body.
+    push?.('event: couriers\ndata: {"couriers":[]}\n\n');
+    const reader = response.body?.getReader();
+    const first = await reader?.read();
+    expect(new TextDecoder().decode(first?.value)).toContain('event: couriers');
+    await reader?.cancel();
+  });
+
+  it('passes the browser request signal to the API request', async () => {
+    const { fetchImpl } = await get('tracking/admin/map/stream?lat=1&lng=2&radiusM=1000');
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+});

@@ -8,6 +8,7 @@ export class ConfigNotificationSettingsProvider implements NotificationSettingsP
 
   get(marketId: MarketId): NotificationSettings {
     const { webhooks, sms } = this.markets.get(marketId).notifications;
-    return { webhookRetry: webhooks, sms };
+    const { rotationOverlapMinutes, ...webhookRetry } = webhooks;
+    return { webhookRetry, rotationOverlapSeconds: rotationOverlapMinutes * 60, sms };
   }
 }

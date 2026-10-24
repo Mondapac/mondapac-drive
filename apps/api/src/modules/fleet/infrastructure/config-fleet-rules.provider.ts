@@ -2,11 +2,13 @@ import type { MarketId } from '@mondapac-drive/shared-kernel';
 import type { MarketRegistry } from '../../../platform/market-config/market-registry';
 import type { ServiceAreaDirectory } from '../../../platform/market-config/service-area-directory';
 import type { FleetRulesProvider } from '../application/ports';
-import type { MarketFleetRules } from '../domain/fleet-rules';
+import type { MarketFleetRules, VehicleClass } from '../domain/fleet-rules';
+import { VEHICLE_TYPES, type VehicleType } from '../domain/vehicle';
 
 /**
  * {@link FleetRulesProvider} over the platform's Market configuration: the `fleet` section of
- * `config/markets/<CODE>.json`, validated at start-up, and the service areas of
+ * `config/markets/<CODE>.json`, validated at start-up, the vehicle types of its delivery rate
+ * card (their default capacity and temperatures), and the service areas of
  * `config/service-areas/<CODE>.json`.
  */
 export class ConfigFleetRulesProvider implements FleetRulesProvider {
@@ -20,9 +22,23 @@ export class ConfigFleetRulesProvider implements FleetRulesProvider {
   get(marketId: MarketId): MarketFleetRules {
     const cached = this.#rules.get(marketId);
     if (cached !== undefined) return cached;
+    const market = this.markets.get(marketId);
+    const vehicleClasses: Partial<Record<VehicleType, VehicleClass>> = {};
+    for (const type of VEHICLE_TYPES) {
+      const rate = market.delivery.rateCard.vehicles[type];
+      if (rate === undefined) continue;
+      vehicleClasses[type] = Object.freeze({
+        maxWeightGrams: rate.maxWeightGrams,
+        maxVolumeLitres: rate.maxVolumeLitres,
+        temperatures: Object.freeze([...rate.temperatures]),
+      });
+    }
+    const { businessIdDocumentType } = market.fleet;
     const rules: MarketFleetRules = Object.freeze({
       marketId,
-      documents: this.markets.get(marketId).fleet.documents.map((document) =>
+      vehicleClasses: Object.freeze(vehicleClasses),
+      ...(businessIdDocumentType === undefined ? {} : { businessIdDocumentType }),
+      documents: market.fleet.documents.map((document) =>
         Object.freeze({
           type: document.type,
           ...(document.employmentTypes ? { employmentTypes: document.employmentTypes } : {}),

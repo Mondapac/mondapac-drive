@@ -31,7 +31,7 @@ import {
 } from '../failure';
 import type { JobAdvancer } from '../job-advancer';
 import type { DeliveryFacts, DispatchJobRepository } from '../ports';
-import { stopsOf } from './open-dispatch-job.use-case';
+import { stopsOf } from '../offer-stops';
 
 /** The reason delivery gives a step back to DISPATCHING that is half of a reassignment. */
 export const REASSIGNMENT_REASON = 'courier-reassigned';

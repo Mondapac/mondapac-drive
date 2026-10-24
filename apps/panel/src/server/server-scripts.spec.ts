@@ -24,7 +24,8 @@ describe('package scripts', () => {
   };
 
   it('start the panel through server.mjs', () => {
-    expect(scripts['dev']).toBe('node server.mjs --dev');
+    // `dev` first copies the live map's worker (scripts/copy-maplibre-worker.mjs).
+    expect(scripts['dev']).toBe('node scripts/copy-maplibre-worker.mjs && node server.mjs --dev');
     expect(scripts['start']).toBe('node server.mjs');
   });
 

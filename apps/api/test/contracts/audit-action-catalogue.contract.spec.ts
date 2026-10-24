@@ -45,9 +45,15 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
  * this list only with the audited actions its approved design names: fleet (work package 05)
  * with its operator decisions on couriers and documents; identity with its access-management
  * actions (accounts, roles, sessions, merchants and API keys); dispatch (handoff 22) with a
- * dispatcher's assignments and restarts.
+ * dispatcher's assignments and restarts; notifications (package 25) with merchants' webhook
+ * subscription changes and operators' re-sends.
  */
-const AUDITING_MODULES: readonly string[] = ['DispatchModule', 'FleetModule', 'IdentityModule'];
+const AUDITING_MODULES: readonly string[] = [
+  'DispatchModule',
+  'FleetModule',
+  'IdentityModule',
+  'NotificationsModule',
+];
 const SRC = path.join(__dirname, '../../src');
 
 const foldersOf = (dir: string) =>
@@ -370,6 +376,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ['DispatchModule', 'dispatch'],
       ['FleetModule', 'fleet'],
       ['IdentityModule', 'identity'],
+      ['NotificationsModule', 'notifications'],
     ]);
   });
 
@@ -397,6 +404,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ['FleetModule', 'writer'],
       ['IdentityModule', 'actions'],
       ['IdentityModule', 'writer'],
+      ['NotificationsModule', 'actions'],
+      ['NotificationsModule', 'writer'],
     ]);
     expect(found.filter((entry) => entry.owner !== entry.allowed)).toEqual([]);
   });
@@ -481,6 +490,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: registerAuditActions('fleet')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: auditWriterFor('identity')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: registerAuditActions('identity')`,
+      `${path.join('modules', 'notifications', 'notifications.module.ts')}: auditWriterFor('notifications')`,
+      `${path.join('modules', 'notifications', 'notifications.module.ts')}: registerAuditActions('notifications')`,
     ]);
   });
 });

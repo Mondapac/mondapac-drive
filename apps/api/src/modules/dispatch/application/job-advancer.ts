@@ -34,7 +34,7 @@ import {
   type DispatchJobRepository,
   type DispatchSettingsProvider,
 } from './ports';
-import { stopsOf } from './use-cases/open-dispatch-job.use-case';
+import { stopsOf } from './offer-stops';
 
 /** What advancing one job did. */
 export type Advanced = 'unchanged' | 'advanced' | 'stale';

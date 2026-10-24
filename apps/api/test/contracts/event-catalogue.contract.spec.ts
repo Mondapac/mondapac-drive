@@ -78,7 +78,7 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     expect(worker.get(SubscriptionRegistry).names()).toEqual(api.get(SubscriptionRegistry).names());
   });
 
-  it("registers identity's mail and dispatch's delivery subscriptions and seals the registry (P 6.4)", () => {
+  it("registers identity's mail, dispatch's and notifications' delivery subscriptions and seals the registry (P 6.4)", () => {
     const subscriptions = graphs.get('worker')!.get(SubscriptionRegistry);
 
     expect(subscriptions.names()).toEqual([
@@ -92,12 +92,22 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
       'identity.other-sessions-signed-out-mail',
       'identity.password-changed-mail',
       'identity.second-factor-mail',
+      'notifications.delivery-booked',
+      'notifications.delivery-cancelled',
+      'notifications.delivery-status-changed',
     ]);
-    expect(subscriptions.subscribersOf('delivery.booked.v1')).toEqual(['dispatch.open-job']);
+    expect(subscriptions.subscribersOf('delivery.booked.v1')).toEqual([
+      'dispatch.open-job',
+      'notifications.delivery-booked',
+    ]);
     expect(subscriptions.subscribersOf('delivery.status-changed.v1')).toEqual([
       'dispatch.follow-delivery-status',
+      'notifications.delivery-status-changed',
     ]);
-    expect(subscriptions.subscribersOf('delivery.cancelled.v1')).toEqual(['dispatch.cancel-job']);
+    expect(subscriptions.subscribersOf('delivery.cancelled.v1')).toEqual([
+      'dispatch.cancel-job',
+      'notifications.delivery-cancelled',
+    ]);
     expect(subscriptions.subscribersOf('identity.invitation-issued.v1')).toEqual([
       'identity.invitation-mail',
     ]);
