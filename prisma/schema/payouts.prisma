@@ -1,0 +1,136 @@
+// The payouts module's tables. Money is minor units (BigInt) plus a currency. Every model carries
+// marketId and tenantId, which the platform's market guard pins on every query. The ledger and
+// the delivery records are append-only: the application role may only read and insert them.
+// Couriers, deliveries and provider objects are referenced by id only.
+
+/// One line of a courier's ledger; never updated or deleted. (market_id, reference) is the
+/// idempotency key: earning:<delivery>, tip:<delivery>, payout:<line>, reversal:<entry>, ...
+model PayoutsLedgerEntry {
+  id              String   @id @db.Uuid
+  marketId        String   @map("market_id") @db.VarChar(8)
+  tenantId        String   @map("tenant_id")
+  courierId       String   @map("courier_id") @db.VarChar(64)
+  kind            String   @db.VarChar(16)
+  /// Before tax; positive credits the courier, negative debits.
+  amount          BigInt
+  /// The indirect tax on `amount`, with its sign; zero unless the courier is registered.
+  taxAmount       BigInt   @map("tax_amount")
+  currency        String   @db.VarChar(3)
+  reference       String   @db.VarChar(160)
+  deliveryId      String?  @map("delivery_id") @db.VarChar(64)
+  payoutLineId    String?  @map("payout_line_id") @db.Uuid
+  reversesEntryId String?  @map("reverses_entry_id") @db.Uuid
+  reason          String?  @db.VarChar(32)
+  occurredAt      DateTime @map("occurred_at") @db.Timestamptz(6)
+  recordedAt      DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  @@unique([marketId, reference])
+  @@index([marketId, courierId, occurredAt])
+  @@index([marketId, deliveryId])
+  @@map("ledger_entries")
+  @@schema("payouts")
+}
+
+/// Every delivered delivery a courier completed, employees included, for reporting. One per
+/// delivery; never updated.
+model PayoutsCourierDelivery {
+  marketId           String   @map("market_id") @db.VarChar(8)
+  tenantId           String   @map("tenant_id")
+  deliveryId         String   @map("delivery_id") @db.VarChar(64)
+  courierId          String   @map("courier_id") @db.VarChar(64)
+  engagement         String   @db.VarChar(16)
+  vehicle            String   @db.VarChar(16)
+  temperature        String   @db.VarChar(8)
+  distanceMetres     Int      @map("distance_metres")
+  paidWaitingMinutes Int      @map("paid_waiting_minutes")
+  /// The earning as computed: base, distance, cold chain and waiting, as decimal text.
+  breakdown          Json
+  earningAmount      BigInt   @map("earning_amount")
+  currency           String   @db.VarChar(3)
+  deliveredAt        DateTime @map("delivered_at") @db.Timestamptz(6)
+  recordedAt         DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  @@id([marketId, deliveryId])
+  @@index([marketId, courierId, deliveredAt])
+  @@map("courier_deliveries")
+  @@schema("payouts")
+}
+
+/// One payout run: the balances owed at a cutoff. One run per cutoff and Market.
+model PayoutsRun {
+  id          String   @id @db.Uuid
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  cutoff      DateTime @db.Timestamptz(6)
+  currency    String   @db.VarChar(3)
+  /// What the pending lines transfer, tax included.
+  totalAmount BigInt   @map("total_amount")
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
+
+  lines PayoutsLine[]
+
+  @@unique([marketId, id])
+  @@unique([marketId, cutoff])
+  @@map("payout_runs")
+  @@schema("payouts")
+}
+
+/// What one courier is paid by one run, and the state of its transfer.
+model PayoutsLine {
+  id             String   @id @db.Uuid
+  marketId       String   @map("market_id") @db.VarChar(8)
+  tenantId       String   @map("tenant_id")
+  runId          String   @map("run_id") @db.Uuid
+  courierId      String   @map("courier_id") @db.VarChar(64)
+  amount         BigInt
+  taxAmount      BigInt   @map("tax_amount")
+  currency       String   @db.VarChar(3)
+  status         String   @db.VarChar(16)
+  holdReason     String?  @map("hold_reason") @db.VarChar(32)
+  /// The provider's connected account id, never bank details.
+  destination    String?  @db.VarChar(64)
+  transferId     String?  @map("transfer_id") @db.VarChar(64)
+  attempts       Int
+  lastErrorCode  String?  @map("last_error_code") @db.VarChar(64)
+  reversedAmount BigInt   @map("reversed_amount")
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @map("updated_at") @db.Timestamptz(6)
+  version        Int
+
+  run PayoutsRun @relation(fields: [marketId, runId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([marketId, runId, courierId])
+  @@unique([marketId, transferId])
+  @@index([marketId, status, createdAt])
+  @@map("payout_lines")
+  @@schema("payouts")
+}
+
+/// A courier's connected account at the payment provider: its id only, no identity or bank data.
+model PayoutsAccount {
+  marketId          String   @map("market_id") @db.VarChar(8)
+  tenantId          String   @map("tenant_id")
+  courierId         String   @map("courier_id") @db.VarChar(64)
+  providerAccountId String   @map("provider_account_id") @db.VarChar(64)
+  payoutsEnabled    Boolean  @map("payouts_enabled")
+  createdAt         DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@id([marketId, courierId])
+  @@unique([marketId, providerAccountId])
+  @@map("payout_accounts")
+  @@schema("payouts")
+}
+
+/// The payment-provider webhook events already handled, so a redelivery does nothing.
+model PayoutsProviderEvent {
+  marketId   String   @map("market_id") @db.VarChar(8)
+  tenantId   String   @map("tenant_id")
+  eventId    String   @map("event_id") @db.VarChar(255)
+  type       String   @db.VarChar(64)
+  receivedAt DateTime @map("received_at") @db.Timestamptz(6)
+
+  @@id([marketId, eventId])
+  @@map("provider_events")
+  @@schema("payouts")
+}

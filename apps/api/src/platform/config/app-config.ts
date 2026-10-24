@@ -3,6 +3,7 @@ import { parseMarketId } from '@mondapac-drive/shared-kernel';
 import type { MarketId } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
 import { parseClientAddressTrust, type ClientAddressTrust } from '../http/client-address-trust';
+import { parsePaymentProvider, type PaymentProviderConfig } from './payment-provider';
 
 // apps/api/{src|dist}/platform/config -> repository root
 const DEFAULT_MARKET_CONFIG_DIR = path.resolve(__dirname, '../../../../../config/markets');
@@ -62,6 +63,9 @@ const envSchema = z.object({
   // and checked by parseClientAddressTrust below; a secret is never echoed.
   TRUSTED_BFF_CIDRS: z.string().optional(),
   CLIENT_ADDRESS_KEYS: z.string().optional(),
+  // Courier payouts' payment provider (payment-provider.ts). Both unset: no provider calls.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRETS: z.string().optional(),
 });
 
 /** The migration role's URL: read by the prisma CLI, the scripts and test setup only. */
@@ -114,6 +118,12 @@ export interface AppConfig {
    * socket's. Holds secrets, which print as a marker only; read by `configureApp` alone.
    */
   readonly clientAddressTrust: ClientAddressTrust | null;
+  /**
+   * The payment provider of courier payouts, or null when it is not configured: then payouts
+   * sends nothing to it. Holds secrets, which print as a marker only; read by the payouts
+   * module's provider adapter alone.
+   */
+  readonly paymentProvider: PaymentProviderConfig | null;
 }
 
 /** The log levels a worker may run at: every one that still writes info lines. */
@@ -157,6 +167,12 @@ export function loadAppConfig(env: Record<string, string | undefined>): AppConfi
   }
   const clientAddress = parseClientAddressTrust(env.TRUSTED_BFF_CIDRS, env.CLIENT_ADDRESS_KEYS);
   issues.push(...clientAddress.issues);
+  const paymentProvider = parsePaymentProvider(
+    env.STRIPE_SECRET_KEY,
+    env.STRIPE_WEBHOOK_SECRETS,
+    env.NODE_ENV,
+  );
+  issues.push(...paymentProvider.issues);
   if (!parsed.success || issues.length > 0) {
     throw new InvalidConfigError(issues);
   }
@@ -178,5 +194,6 @@ export function loadAppConfig(env: Record<string, string | undefined>): AppConfi
         ? null
         : path.resolve(parsed.data.OBJECT_STORE_DIR),
     clientAddressTrust: clientAddress.trust,
+    paymentProvider: paymentProvider.config,
   });
 }
