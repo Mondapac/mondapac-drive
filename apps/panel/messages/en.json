@@ -32,7 +32,8 @@
     "deliveries": "Deliveries",
     "couriers": "Couriers",
     "merchants": "Merchants",
-    "live-map": "Live map"
+    "live-map": "Live map",
+    "payouts": "Payouts"
   },
   "home": {
     "title": "Home",
@@ -937,6 +938,128 @@
     "no-access": {
       "title": "You don't have access to the live map",
       "body": "Your role doesn't include it."
+    }
+  },
+  "payouts": {
+    "title": "Payouts",
+    "intro": "Courier payout lines that need a person: held lines wait for the courier's details, unresolved lines need settling against the payment provider.",
+    "table-caption": "Payout lines",
+    "filter": {
+      "label": "Show",
+      "attention": "Needs attention",
+      "held": "Held",
+      "unresolved": "Unresolved",
+      "failed": "Failed or reversed",
+      "transferred": "Paid"
+    },
+    "label": {
+      "courier": "Courier",
+      "status": "Status",
+      "amount": "Amount",
+      "attempts": "Attempts",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "held": "Held",
+      "transferred": "Paid",
+      "failed": "Failed",
+      "unresolved": "Unresolved",
+      "reversed": "Reversed"
+    },
+    "hold": {
+      "unknown-courier": "Courier not found in the fleet",
+      "paid-by-payroll": "Paid through payroll",
+      "missing-business-id": "Missing business number",
+      "no-payout-account": "No payout account yet",
+      "payouts-disabled": "Payouts disabled at the provider"
+    },
+    "line-ref": "Line {id}",
+    "of-which-tax": "of which tax {tax}",
+    "last-error": "Last error: {code}",
+    "empty": {
+      "title": "Nothing here",
+      "body": "No payout line is in this state."
+    },
+    "next-page": "More lines",
+    "first-page": "First page",
+    "back": "Payouts",
+    "no-access": {
+      "title": "You don't have access to payouts",
+      "body": "Your role doesn't include the payouts ledger."
+    },
+    "settle": {
+      "button": "Settle",
+      "title": "Settle this payout line?",
+      "body": "The line of {amount} is checked against the payment provider's transfers. If the provider holds the transfer, the line is marked paid; if it holds none, the line fails and the courier's balance gets the amount back. Follow the runbook for unresolved lines.",
+      "action": "Settle line",
+      "done": "The line was settled."
+    },
+    "courier": {
+      "title": "Payouts for {name}"
+    },
+    "balance": {
+      "title": "Balance",
+      "amount": "Before tax",
+      "tax": "Tax",
+      "total": "Total owed"
+    },
+    "entries": {
+      "caption": "Ledger entries, newest first",
+      "empty": "No ledger entries yet.",
+      "when": "When",
+      "kind": "Entry",
+      "amount": "Amount",
+      "about": "About",
+      "delivery": "Delivery"
+    },
+    "kind": {
+      "earning": "Delivery earning",
+      "tip": "Tip",
+      "adjustment": "Adjustment",
+      "reversal": "Reversal",
+      "payout": "Payout"
+    },
+    "reason": {
+      "bonus": "Bonus",
+      "correction": "Correction",
+      "damage-claim": "Damage claim",
+      "other": "Other",
+      "delivery-reversed": "Delivery reversed",
+      "transfer-failed": "Transfer failed",
+      "transfer-reversed": "Transfer reversed",
+      "payout-held": "Payout held"
+    },
+    "adjust": {
+      "button": "Record adjustment",
+      "title": "Adjust this courier's balance",
+      "body": "The adjustment is recorded in the ledger and audited. Enter the amount before tax; any tax due is added.",
+      "direction": "Type",
+      "credit": "Credit (pay the courier more)",
+      "debit": "Debit (take from the balance)",
+      "amount": "Amount ({currency})",
+      "amount-help": "Digits only, for example 12.50.",
+      "amount-invalid": "Enter an amount above zero, with no more digits after the point than the currency has.",
+      "reason": "Reason",
+      "choose-reason": "Choose a reason",
+      "reason-required": "Choose a reason.",
+      "action": "Record adjustment",
+      "done": "The adjustment was recorded.",
+      "already": "This adjustment was already recorded; nothing new was added."
+    },
+    "error": {
+      "payouts": {
+        "key-reused": "This form was already used for a different adjustment. Close it and start again.",
+        "line-state": "The line is no longer unresolved. Reload to see its state.",
+        "settle-too-early": "The line is under an hour old and the provider has no transfer yet. Try again later.",
+        "settle-mismatch": "The provider's transfer doesn't match this line. Check it by hand, following the runbook.",
+        "settle-ambiguous": "The provider holds more than one possible transfer. Check it by hand, following the runbook.",
+        "provider-unavailable": "The payment provider can't be reached right now. Try again in a few minutes.",
+        "unknown-courier": "This courier was not found.",
+        "line-not-found": "This payout line was not found.",
+        "currency-mismatch": "The amount must be in the courier's balance currency."
+      }
     }
   }
 }
