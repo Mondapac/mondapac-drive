@@ -80,7 +80,40 @@ describe('balance adjustment', () => {
     expect(call.mock.calls[0]?.[2]).toMatchObject({ amount: { amount: '1200', currency: 'JPY' } });
   });
 
-  it('keeps one key for retries in one dialog and takes a new one for a new dialog', async () => {
+  it('keeps the key after a lost answer, also when the dialog is closed and reopened', async () => {
+    call.mockResolvedValueOnce({ ok: false, failure: { status: 0, code: 'network' } });
+    show('AUD');
+    fill('credit', '5', 'bonus');
+    submit();
+    await waitFor(() => expect(call).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    const [reopen] = screen.getAllByRole('button', { name: 'Record adjustment' });
+    if (reopen === undefined) throw new Error('no open button');
+    fireEvent.click(reopen);
+    // The unconfirmed intent is still filled in.
+    expect(screen.getByLabelText<HTMLInputElement>(/^Amount/).value).toBe('5');
+    call.mockResolvedValueOnce({ ok: true, status: 200, body: { recorded: false } });
+    submit();
+    await waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+    const keyOf = (index: number) => (call.mock.calls[index]?.[2] as { key: string }).key;
+    expect(keyOf(1)).toBe(keyOf(0));
+  });
+
+  it('takes a new key for a different intent', async () => {
+    call.mockResolvedValueOnce({ ok: false, failure: { status: 0, code: 'network' } });
+    show('AUD');
+    fill('credit', '5', 'bonus');
+    submit();
+    await waitFor(() => expect(call).toHaveBeenCalledTimes(1));
+    call.mockResolvedValueOnce({ ok: true, status: 200, body: { recorded: true } });
+    fill('credit', '6', 'bonus');
+    submit();
+    await waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+    const keyOf = (index: number) => (call.mock.calls[index]?.[2] as { key: string }).key;
+    expect(keyOf(1)).not.toBe(keyOf(0));
+  });
+
+  it('keeps one key for retries in one dialog and takes a new one after a success', async () => {
     call.mockResolvedValueOnce({ ok: false, failure: { status: 0, code: 'network' } });
     show('AUD');
     fill('credit', '5', 'bonus');

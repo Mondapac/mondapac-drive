@@ -12,8 +12,9 @@ import { ADJUSTMENT_REASONS, type AdjustmentReason } from './types.ts';
 
 /**
  * Credit or debit a courier's balance (protected `payouts.adjustment.record`, audited). One
- * idempotency key per opening of the dialog: a retry of the same intent records nothing new,
- * and a new intent gets a new key.
+ * idempotency key per intent (direction, amount, reason), kept until the API confirms it: a
+ * retry after a lost answer, also after closing and reopening the dialog, records nothing new
+ * (security review, L1). A success, or a different intent, takes a new key.
  */
 export function AdjustmentButton({
   courierId,
@@ -36,14 +37,17 @@ export function AdjustmentButton({
   const [errors, setErrors] = useState<{ amount?: string; reason?: string }>({});
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const key = useRef('');
+  /** The last intent sent without a confirmed answer, and its key. */
+  const unconfirmed = useRef<{ readonly intent: string; readonly key: string } | null>(null);
   const inFlight = useRef(false);
 
   function start(): void {
-    key.current = `adj:${crypto.randomUUID()}`;
-    setDirection('credit');
-    setAmount('');
-    setReason('');
+    // An unconfirmed attempt keeps its fields, so the same intent is sent with the same key.
+    if (unconfirmed.current === null) {
+      setDirection('credit');
+      setAmount('');
+      setReason('');
+    }
     setErrors({});
     setProblem(null);
     setOpen(true);
@@ -59,21 +63,30 @@ export function AdjustmentButton({
     };
     setErrors(found);
     if (minor === null || reason === '') return;
+    const intent = `${minor}|${reason}`;
+    if (unconfirmed.current?.intent !== intent) {
+      unconfirmed.current = { intent, key: `adj:${crypto.randomUUID()}` };
+    }
+    const { key } = unconfirmed.current;
     inFlight.current = true;
     setPending(true);
     setProblem(null);
     const result = await callApi<{ readonly recorded: boolean }>(
       'POST',
       `payouts/admin/couriers/${courierId}/adjustments`,
-      { amount: { amount: minor, currency }, reason, key: key.current },
+      { amount: { amount: minor, currency }, reason, key },
       csrfToken,
     );
     inFlight.current = false;
     setPending(false);
     if (!result.ok) {
+      // A refusal the API answered for sure (4xx) recorded nothing: the next try is a new intent.
+      const answered = result.failure.status >= 400 && result.failure.status < 500;
+      if (answered) unconfirmed.current = null;
       setProblem(messageFor(root, result.failure.code, 'payouts'));
       return;
     }
+    unconfirmed.current = null;
     setOpen(false);
     notify({ tone: 'success', text: result.body.recorded ? t('done') : t('already') });
     router.refresh();
