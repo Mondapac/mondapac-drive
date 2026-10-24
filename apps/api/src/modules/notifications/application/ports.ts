@@ -1,4 +1,4 @@
-import type { MarketContext, MarketId, Temporal } from '@mondapac-drive/shared-kernel';
+import type { CallContext, MarketContext, MarketId, Temporal } from '@mondapac-drive/shared-kernel';
 import type { SmsKind, WebhookEventType } from '../domain/delivery-change';
 import type { OutboundMessage, RetryPolicy } from '../domain/outbound-message';
 import type { PhoneNumber, SmsSettings } from '../domain/sms';
@@ -8,6 +8,8 @@ import type { WebhookUrl } from '../domain/webhook-url';
 /** The notification rules of a hosted Market (`notifications` section of its Market file). */
 export interface NotificationSettings {
   readonly webhookRetry: RetryPolicy;
+  /** How long a rotated-out secret still signs next to the new one. */
+  readonly rotationOverlapSeconds: number;
   readonly sms: SmsSettings;
 }
 export interface NotificationSettingsProvider {
@@ -23,6 +25,8 @@ export interface WebhookSubscriptionRepository {
   findById(market: MarketContext, id: string): Promise<WebhookSubscription | undefined>;
   /** The active subscriptions of a merchant, oldest first. */
   activeOf(market: MarketContext, merchantId: string): Promise<WebhookSubscription[]>;
+  /** Every subscription of a merchant, active and disabled, newest first, at most `limit`. */
+  listOf(market: MarketContext, merchantId: string, limit: number): Promise<WebhookSubscription[]>;
   insert(market: MarketContext, subscription: WebhookSubscription): Promise<void>;
   /** Saves version n + 1 over n; throws `StaleAggregateError` when the stored one is not n. */
   update(market: MarketContext, subscription: WebhookSubscription): Promise<void>;
@@ -67,6 +71,8 @@ export interface OutboundRepository {
   dueCalls(market: MarketContext, now: Temporal.Instant, limit: number): Promise<WebhookCall[]>;
   dueSms(market: MarketContext, now: Temporal.Instant, limit: number): Promise<SmsMessage[]>;
   findCall(market: MarketContext, id: string): Promise<WebhookCall | undefined>;
+  /** Dead-lettered calls, the most recently dead first, at most `limit`. */
+  deadCalls(market: MarketContext, limit: number): Promise<WebhookCall[]>;
   saveCall(market: MarketContext, call: WebhookCall, expectedAttempts: number): Promise<boolean>;
   saveSms(market: MarketContext, message: SmsMessage, expectedAttempts: number): Promise<boolean>;
 }
@@ -114,16 +120,29 @@ export interface SmsSender {
 export const SMS_SENDER = Symbol('SmsSender');
 
 /**
- * The recipient's phone number of a delivery, read from the delivery module when the SMS is
- * sent. Undefined when the delivery has none or it is not available yet.
+ * What notifications may know of a delivery, read from the delivery module with the Market's
+ * system context (`DeliveryRecipients.forNotification`). The phone and the PIN are personal
+ * data: they are handed to the SMS sender at the attempt and never stored, logged or put in an
+ * error.
  */
-export interface RecipientDirectory {
-  phoneOf(market: MarketContext, deliveryId: string): Promise<string | undefined>;
+export interface DeliveryContact {
+  readonly merchantId: string;
+  readonly externalReference: string;
+  readonly dropoffPhone: string | null;
+  readonly recipientPin: string | null;
 }
-export const RECIPIENT_DIRECTORY = Symbol('RecipientDirectory');
 
-/** The customer tracking link of a delivery (tracking module), when one has been issued. */
+/** The delivery module's read for notifications. Undefined when the delivery is unknown. */
+export interface DeliveryContacts {
+  contactOf(context: CallContext, deliveryId: string): Promise<DeliveryContact | undefined>;
+}
+export const DELIVERY_CONTACTS = Symbol('DeliveryContacts');
+
+/**
+ * Issues a customer tracking link for a delivery (tracking's `IssueTrackingLink`), answering its
+ * token, shown once; undefined while tracking cannot issue one (not tracked yet, or ended).
+ */
 export interface TrackingLinks {
-  linkFor(market: MarketContext, deliveryId: string): Promise<string | undefined>;
+  issue(context: CallContext, deliveryId: string): Promise<string | undefined>;
 }
 export const TRACKING_LINKS = Symbol('TrackingLinks');

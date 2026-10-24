@@ -1,18 +1,13 @@
-import type { RecipientDirectory, TrackingLinks } from '../application/ports';
+import type { DeliveryContact, DeliveryContacts } from '../application/ports';
 
 /**
- * Stand-ins until the delivery module exposes the recipient's number (after WP2) and tracking
- * (package 06) issues links through its public interface. With them an SMS that needs either
- * is dead-lettered (no number) or retried until it dies (no link); webhooks are unaffected.
+ * STAND-IN until package 21 merges `DeliveryRecipients.forNotification` into the delivery
+ * module's index.ts: it knows no delivery, so every delivery event is refused and retried
+ * (nothing is queued) and every SMS dies with `sms.recipient-invalid`. On the rebase after 21
+ * this file is replaced by an adapter over that read.
  */
-export class NoRecipientDirectory implements RecipientDirectory {
-  phoneOf(): Promise<string | undefined> {
-    return Promise.resolve(undefined);
-  }
-}
-
-export class NoTrackingLinks implements TrackingLinks {
-  linkFor(): Promise<string | undefined> {
+export class NoDeliveryContacts implements DeliveryContacts {
+  contactOf(): Promise<DeliveryContact | undefined> {
     return Promise.resolve(undefined);
   }
 }

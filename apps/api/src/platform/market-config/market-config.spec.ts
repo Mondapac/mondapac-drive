@@ -63,7 +63,12 @@ const TRACKING = {
 };
 
 const NOTIFICATIONS = {
-  webhooks: { maxAttempts: 8, firstRetrySeconds: 30, maxRetrySeconds: 3600 },
+  webhooks: {
+    maxAttempts: 8,
+    firstRetrySeconds: 30,
+    maxRetrySeconds: 3600,
+    rotationOverlapMinutes: 1440,
+  },
   sms: {
     senderId: 'Example',
     optOutText: 'Reply STOP to opt out',
@@ -75,6 +80,8 @@ const NOTIFICATIONS = {
       delivered: 'Delivered {reference}',
       failed: 'Not delivered {reference}',
     },
+    pinText: 'PIN {pin}.',
+    trackingPageUrl: 'https://track.example.com/t/{token}',
   },
 };
 

@@ -174,11 +174,19 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and
-    // the status and secret version of a subscription change.
+    // the status, event types, secret version and rotation overlap of a subscription change
+    // (20261026050000); the inbox is append-only.
     'notifications.webhook_subscriptions': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['secret_version', 'status', 'version'],
+      columnUpdate: [
+        'event_types',
+        'previous_secret_valid_until',
+        'secret_version',
+        'status',
+        'version',
+      ],
     },
+    'notifications.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'notifications.webhook_calls': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [
