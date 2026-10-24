@@ -84,5 +84,24 @@
         "van": 18
       }
     }
+  },
+  "notifications": {
+    "webhooks": {
+      "maxAttempts": 4,
+      "firstRetrySeconds": 10,
+      "maxRetrySeconds": 120
+    },
+    "sms": {
+      "senderId": "ZZDrive",
+      "optOutText": "STOP to end",
+      "maxAttempts": 3,
+      "allowedCallingCodes": ["999"],
+      "templates": {
+        "booked": "ZZ booked {reference} {trackingUrl}",
+        "on_the_way": "ZZ on the way {trackingUrl}",
+        "delivered": "ZZ delivered {reference}",
+        "failed": "ZZ failed {reference}"
+      }
+    }
   }
 }
