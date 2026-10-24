@@ -8,3 +8,4 @@ node_modules/
 prisma/migrations/
 .next/
 next-env.d.ts
+apps/panel/public/maplibre/

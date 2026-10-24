@@ -1,6 +1,7 @@
 import type { GeoPoint, Id, MarketId, Temporal } from '@mondapac-drive/shared-kernel';
 import { TRANSITIONS, type DeliveryEventType, type DeliveryStatus } from './delivery-status';
 import { DeliveryDomainError } from './errors';
+import type { DeliveryReasonCode } from './reason-codes';
 import type { MarketDeliverySettings } from './market-settings';
 import { needsColdChain, type Parcel } from './parcel';
 import type { DeliveryQuote } from './pricing';
@@ -29,12 +30,23 @@ export interface DeliveryEventInput {
   readonly temperatureCelsius?: number;
   readonly proof?: ProofOfDelivery;
   readonly reason?: string;
+  /**
+   * The reason as a code, for the outbox event: who cancelled, or why a courier was unassigned.
+   * Set by the use case, never by the caller; not stored in the history.
+   */
+  readonly reasonCode?: DeliveryReasonCode;
 }
 
 export interface DeliveryHistoryEntry extends DeliveryEventInput {
   readonly status: DeliveryStatus;
   readonly at: Temporal.Instant;
 }
+
+/**
+ * What needs a dispatcher's hand, outside the lifecycle: dispatch ran out of couriers, or (not
+ * recorded yet) a cold-chain reading was over the limit. Not part of the version.
+ */
+export type DeliveryException = 'dispatch-exhausted' | 'cold-chain-breach';
 
 export interface DeliveryState {
   readonly id: Id<'Delivery'>;
@@ -51,13 +63,17 @@ export interface DeliveryState {
   readonly quote: DeliveryQuote;
   readonly status: DeliveryStatus;
   readonly courierId?: string;
+  readonly exception?: DeliveryException;
   readonly history: readonly DeliveryHistoryEntry[];
   readonly createdAt: Temporal.Instant;
   /** Optimistic-concurrency version, bumped on every change. */
   readonly version: number;
 }
 
-export type NewDelivery = Omit<DeliveryState, 'status' | 'history' | 'version' | 'courierId'>;
+export type NewDelivery = Omit<
+  DeliveryState,
+  'status' | 'history' | 'version' | 'courierId' | 'exception'
+>;
 
 export function createDelivery(input: NewDelivery): DeliveryState {
   const status: DeliveryStatus = input.mode === 'scheduled' ? 'SCHEDULED' : 'DISPATCHING';
@@ -128,13 +144,26 @@ export function applyDeliveryEvent(
       if (!event.reason?.trim()) {
         throw new DeliveryDomainError('delivery.reason-required', `${event.type} needs a reason`);
       }
+      if (
+        event.type === 'cancelled' &&
+        event.reasonCode !== 'merchant-cancelled' &&
+        event.reasonCode !== 'operator-cancelled'
+      ) {
+        throw new DeliveryDomainError(
+          'delivery.reason-required',
+          'A cancel says who cancelled (merchant-cancelled or operator-cancelled)',
+        );
+      }
       break;
     default:
       break;
   }
 
+  const clearsException = event.type === 'courier_assigned' || event.type === 'cancelled';
+  const { exception, ...rest } = delivery;
   return {
-    ...delivery,
+    ...rest,
+    ...(exception === undefined || clearsException ? {} : { exception }),
     status: transition.to,
     courierId,
     history: [...delivery.history, { ...event, status: transition.to, at }],

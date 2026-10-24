@@ -344,6 +344,8 @@ export default tseslint.config(
       '**/generated/**',
       // Files the Expo CLI generates in the courier app.
       '**/.expo/**',
+      // MapLibre's worker, copied unchanged by apps/panel/scripts/copy-maplibre-worker.mjs.
+      'apps/panel/public/maplibre/**',
       // Deliberate violations used by apps/api/test/boundaries.spec.ts.
       '**/test/boundary-fixtures/**',
     ],

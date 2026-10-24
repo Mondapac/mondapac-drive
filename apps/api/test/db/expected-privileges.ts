@@ -79,10 +79,11 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: ['wrapped_key', 'wrapping_key_id', 'rewrapped_at', 'destroyed_at'],
     },
     // The delivery module: deliveries keep their identity, market and money columns; history
-    // and the outbox envelope are append-only (20261024150000, 20261024160000).
+    // and the outbox envelope are append-only (20261024150000, 20261024160000); the exception
+    // flag is set outside the version (20261026010000).
     'delivery.deliveries': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['courier_id', 'status', 'version'],
+      columnUpdate: ['courier_id', 'exception', 'status', 'version'],
     },
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
