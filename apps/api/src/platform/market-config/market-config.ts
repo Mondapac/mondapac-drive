@@ -539,6 +539,14 @@ const deliverySchema = z.strictObject({
     maxDaysAhead: z.number().int().positive().max(90),
     minWindowMinutes: z.number().int().positive(),
   }),
+  /**
+   * The recipient's PIN: its digits, and how many wrong PINs a delivery takes before the
+   * courier must prove the hand-over with a photo instead.
+   */
+  proofOfDelivery: z.strictObject({
+    pinLength: z.number().int().min(4).max(8),
+    maxPinAttempts: z.number().int().min(1).max(10),
+  }),
 });
 
 /**

@@ -2,11 +2,12 @@ import { err, ok } from '@mondapac-drive/shared-kernel';
 import type { CallContext, GeoPoint, Id, Result, Temporal } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import type { DeliveryState } from '../../domain/delivery';
-import type { DeliveryStatus } from '../../domain/delivery-status';
+import { isFinal, type DeliveryStatus } from '../../domain/delivery-status';
 import type { Temperature } from '../../domain/parcel';
 import type { VehicleType } from '../../domain/vehicle';
 import type { DeliveryAccessDependencies } from '../deliveries';
 import type { DeliveryFailure } from '../failure';
+import type { RecipientPins } from '../ports';
 import type { DeliveryRef } from './merchant-deliveries.use-case';
 
 // The reads other modules make of one delivery, in process and in the system context only
@@ -44,7 +45,10 @@ export interface DeliveryForNotification {
   /** The merchant's own reference (the marketplace's sub-order id), for its webhook. */
   readonly externalReference: string;
   readonly dropoffPhone: string;
-  /** The recipient's proof-of-delivery PIN; null until the PIN is issued at booking (PR 2). */
+  /**
+   * The recipient's proof-of-delivery PIN, to text to the recipient; null once the delivery has
+   * ended (delivered, returned or cancelled). Never written to an event or a log.
+   */
   readonly recipientPin: string | null;
 }
 
@@ -120,6 +124,10 @@ export class DeliveryDispatchView extends UseCase<
   }
 }
 
+export interface DeliveryRecipientsDependencies extends DeliveryAccessDependencies {
+  readonly pins: RecipientPins;
+}
+
 /** Notifications' read of a delivery's recipient and merchant reference (rule `system`). */
 export class DeliveryRecipients extends UseCase<
   DeliveryRef,
@@ -133,7 +141,7 @@ export class DeliveryRecipients extends UseCase<
 
   constructor(
     gate: UseCaseGate,
-    private readonly deps: DeliveryAccessDependencies,
+    private readonly deps: DeliveryRecipientsDependencies,
   ) {
     super(gate);
   }
@@ -157,7 +165,13 @@ export class DeliveryRecipients extends UseCase<
       merchantId: delivery.merchantId,
       externalReference: delivery.externalReference,
       dropoffPhone: delivery.dropoff.contactPhone,
-      recipientPin: null,
+      recipientPin: isFinal(delivery.status)
+        ? null
+        : this.deps.pins.pinFor(
+            context.market,
+            delivery.id,
+            this.deps.markets.get(context.market.marketId).proofOfDelivery.pinLength,
+          ),
     });
   }
 }

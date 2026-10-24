@@ -31,6 +31,7 @@ const DELIVERY = {
   },
   coldChain: { chilled: { maxCelsius: 5 }, frozen: { maxCelsius: -15 } },
   scheduling: { minLeadMinutes: 60, maxDaysAhead: 7, minWindowMinutes: 60 },
+  proofOfDelivery: { pinLength: 4, maxPinAttempts: 5 },
 };
 
 /** The identity and origin sections of the ZZ fixture: this spec checks the other sections. */
@@ -281,6 +282,11 @@ describe('loadMarketConfigs', () => {
       /delivery\.rateCard\.scheduledDiscountBps/,
     ],
     ['no scheduling rules', delivery({ scheduling: undefined }), /delivery\.scheduling/],
+    [
+      'a PIN shorter than 4 digits',
+      delivery({ proofOfDelivery: { pinLength: 3, maxPinAttempts: 5 } }),
+      /delivery\.proofOfDelivery\.pinLength/,
+    ],
     ['no fleet section', { fleet: undefined }, /fleet/],
     [
       'a document type that is not a code',
