@@ -39,6 +39,14 @@ export class CircuitBreaker {
     this.#trialInFlight = false;
   }
 
+  /**
+   * The call ended without saying anything about the provider's health (a rejected request, a
+   * bug): only frees a half-open trial, so the breaker cannot stay stuck.
+   */
+  recordNeutral(): void {
+    this.#trialInFlight = false;
+  }
+
   recordFailure(): void {
     this.#trialInFlight = false;
     this.#failures += 1;

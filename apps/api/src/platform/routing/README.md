@@ -16,6 +16,6 @@ Road distance, travel time (ETA) and geocoding for every module, behind one port
   the API key's environment variable, region, travel mode per vehicle, timeout, breaker, cache TTL
   and coordinate rounding, and the straight-line speeds. No section: straight line only.
 - Road routes are cached by Market, vehicle and rounded coordinates, in Redis when `REDIS_URL` is
-  set (keys `routing:route:v1:<MARKET>:<sha256>`; the coordinates are hashed), else in process.
+  set (keys `routing:route:v1:<MARKET>:<HMAC-SHA256 under the provider key>`, so the rounded coordinates cannot be brute-forced back; values out of bounds are ignored), else in process.
 - Coordinates, addresses and the key are never logged; logs carry the Market and a code.
 - Tests run against a local fake of the Google APIs (`test/support/fake-google-maps-server.ts`).

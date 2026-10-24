@@ -20,23 +20,29 @@ describe('routeCacheKey', () => {
 
   it('rounds coordinates, so nearby points share a key', () => {
     const near = geoPoint(-27.46984, 153.02514);
-    expect(routeCacheKey(AU.value, a, b, 'car', 4)).toBe(
-      routeCacheKey(AU.value, near, b, 'car', 4),
+    expect(routeCacheKey(AU.value, a, b, 'car', 4, 'secret')).toBe(
+      routeCacheKey(AU.value, near, b, 'car', 4, 'secret'),
     );
-    expect(routeCacheKey(AU.value, a, b, 'car', 5)).not.toBe(
-      routeCacheKey(AU.value, near, b, 'car', 5),
+    expect(routeCacheKey(AU.value, a, b, 'car', 5, 'secret')).not.toBe(
+      routeCacheKey(AU.value, near, b, 'car', 5, 'secret'),
     );
   });
 
   it('separates Markets, vehicles and directions', () => {
-    const key = routeCacheKey(AU.value, a, b, 'car', 4);
-    expect(routeCacheKey(ZZ.value, a, b, 'car', 4)).not.toBe(key);
-    expect(routeCacheKey(AU.value, a, b, 'van', 4)).not.toBe(key);
-    expect(routeCacheKey(AU.value, b, a, 'car', 4)).not.toBe(key);
+    const key = routeCacheKey(AU.value, a, b, 'car', 4, 'secret');
+    expect(routeCacheKey(ZZ.value, a, b, 'car', 4, 'secret')).not.toBe(key);
+    expect(routeCacheKey(AU.value, a, b, 'van', 4, 'secret')).not.toBe(key);
+    expect(routeCacheKey(AU.value, b, a, 'car', 4, 'secret')).not.toBe(key);
+  });
+
+  it('depends on the secret, so it cannot be brute-forced without it', () => {
+    expect(routeCacheKey(AU.value, a, b, 'car', 4, 'other')).not.toBe(
+      routeCacheKey(AU.value, a, b, 'car', 4, 'secret'),
+    );
   });
 
   it('holds no readable coordinate', () => {
-    const key = routeCacheKey(AU.value, a, b, 'car', 4);
+    const key = routeCacheKey(AU.value, a, b, 'car', 4, 'secret');
     expect(key.startsWith(`${ROUTE_CACHE_PREFIX}AU:`)).toBe(true);
     expect(key).not.toContain('27.4');
     expect(key).not.toContain('153');
@@ -51,6 +57,8 @@ describe('decodeCachedRoute', () => {
     '[]',
     '{"distanceMetres":-1,"durationSeconds":2}',
     '{"distanceMetres":1}',
+    '{"distanceMetres":2000001,"durationSeconds":2}',
+    '{"distanceMetres":1,"durationSeconds":172801}',
   ])('treats %j as a miss', (raw) => expect(decodeCachedRoute(raw)).toBeUndefined());
 });
 

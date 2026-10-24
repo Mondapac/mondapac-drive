@@ -22,11 +22,14 @@ export interface MarketRouting {
   readonly config: RoutingConfig;
   /** Undefined when the Market routes by straight line only. */
   readonly road: GoogleRoutesClient | undefined;
+  /** The secret of the Market's cache keys (its provider key); set whenever `road` is. */
+  readonly cacheSecret?: string;
 }
 
 interface MarketState {
   readonly config: RoutingConfig;
   readonly road: GoogleRoutesClient | undefined;
+  readonly cacheSecret: string;
   readonly straightLine: StraightLineRouter;
   readonly breaker: CircuitBreaker;
 }
@@ -45,10 +48,11 @@ export class ResilientRoutingProvider implements RoutingProvider {
     private readonly cache: RouteCache,
     clock: Clock,
   ) {
-    for (const [marketId, { config, road }] of markets) {
+    for (const [marketId, { config, road, cacheSecret }] of markets) {
       this.#markets.set(marketId, {
         config,
         road,
+        cacheSecret: cacheSecret ?? '',
         straightLine: new StraightLineRouter(config.straightLine),
         breaker: new CircuitBreaker(
           clock,
@@ -144,8 +148,12 @@ export class ResilientRoutingProvider implements RoutingProvider {
       state.breaker.recordSuccess();
       return result;
     } catch (error) {
-      if (!(error instanceof GoogleRoutingError)) throw error;
-      state.breaker.recordFailure();
+      if (!(error instanceof GoogleRoutingError)) {
+        state.breaker.recordNeutral();
+        throw error;
+      }
+      if (error.code === 'routing.provider-rejected') state.breaker.recordNeutral();
+      else state.breaker.recordFailure();
       this.logger.warn({
         msg: 'geocoding failed',
         marketId: market.marketId,
@@ -181,6 +189,7 @@ export class ResilientRoutingProvider implements RoutingProvider {
       destination,
       vehicle,
       state.config.cacheCoordinateDecimals,
+      state.cacheSecret,
     );
   }
 
@@ -205,8 +214,12 @@ export class ResilientRoutingProvider implements RoutingProvider {
         this.logger.warn({ msg: 'straight-line fallback', marketId, code: 'routing.no-route' });
         return undefined;
       }
-      if (!(error instanceof GoogleRoutingError)) throw error;
-      state.breaker.recordFailure();
+      if (!(error instanceof GoogleRoutingError)) {
+        state.breaker.recordNeutral();
+        throw error;
+      }
+      if (error.code === 'routing.provider-rejected') state.breaker.recordNeutral();
+      else state.breaker.recordFailure();
       this.logger.warn({
         msg: 'straight-line fallback',
         marketId,
@@ -223,7 +236,7 @@ export class ResilientRoutingProvider implements RoutingProvider {
     state: MarketState,
     key: string,
   ): Promise<RouteEstimate | undefined> {
-    if (state.config.cacheTtlSeconds === 0) return undefined;
+    if (state.config.cacheTtlSeconds === 0 || state.cacheSecret === '') return undefined;
     try {
       const cached = await this.cache.get(key);
       return cached === undefined ? undefined : { ...cached, source: 'road' };
@@ -243,7 +256,7 @@ export class ResilientRoutingProvider implements RoutingProvider {
     key: string,
     leg: RoadLeg,
   ): Promise<void> {
-    if (state.config.cacheTtlSeconds === 0) return;
+    if (state.config.cacheTtlSeconds === 0 || state.cacheSecret === '') return;
     try {
       await this.cache.set(key, leg, state.config.cacheTtlSeconds);
     } catch {

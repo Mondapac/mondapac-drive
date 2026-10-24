@@ -8,7 +8,7 @@ import { MarketRegistry } from '../market-config/market-registry';
 import { GoogleRoutesClient } from './google-routes-client';
 import { ResilientRoutingProvider, type MarketRouting } from './resilient-routing-provider';
 import { InMemoryRouteCache, RedisRouteCache, type RouteCache } from './route-cache';
-import { DEFAULT_ROUTING_CONFIG } from './routing-config';
+import { DEFAULT_ROUTING_CONFIG, type RoutingConfig } from './routing-config';
 import { ROUTING_PROVIDER } from './routing-provider';
 
 /** How long one Redis command may take before the cache counts as unavailable. */
@@ -47,9 +47,20 @@ export function marketRoutingFor(
         });
       }
     }
-    result.set(marketId, { config, road });
+    result.set(marketId, {
+      config,
+      road,
+      cacheSecret: road === undefined ? undefined : apiKeyOf(env, config),
+    });
   }
   return result;
+}
+
+function apiKeyOf(
+  env: Record<string, string | undefined>,
+  config: RoutingConfig,
+): string | undefined {
+  return config.google === undefined ? undefined : env[config.google.apiKeyEnv]?.trim();
 }
 
 /** Redis when `REDIS_URL` is set, else a cache of this process. */

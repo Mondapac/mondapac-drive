@@ -8,7 +8,7 @@ import {
 } from '../../../test/support/fake-google-maps-server';
 import { TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS } from '../../../test/support/test-config';
 import { loadMarketConfigs } from '../market-config/market-config';
-import { GoogleRoutesClient } from './google-routes-client';
+import { GoogleRoutesClient, GoogleRoutingError } from './google-routes-client';
 import { ResilientRoutingProvider, type MarketRouting } from './resilient-routing-provider';
 import { InMemoryRouteCache, type RouteCache } from './route-cache';
 import { DEFAULT_ROUTING_CONFIG } from './routing-config';
@@ -50,7 +50,9 @@ describe.each(TEST_MARKET_IDS)('ResilientRoutingProvider (%s)', (marketId) => {
       routesBaseUrl: server.baseUrl,
       geocodingBaseUrl: server.baseUrl,
     });
-    const routing = new Map<MarketId, MarketRouting>([[market.marketId, { config, road }]]);
+    const routing = new Map<MarketId, MarketRouting>([
+      [market.marketId, { config, road, cacheSecret: 'test-key' }],
+    ]);
     return new ResilientRoutingProvider(routing, routeCache, clock);
   }
 
@@ -95,6 +97,52 @@ describe.each(TEST_MARKET_IDS)('ResilientRoutingProvider (%s)', (marketId) => {
     clock.advance(Temporal.Duration.from({ seconds: openSeconds }));
     await expect(routing.route(market, A, B, 'car')).resolves.toMatchObject({ source: 'road' });
     await expect(routing.route(market, A, C, 'car')).resolves.toMatchObject({ source: 'road' });
+  });
+
+  it('a rejected request (4xx) falls back without opening the breaker', async () => {
+    server.on(ROUTES_PATH, () => ({ status: 400 }));
+    const routing = provider();
+    const calls = config.circuitBreaker.failureThreshold + 2;
+    for (let i = 0; i < calls; i += 1) await routing.route(market, A, B, 'car');
+    expect(server.calls(ROUTES_PATH)).toHaveLength(calls);
+  });
+
+  it('a 429 counts as an outage', async () => {
+    server.on(ROUTES_PATH, () => ({ status: 429 }));
+    const routing = provider();
+    const { failureThreshold } = config.circuitBreaker;
+    for (let i = 0; i < failureThreshold + 2; i += 1) await routing.route(market, A, B, 'car');
+    expect(server.calls(ROUTES_PATH)).toHaveLength(failureThreshold);
+  });
+
+  it('an unexpected error during the half-open trial does not leave the breaker stuck', async () => {
+    let answer: () => Promise<unknown> = () =>
+      Promise.reject(new GoogleRoutingError('routing.provider-timeout'));
+    const road = { route: () => answer() } as unknown as GoogleRoutesClient;
+    const routing = new ResilientRoutingProvider(
+      new Map<MarketId, MarketRouting>([[market.marketId, { config, road, cacheSecret: 's' }]]),
+      cache,
+      clock,
+    );
+    const { failureThreshold, openSeconds } = config.circuitBreaker;
+    for (let i = 0; i < failureThreshold; i += 1) await routing.route(market, A, B, 'car');
+    clock.advance(Temporal.Duration.from({ seconds: openSeconds }));
+    answer = () => Promise.reject(new TypeError('a bug'));
+    await expect(routing.route(market, A, B, 'car')).rejects.toThrow(TypeError);
+    answer = () => Promise.resolve({ distanceMetres: 5, durationSeconds: 1 });
+    await expect(routing.route(market, A, C, 'car')).resolves.toMatchObject({ source: 'road' });
+  });
+
+  it('a rejected geocode does not count towards the breaker', async () => {
+    server.on(GEOCODE_PATH, () => ({ body: { status: 'INVALID_REQUEST' } }));
+    const routing = provider();
+    const calls = config.circuitBreaker.failureThreshold + 1;
+    for (let i = 0; i < calls; i += 1) {
+      await expect(routing.geocode(market, { address: '1 Road' })).rejects.toBeInstanceOf(
+        GeocodingUnavailableError,
+      );
+    }
+    expect(server.calls(GEOCODE_PATH)).toHaveLength(calls);
   });
 
   it('a "no route" answer falls back without opening the breaker', async () => {

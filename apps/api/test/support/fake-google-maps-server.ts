@@ -15,6 +15,7 @@ export interface FakeAnswer {
   readonly status?: number;
   readonly body?: unknown;
   readonly delayMs?: number;
+  readonly headers?: Record<string, string>;
 }
 
 export type FakeHandler = (request: RecordedRequest) => FakeAnswer;
@@ -75,7 +76,10 @@ export class FakeGoogleMapsServer {
       await new Promise((resolve) => setTimeout(resolve, answer.delayMs));
       if (res.destroyed) return;
     }
-    res.writeHead(answer.status ?? 200, { 'content-type': 'application/json' });
+    res.writeHead(answer.status ?? 200, {
+      'content-type': 'application/json',
+      ...answer.headers,
+    });
     res.end(JSON.stringify(answer.body ?? {}));
   }
 }

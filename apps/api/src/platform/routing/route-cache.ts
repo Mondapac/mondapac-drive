@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import type { Clock, GeoPoint, MarketId } from '@mondapac-drive/shared-kernel';
 import type { RoutingVehicleType } from './routing-config';
 
@@ -22,8 +22,10 @@ export interface RouteCache {
 export const ROUTE_CACHE_PREFIX = 'routing:route:v1:';
 
 /**
- * The cache key of a leg. The rounded coordinates are hashed, so no customer location is
- * readable from the cache (Privacy Act: coordinates are personal data).
+ * The cache key of a leg: an HMAC of the rounded coordinates under a secret (the Market's
+ * provider key). A plain hash of rounded coordinates could be brute-forced back to a customer
+ * location; without the secret, the key reveals nothing (Privacy Act: coordinates are personal
+ * data). Rotating the secret only empties the cache.
  */
 export function routeCacheKey(
   market: MarketId,
@@ -31,6 +33,7 @@ export function routeCacheKey(
   destination: GeoPoint,
   vehicle: RoutingVehicleType,
   decimals: number,
+  secret: string,
 ): string {
   const round = (value: number) => value.toFixed(decimals);
   const leg = [
@@ -40,18 +43,27 @@ export function routeCacheKey(
     round(destination.lat),
     round(destination.lng),
   ];
-  const digest = createHash('sha256').update(leg.join('|')).digest('base64url');
+  const digest = createHmac('sha256', secret).update(leg.join('|')).digest('base64url');
   return `${ROUTE_CACHE_PREFIX}${market}:${digest}`;
 }
 
-/** Parses a stored value; anything malformed counts as a miss. */
+/** Bounds a stored value must keep, so a poisoned entry cannot inflate a price or an ETA. */
+export const MAX_CACHED_DISTANCE_METRES = 2_000_000;
+export const MAX_CACHED_DURATION_SECONDS = 48 * 3600;
+
+/** Parses a stored value; anything malformed or out of bounds counts as a miss. */
 export function decodeCachedRoute(raw: string | null | undefined): CachedRoute | undefined {
   if (raw === null || raw === undefined) return undefined;
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== 'object' || value === null) return undefined;
     const { distanceMetres, durationSeconds } = value as Record<string, unknown>;
-    if (!isNonNegativeInteger(distanceMetres) || !isNonNegativeInteger(durationSeconds)) {
+    if (
+      !isNonNegativeInteger(distanceMetres) ||
+      !isNonNegativeInteger(durationSeconds) ||
+      distanceMetres > MAX_CACHED_DISTANCE_METRES ||
+      durationSeconds > MAX_CACHED_DURATION_SECONDS
+    ) {
       return undefined;
     }
     return { distanceMetres, durationSeconds };

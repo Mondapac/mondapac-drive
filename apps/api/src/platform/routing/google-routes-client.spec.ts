@@ -75,6 +75,8 @@ describe.each(TEST_MARKET_IDS)('GoogleRoutesClient (%s)', (marketId) => {
 
   it.each([
     [{ status: 500, body: { error: 'x' } }, 'routing.provider-refused'],
+    [{ status: 429, body: {} }, 'routing.provider-refused'],
+    [{ status: 403, body: {} }, 'routing.provider-rejected'],
     [{ body: { routes: [{ distanceMeters: 1, duration: 'soon' }] } }, 'routing.provider-malformed'],
     [{ delayMs: 400, body: {} }, 'routing.provider-timeout'],
   ])('fails with a code only (%j)', async (answer, code) => {
@@ -120,6 +122,17 @@ describe.each(TEST_MARKET_IDS)('GoogleRoutesClient (%s)', (marketId) => {
     expect(body.travelMode).toBe(google.travelModes.motorbike);
   });
 
+  it('does not follow a redirect, which would carry the key elsewhere', async () => {
+    server.on(ROUTES_PATH, () => ({
+      status: 307,
+      body: {},
+      headers: { location: 'http://127.0.0.1:1/x' },
+    }));
+    await expect(client.route(A, B, 'car')).rejects.toMatchObject({
+      code: 'routing.provider-unreachable',
+    });
+  });
+
   it('refuses a matrix element outside the request', async () => {
     server.on(MATRIX_PATH, () => ({
       body: [{ originIndex: 5, distanceMeters: 1, duration: '1s', condition: 'ROUTE_EXISTS' }],
@@ -153,6 +166,7 @@ describe.each(TEST_MARKET_IDS)('GoogleRoutesClient (%s)', (marketId) => {
       `country:${google.regionCode.toUpperCase()}|postal_code:1234`,
     );
     expect(query.get('language')).toBe(market.defaultLocale);
+    expect(query.get('key')).toBe('test-key');
   });
 
   it('geocodes a postcode alone as its centre', async () => {
@@ -171,6 +185,10 @@ describe.each(TEST_MARKET_IDS)('GoogleRoutesClient (%s)', (marketId) => {
     server.on(GEOCODE_PATH, () => ({ body: { status: 'ZERO_RESULTS', results: [] } }));
     await expect(client.geocode('nowhere')).resolves.toBeUndefined();
     server.on(GEOCODE_PATH, () => ({ body: { status: 'REQUEST_DENIED' } }));
+    await expect(client.geocode('anywhere')).rejects.toMatchObject({
+      code: 'routing.provider-rejected',
+    });
+    server.on(GEOCODE_PATH, () => ({ body: { status: 'OVER_QUERY_LIMIT' } }));
     await expect(client.geocode('anywhere')).rejects.toMatchObject({
       code: 'routing.provider-refused',
     });

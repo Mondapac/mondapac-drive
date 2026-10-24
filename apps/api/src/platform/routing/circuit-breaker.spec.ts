@@ -47,4 +47,15 @@ describe('CircuitBreaker', () => {
     breaker.recordFailure();
     expect(breaker.state).toBe('open');
   });
+
+  it('a neutral outcome frees the half-open trial without closing or opening', () => {
+    const clock = new FixedClock(start);
+    const breaker = new CircuitBreaker(clock, 1, 10);
+    breaker.recordFailure();
+    clock.advance(Temporal.Duration.from({ seconds: 10 }));
+    expect(breaker.tryAcquire()).toBe(true);
+    breaker.recordNeutral();
+    expect(breaker.state).toBe('half_open');
+    expect(breaker.tryAcquire()).toBe(true);
+  });
 });

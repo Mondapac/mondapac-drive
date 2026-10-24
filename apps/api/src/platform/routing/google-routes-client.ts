@@ -14,6 +14,7 @@ export type HttpFetch = (
     method: 'GET' | 'POST';
     headers: Record<string, string>;
     body?: string;
+    redirect: 'error';
     signal: AbortSignal;
   },
 ) => Promise<{ readonly ok: boolean; readonly status: number; json(): Promise<unknown> }>;
@@ -22,11 +23,14 @@ export type GoogleRoutingErrorCode =
   | 'routing.provider-timeout'
   | 'routing.provider-unreachable'
   | 'routing.provider-refused'
+  | 'routing.provider-rejected'
   | 'routing.provider-malformed';
 
 /**
  * A failed call: carries a code and the HTTP status only, never the request (coordinates,
- * address, key) or the provider's answer.
+ * address, key) or the provider's answer. `routing.provider-rejected` is the provider refusing
+ * this request (a 4xx other than 429, `INVALID_REQUEST`): not an outage, so it does not count
+ * towards the circuit breaker, and a caller's bad input cannot open it for the whole Market.
  */
 export class GoogleRoutingError extends Error {
   constructor(
@@ -173,6 +177,8 @@ export class GoogleRoutesClient {
       region,
       components: components.join('|'),
       language: this.options.languageCode,
+      // The Geocoding API takes its key in the query only. The URL is never logged, and errors
+      // carry a code, never the URL.
       key: this.options.apiKey,
     });
     const body = await this.#call(
@@ -185,7 +191,10 @@ export class GoogleRoutesClient {
     if (typeof body !== 'object' || body === null) throw malformed();
     const { status, results } = body as { status?: unknown; results?: unknown };
     if (status === 'ZERO_RESULTS') return undefined;
-    if (status !== 'OK') throw new GoogleRoutingError('routing.provider-refused');
+    if (status === 'OVER_QUERY_LIMIT' || status === 'UNKNOWN_ERROR') {
+      throw new GoogleRoutingError('routing.provider-refused');
+    }
+    if (status !== 'OK') throw new GoogleRoutingError('routing.provider-rejected');
     if (!Array.isArray(results)) throw malformed();
     const first = results[0] as
       | {
@@ -237,6 +246,8 @@ export class GoogleRoutesClient {
     try {
       response = await this.#fetch(url, {
         ...init,
+        // A redirect would carry the key header to another host.
+        redirect: 'error',
         signal: AbortSignal.timeout(this.options.timeoutMs),
       });
     } catch (error) {
@@ -244,7 +255,13 @@ export class GoogleRoutesClient {
         isTimeout(error) ? 'routing.provider-timeout' : 'routing.provider-unreachable',
       );
     }
-    if (!response.ok) throw new GoogleRoutingError('routing.provider-refused', response.status);
+    if (!response.ok) {
+      const rejected = response.status >= 400 && response.status < 500 && response.status !== 429;
+      throw new GoogleRoutingError(
+        rejected ? 'routing.provider-rejected' : 'routing.provider-refused',
+        response.status,
+      );
+    }
     try {
       return await response.json();
     } catch (error) {
