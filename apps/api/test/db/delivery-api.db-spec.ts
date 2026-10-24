@@ -122,6 +122,26 @@ describe('delivery API (database integration)', () => {
       expect((retried.body as { id: string }).id).toBe(delivery.id);
     });
 
+    it('answers 503 for a stop given by address when no geocoder is configured', async () => {
+      // The test stack sets no routing key: routes are straight-line, geocoding is unavailable.
+      const quote = await post(code, '/delivery/quotes', merchant.headers, {
+        pickup: { postcode: POSTCODE[code], address: '1 Example Street' },
+        dropoff: { postcode: POSTCODE[code], point: { lat: -27.49, lng: 153.02 } },
+        parcel,
+        mode: 'on_demand',
+      });
+      expect(quote.status).toBe(503);
+      expect((quote.body as { code: string }).code).toBe('address.geocoding-unavailable');
+
+      const neither = await post(code, '/delivery/quotes', merchant.headers, {
+        pickup: { postcode: POSTCODE[code] },
+        dropoff: { postcode: POSTCODE[code], point: { lat: -27.49, lng: 153.02 } },
+        parcel,
+        mode: 'on_demand',
+      });
+      expect(neither.status).toBe(400);
+    });
+
     it('keeps one reference per merchant: another merchant books the same reference anew', async () => {
       const reference = `order-${randomUUID()}`;
       const mine = await post(

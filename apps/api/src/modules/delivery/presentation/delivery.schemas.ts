@@ -30,16 +30,27 @@ const shared = {
   vehicle: z.enum(VEHICLE_TYPES).optional(),
 };
 
+const address = z.string().min(3).max(300);
+
+/** A quoted stop: its point, or an address to geocode (with the postcode), or both. */
+const quoteStop = z
+  .strictObject({ postcode, point: point.optional(), address: address.optional() })
+  .refine((stop) => stop.point !== undefined || stop.address !== undefined, {
+    message: 'give the point or the address',
+    path: ['point'],
+  });
+
 export const quoteBody = z.strictObject({
-  pickup: z.strictObject({ postcode, point }),
-  dropoff: z.strictObject({ postcode, point }),
+  pickup: quoteStop,
+  dropoff: quoteStop,
   ...shared,
 });
 
+/** A booked stop; without a point it is geocoded from the address and postcode. */
 const stop = z.strictObject({
-  address: z.string().min(3).max(300),
+  address,
   postcode,
-  point,
+  point: point.optional(),
   contactName: z.string().min(1).max(120),
   contactPhone: z.string().regex(/^\+?[0-9 ]{6,20}$/),
   notes: z.string().max(500).optional(),

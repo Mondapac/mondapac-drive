@@ -9,9 +9,11 @@ import { DeliveryPricing } from './application/pricing';
 import {
   DELIVERY_REPOSITORY,
   DISTANCE_PROVIDER,
+  GEOCODER,
   MARKET_SETTINGS,
   type DeliveryRepository,
   type DistanceProvider,
+  type Geocoder,
   type MarketSettingsProvider,
 } from './application/ports';
 import {
@@ -36,9 +38,13 @@ import {
 
 const pricingProvider: FactoryProvider<DeliveryPricing> = {
   provide: DeliveryPricing,
-  inject: [MARKET_SETTINGS, DISTANCE_PROVIDER, CLOCK],
-  useFactory: (markets: MarketSettingsProvider, distances: DistanceProvider, clock: Clock) =>
-    new DeliveryPricing({ markets, distances, clock }),
+  inject: [MARKET_SETTINGS, DISTANCE_PROVIDER, GEOCODER, CLOCK],
+  useFactory: (
+    markets: MarketSettingsProvider,
+    distances: DistanceProvider,
+    geocoder: Geocoder,
+    clock: Clock,
+  ) => new DeliveryPricing({ markets, distances, geocoder, clock }),
 };
 
 /** The provider of a use case over one delivery: the gate and the delivery ports. */

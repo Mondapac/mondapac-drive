@@ -16,10 +16,13 @@ import { refusingBrokenRules, type DeliveryFailure } from '../failure';
 import type { DeliveryPricing, QuoteDeliveryInput } from '../pricing';
 import type { DeliveryRepository } from '../ports';
 
+/** A stop as booked: its point may be left out, then it is geocoded from the address. */
+export type BookedStop = Omit<Stop, 'point'> & { readonly point?: Stop['point'] };
+
 export interface BookDeliveryInput extends Omit<QuoteDeliveryInput, 'pickup' | 'dropoff'> {
   readonly externalReference: string;
-  readonly pickup: Stop;
-  readonly dropoff: Stop;
+  readonly pickup: BookedStop;
+  readonly dropoff: BookedStop;
   /** The total the merchant accepted from a quote; booking fails if the price has changed. */
   readonly expectedTotal?: bigint;
 }
@@ -69,7 +72,7 @@ export class BookDelivery extends UseCase<BookDeliveryInput, BookedDelivery, Del
     // Pricing reads no row, so it runs before the unit (marketplace persistence design 3.4).
     const quoted = await this.deps.pricing.price(market, input);
     if (!quoted.ok) return quoted;
-    const { quote, serviceArea } = quoted.value;
+    const { quote, serviceArea, pickupPoint, dropoffPoint } = quoted.value;
     if (input.expectedTotal !== undefined && input.expectedTotal !== quote.total.amount) {
       return err({
         code: 'quote.price-changed',
@@ -84,8 +87,8 @@ export class BookDelivery extends UseCase<BookDeliveryInput, BookedDelivery, Del
         merchantId,
         externalReference: input.externalReference,
         serviceAreaCode: serviceArea.code,
-        pickup: input.pickup,
-        dropoff: input.dropoff,
+        pickup: { ...input.pickup, point: pickupPoint },
+        dropoff: { ...input.dropoff, point: dropoffPoint },
         parcel: input.parcel,
         mode: input.mode,
         window: input.window,
