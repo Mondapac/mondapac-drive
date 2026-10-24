@@ -41,8 +41,11 @@ model FleetVehicle {
   coldBox         String  @map("cold_box") @db.VarChar(16)
   active          Boolean
 
-  courier FleetCourier @relation(fields: [marketId, courierId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  courier   FleetCourier    @relation(fields: [marketId, courierId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  documents FleetDocument[]
 
+  /// A document names a vehicle of its own courier (the documents foreign key).
+  @@unique([marketId, courierId, id])
   @@index([marketId, courierId])
   @@map("vehicles")
   @@schema("fleet")
@@ -65,7 +68,8 @@ model FleetDocument {
   reviewedAt      DateTime? @map("reviewed_at") @db.Timestamptz(6)
   rejectionReason String?   @map("rejection_reason") @db.VarChar(16)
 
-  courier FleetCourier @relation(fields: [marketId, courierId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  courier FleetCourier  @relation(fields: [marketId, courierId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  vehicle FleetVehicle? @relation(fields: [marketId, courierId, vehicleId], references: [marketId, courierId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([marketId, courierId])
   @@map("documents")

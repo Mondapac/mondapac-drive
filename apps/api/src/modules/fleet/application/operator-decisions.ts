@@ -13,6 +13,7 @@ import {
   suspendCourier,
   type CourierState,
 } from '../domain/courier';
+import type { ConfirmedTerms } from '../domain/courier';
 import type { SuspensionReason } from '../domain/courier-status';
 import { isOperator } from './access';
 import { CourierChanges } from './courier-changes';
@@ -23,21 +24,27 @@ import { forbidden, type FleetFailure } from './failure';
 
 type Outcome = Promise<Result<CourierState, FleetFailure>>;
 
-/** Approves an applicant whose documents make them eligible for at least one vehicle. */
+const termsOf = (courier: CourierState) => ({
+  status: courier.status,
+  employmentType: courier.employmentType,
+  coldChainCapable: courier.coldChainCapable,
+});
+
+/**
+ * Approves an applicant on the employment type and cold-chain capability the operator
+ * confirmed, once their documents make them eligible for at least one vehicle.
+ */
 @Injectable()
 export class ApproveCourier {
   constructor(private readonly changes: CourierChanges) {}
 
-  execute(context: CallContext, courierId: Id<'Courier'>): Outcome {
+  execute(context: CallContext, courierId: Id<'Courier'>, terms: ConfirmedTerms): Outcome {
     if (!isOperator(context)) return Promise.resolve(err(forbidden()));
     return this.changes.apply(context, courierId, {
       allowed: () => true,
-      decide: approveCourier,
+      decide: (courier, rules, now) => approveCourier(courier, terms, rules, now),
       audit: (before, after) =>
-        courierApproved.entry(after.id, {
-          before: { status: before.status },
-          after: { status: after.status },
-        }),
+        courierApproved.entry(after.id, { before: termsOf(before), after: termsOf(after) }),
     });
   }
 }
@@ -69,7 +76,7 @@ export class ReinstateCourier {
     if (!isOperator(context)) return Promise.resolve(err(forbidden()));
     return this.changes.apply(context, courierId, {
       allowed: () => true,
-      decide: reinstateCourier,
+      decide: (courier, rules, now) => reinstateCourier(courier, rules, now),
       audit: (before, after) =>
         courierReinstated.entry(after.id, {
           before: { status: before.status },

@@ -90,6 +90,9 @@ CREATE UNIQUE INDEX "couriers_market_id_actor_id_key" ON "fleet"."couriers"("mar
 CREATE INDEX "vehicles_market_id_courier_id_idx" ON "fleet"."vehicles"("market_id", "courier_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "vehicles_market_id_courier_id_id_key" ON "fleet"."vehicles"("market_id", "courier_id", "id");
+
+-- CreateIndex
 CREATE INDEX "documents_market_id_courier_id_idx" ON "fleet"."documents"("market_id", "courier_id");
 
 -- CreateIndex
@@ -100,6 +103,9 @@ ALTER TABLE "fleet"."vehicles" ADD CONSTRAINT "vehicles_market_id_courier_id_fke
 
 -- AddForeignKey
 ALTER TABLE "fleet"."documents" ADD CONSTRAINT "documents_market_id_courier_id_fkey" FOREIGN KEY ("market_id", "courier_id") REFERENCES "fleet"."couriers"("market_id", "id") ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+-- A vehicle document names a vehicle of the same courier (security review L3).
+ALTER TABLE "fleet"."documents" ADD CONSTRAINT "documents_market_id_courier_id_vehicle_id_fkey" FOREIGN KEY ("market_id", "courier_id", "vehicle_id") REFERENCES "fleet"."vehicles"("market_id", "courier_id", "id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 
 -- The codes the domain writes, so a row can never hold another value (database-designer).
@@ -126,11 +132,11 @@ ALTER TABLE "fleet"."documents"
   ADD CONSTRAINT "documents_tenant_id_check" CHECK ("tenant_id" ~ '^[a-z][a-z0-9-]{1,31}$'),
   ADD CONSTRAINT "documents_type_check" CHECK ("type" ~ '^[a-z][a-z0-9_]{1,39}$'),
   ADD CONSTRAINT "documents_media_type_check" CHECK ("media_type" IN ('application/pdf', 'image/jpeg', 'image/png')),
-  ADD CONSTRAINT "documents_status_check" CHECK ("status" IN ('submitted', 'verified', 'rejected')),
-  -- A reviewed document has its review time; only a rejected one has a reason.
+  ADD CONSTRAINT "documents_status_check" CHECK ("status" IN ('submitted', 'verified', 'rejected', 'revoked')),
+  -- A reviewed document has its review time; only a rejected or revoked one has a reason.
   ADD CONSTRAINT "documents_review_check" CHECK (
     ("status" = 'submitted') = ("reviewed_at" IS NULL)
-    AND ("status" = 'rejected') = ("rejection_reason" IS NOT NULL)),
+    AND ("status" IN ('rejected', 'revoked')) = ("rejection_reason" IS NOT NULL)),
   -- The key the module builds: fleet/<market>/<courier>/<document>.
   ADD CONSTRAINT "documents_file_key_check" CHECK ("file_key" ~ '^fleet/[A-Za-z0-9_-]+/[0-9a-f-]{36}/[0-9a-f-]{36}$');
 
@@ -147,13 +153,14 @@ ALTER TABLE "fleet"."outbox"
 CREATE INDEX "outbox_market_id_event_id_unpublished_idx" ON "fleet"."outbox" ("market_id", "event_id") WHERE "published_at" IS NULL;
 
 -- Grants (database-designer): rows are never deleted. A courier changes only its standing,
--- shift and version; a vehicle only its active flag; a document only its review. The outbox
--- envelope is immutable to the application.
+-- shift, version and the terms an operator confirms on approval; a vehicle only its active
+-- flag; a document only its review and the expiry the operator confirms. The outbox envelope
+-- is immutable to the application.
 GRANT USAGE ON SCHEMA "fleet" TO "drive_app";
 GRANT SELECT, INSERT ON TABLE "fleet"."couriers" TO "drive_app";
-GRANT UPDATE ("status", "shift", "version") ON TABLE "fleet"."couriers" TO "drive_app";
+GRANT UPDATE ("status", "shift", "version", "employment_type", "cold_chain_capable") ON TABLE "fleet"."couriers" TO "drive_app";
 GRANT SELECT, INSERT ON TABLE "fleet"."vehicles" TO "drive_app";
 GRANT UPDATE ("active") ON TABLE "fleet"."vehicles" TO "drive_app";
 GRANT SELECT, INSERT ON TABLE "fleet"."documents" TO "drive_app";
-GRANT UPDATE ("status", "reviewed_at", "rejection_reason") ON TABLE "fleet"."documents" TO "drive_app";
+GRANT UPDATE ("status", "expires_at", "reviewed_at", "rejection_reason") ON TABLE "fleet"."documents" TO "drive_app";
 GRANT SELECT, INSERT, UPDATE ("published_at") ON TABLE "fleet"."outbox" TO "drive_app";

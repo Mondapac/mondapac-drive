@@ -217,7 +217,13 @@ export class PrismaCourierRepository implements CourierRepository {
         id: courier.id,
         version: courier.version - 1,
       },
-      data: { status: courier.status, shift: courier.shift, version: courier.version },
+      data: {
+        status: courier.status,
+        shift: courier.shift,
+        employmentType: courier.employmentType,
+        coldChainCapable: courier.coldChainCapable,
+        version: courier.version,
+      },
     });
     if (updated.count !== 1) throw new StaleAggregateError('courier', courier.id);
     await this.saveChildren(market, courier);
@@ -291,6 +297,7 @@ export class PrismaCourierRepository implements CourierRepository {
         where: { ...scope, courierId: courier.id, id: document.id },
         data: {
           status: document.status,
+          expiresAt: toOptionalDate(document.expiresAt),
           reviewedAt: toOptionalDate(document.reviewedAt),
           rejectionReason: document.rejectionReason ?? null,
         },

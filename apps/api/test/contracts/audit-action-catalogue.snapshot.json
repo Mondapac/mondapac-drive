@@ -5,9 +5,13 @@
     "targetId": "id",
     "actors": ["authenticated"],
     "before": {
+      "coldChainCapable": "boolean",
+      "employmentType": "enumOf(employee|contractor)",
       "status": "enumOf(applicant|active|suspended|offboarded)"
     },
     "after": {
+      "coldChainCapable": "boolean",
+      "employmentType": "enumOf(employee|contractor)",
       "status": "enumOf(applicant|active|suspended|offboarded)"
     }
   },
@@ -56,7 +60,18 @@
     "before": null,
     "after": {
       "courierId": "id",
-      "reason": "enumOf(illegible|expired|mismatch|incomplete|other)"
+      "reason": "enumOf(illegible|expired|mismatch|incomplete|cancelled|fraudulent|other)"
+    }
+  },
+  {
+    "action": "fleet.document.revoked",
+    "targetType": "fleet.document",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id",
+      "reason": "enumOf(illegible|expired|mismatch|incomplete|cancelled|fraudulent|other)"
     }
   },
   {
@@ -67,7 +82,18 @@
     "before": null,
     "after": {
       "courierId": "id",
+      "declaredExpiresAt": "optional(instant)",
       "expiresAt": "optional(instant)"
+    }
+  },
+  {
+    "action": "fleet.vehicle.deactivated",
+    "targetType": "fleet.vehicle",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id"
     }
   }
 ]

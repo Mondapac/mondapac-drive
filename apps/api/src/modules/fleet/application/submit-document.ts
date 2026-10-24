@@ -109,8 +109,20 @@ export class SubmitCourierDocument {
           ),
       });
     } finally {
-      if (result === undefined || !result.ok) await this.files.delete(fileKey);
+      if (result === undefined || !result.ok) await this.removeQuietly(fileKey);
     }
     return result.ok ? ok({ courier: result.value, documentId }) : result;
+  }
+
+  /**
+   * Removes the file of a refused submission. A failure here must not hide why the submission
+   * failed: the file is then left for the sweep of keys that no document row names.
+   */
+  private async removeQuietly(fileKey: string): Promise<void> {
+    try {
+      await this.files.delete(fileKey);
+    } catch {
+      // The object store is unavailable; the sweep removes the file later.
+    }
   }
 }

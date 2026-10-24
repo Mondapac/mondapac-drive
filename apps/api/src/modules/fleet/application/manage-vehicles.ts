@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { CallContext, Id, IdGenerator, Result } from '@mondapac-drive/shared-kernel';
 import { ID_GENERATOR } from '../../../platform/ids/ids.module';
+import { vehicleDeactivated } from '../domain/audit-actions';
 import { addVehicle, deactivateVehicle, type CourierState } from '../domain/courier';
 import type { ColdBox, VehicleType } from '../domain/vehicle';
 import { isCourierThemself, isOperator } from './access';
@@ -36,7 +37,7 @@ export class AddVehicle {
   }
 }
 
-/** The courier, or an operator, takes a vehicle out of use. */
+/** The courier, or an operator, takes a vehicle out of use; an operator's doing is audited. */
 @Injectable()
 export class DeactivateVehicle {
   constructor(private readonly changes: CourierChanges) {}
@@ -49,6 +50,10 @@ export class DeactivateVehicle {
     return this.changes.apply(context, courierId, {
       allowed: (courier) => isCourierThemself(context, courier) || isOperator(context),
       decide: (courier) => deactivateVehicle(courier, vehicleId),
+      audit: (before, after) =>
+        isCourierThemself(context, before)
+          ? undefined
+          : vehicleDeactivated.entry(vehicleId, { after: { courierId: after.id } }),
     });
   }
 }

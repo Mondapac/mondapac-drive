@@ -13,7 +13,11 @@ import {
   SuspendCourier,
 } from './application/operator-decisions';
 import { RegisterCourier } from './application/register-courier';
-import { RejectCourierDocument, VerifyCourierDocument } from './application/review-document';
+import {
+  RejectCourierDocument,
+  RevokeCourierDocument,
+  VerifyCourierDocument,
+} from './application/review-document';
 import { SubmitCourierDocument } from './application/submit-document';
 import { FleetDirectory } from './application/use-cases/find-eligible-couriers.use-case';
 import { FLEET_AUDIT_ACTIONS } from './domain/audit-actions';
@@ -44,6 +48,7 @@ import { fleetProviders } from './infrastructure/fleet-providers';
     OffboardCourier,
     VerifyCourierDocument,
     RejectCourierDocument,
+    RevokeCourierDocument,
     FleetDirectory,
     ...fleetProviders,
   ],

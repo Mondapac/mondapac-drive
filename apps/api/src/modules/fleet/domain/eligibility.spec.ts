@@ -1,5 +1,6 @@
 import {
   applicant,
+  asDeclared,
   eligibleApplicant,
   fleetRules,
   T0,
@@ -18,7 +19,7 @@ describe.each(TEST_MARKET_IDS)('eligibility in market %s', (marketId) => {
   const coldChainOnly = rules.documents.filter((d) => d.coldChainOnly);
 
   function online(courier: CourierState): CourierState {
-    const active = approveCourier(courier, rules, T0).courier;
+    const active = approveCourier(courier, asDeclared(courier), rules, T0).courier;
     return changeShift(active, 'online', rules, T0).courier;
   }
 

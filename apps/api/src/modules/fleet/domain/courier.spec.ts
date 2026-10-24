@@ -1,5 +1,6 @@
 import {
   applicant,
+  asDeclared,
   eligibleApplicant,
   fleetRules,
   IN_A_YEAR,
@@ -17,6 +18,7 @@ import {
   offboardCourier,
   reinstateCourier,
   rejectDocument,
+  revokeDocument,
   submitDocument,
   suspendCourier,
   verifyDocument,
@@ -31,7 +33,8 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
 
   /** An approved courier with an eligible van, offline. */
   function activeCourier(): CourierState {
-    return approveCourier(eligibleApplicant({ marketId }).courier, rules, T0).courier;
+    const { courier } = eligibleApplicant({ marketId });
+    return approveCourier(courier, asDeclared(courier), rules, T0).courier;
   }
 
   function shifts(courier: CourierState, ...states: ShiftState[]): CourierState {
@@ -54,17 +57,19 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
 
     it('approves an applicant only once a vehicle is eligible', () => {
       const withVan = addVehicle(applicant({ marketId }), vehicleInput()).courier;
-      expect(() => approveCourier(withVan, rules, T0)).toThrow(code('fleet.courier.not-eligible'));
+      expect(() => approveCourier(withVan, asDeclared(withVan), rules, T0)).toThrow(
+        code('fleet.courier.not-eligible'),
+      );
 
       const { courier } = eligibleApplicant({ marketId });
-      const approved = approveCourier(courier, rules, T0);
+      const approved = approveCourier(courier, asDeclared(courier), rules, T0);
 
       expect(approved.courier.status).toBe('active');
       expect(approved.courier.version).toBe(courier.version + 1);
       expect(approved.events).toEqual([]);
-      expect(() => approveCourier(approved.courier, rules, T0)).toThrow(
-        code('fleet.courier.not-an-applicant'),
-      );
+      expect(() =>
+        approveCourier(approved.courier, asDeclared(approved.courier), rules, T0),
+      ).toThrow(code('fleet.courier.not-an-applicant'));
     });
 
     it('suspends an online courier, ending the shift, and says so in one event', () => {
@@ -88,10 +93,12 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
 
     it('reinstates a suspended courier, who starts offline', () => {
       const suspended = suspendCourier(activeCourier(), 'conduct', T0).courier;
-      const { courier } = reinstateCourier(suspended);
+      const { courier } = reinstateCourier(suspended, rules, T0);
 
       expect(courier).toMatchObject({ status: 'active', shift: 'offline' });
-      expect(() => reinstateCourier(courier)).toThrow(code('fleet.courier.not-suspended'));
+      expect(() => reinstateCourier(courier, rules, T0)).toThrow(
+        code('fleet.courier.not-suspended'),
+      );
       expect(() => suspendCourier(courier, 'gossip' as never, T0)).toThrow(
         code('fleet.courier.suspension-reason-unknown'),
       );
@@ -267,7 +274,7 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
       const id = submitted.courier.documents[0]!.id;
       const later = T0.add({ hours: 1 });
 
-      const verified = verifyDocument(submitted.courier, id, later).courier;
+      const verified = verifyDocument(submitted.courier, id, IN_A_YEAR, later).courier;
       expect(verified.documents[0]).toMatchObject({ status: 'verified', reviewedAt: later });
       expect(() => rejectDocument(verified, id, 'illegible', later)).toThrow(
         code('fleet.document.already-reviewed'),
@@ -281,7 +288,7 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
       expect(() => rejectDocument(submitted.courier, id, 'ugly' as never, later)).toThrow(
         code('fleet.document.rejection-reason-unknown'),
       );
-      expect(() => verifyDocument(submitted.courier, nextId(), later)).toThrow(
+      expect(() => verifyDocument(submitted.courier, nextId(), IN_A_YEAR, later)).toThrow(
         code('fleet.document.not-found'),
       );
     });
@@ -290,7 +297,7 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
       const submitted = submit(applicant({ marketId }), {});
       const id = submitted.courier.documents[0]!.id;
 
-      expect(() => verifyDocument(submitted.courier, id, IN_A_YEAR)).toThrow(
+      expect(() => verifyDocument(submitted.courier, id, IN_A_YEAR, IN_A_YEAR)).toThrow(
         code('fleet.document.expired'),
       );
     });
@@ -308,6 +315,102 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
       );
 
       expect(changeShift(renewed, 'online', rules, later).courier.shift).toBe('online');
+    });
+  });
+
+  describe('what the operator confirms (security review M1 to M3)', () => {
+    const contractorOnly = rules.documents.filter((d) => d.employmentTypes?.includes('contractor'));
+
+    it('approves on the employment type the operator confirms, not the one declared', () => {
+      // Declared employee, so the contractor-only documents were never asked for.
+      const van = vehicleInput();
+      const declared = withVerifiedDocuments(
+        addVehicle(applicant({ marketId, employmentType: 'employee' }), van).courier,
+        rules,
+        van.id,
+      );
+      expect(contractorOnly.length).toBeGreaterThan(0);
+      expect(() =>
+        approveCourier(
+          declared,
+          { employmentType: 'contractor', coldChainCapable: false },
+          rules,
+          T0,
+        ),
+      ).toThrow(code('fleet.courier.not-eligible'));
+
+      const approved = approveCourier(
+        declared,
+        { employmentType: 'employee', coldChainCapable: false },
+        rules,
+        T0,
+      ).courier;
+      expect(approved).toMatchObject({ employmentType: 'employee', coldChainCapable: false });
+    });
+
+    it('revokes a verified document, after which the courier is neither eligible nor reinstated', () => {
+      const active = activeCourier();
+      const everyone = rules.documents.find((r) => !r.employmentTypes && !r.coldChainOnly)!;
+      const document = active.documents.find((d) => d.type === everyone.type)!;
+      const revoked = revokeDocument(active, document.id, 'fraudulent', T0).courier;
+
+      expect(revoked.documents.find((d) => d.id === document.id)).toMatchObject({
+        status: 'revoked',
+        rejectionReason: 'fraudulent',
+      });
+      expect(() => changeShift(revoked, 'online', rules, T0)).toThrow(
+        code('fleet.courier.not-eligible'),
+      );
+      const suspended = suspendCourier(revoked, 'documents', T0).courier;
+      expect(() => reinstateCourier(suspended, rules, T0)).toThrow(
+        code('fleet.courier.not-eligible'),
+      );
+      expect(() => revokeDocument(revoked, document.id, 'fraudulent', T0)).toThrow(
+        code('fleet.document.not-verified'),
+      );
+    });
+
+    it('takes the expiry the operator read on the document, not the declared one', () => {
+      const ofCourier = rules.documents.find((d) => !d.perVehicle && d.expires)!;
+      const neverExpires = rules.documents.find((d) => !d.perVehicle && !d.expires)!;
+      const id = nextId<'CourierDocument'>();
+      const courier = applicant({ marketId });
+      const submitted = submitDocument(
+        courier,
+        {
+          id,
+          type: ofCourier.type,
+          fileKey: `fleet/${marketId}/${courier.id}/${id}`,
+          mediaType: 'application/pdf',
+          expiresAt: T0.add({ hours: 24 * 365 * 70 }),
+        },
+        rules,
+        T0,
+      ).courier;
+      const confirmed = T0.add({ hours: 24 * 30 });
+
+      expect(() => verifyDocument(submitted, id, undefined, T0)).toThrow(
+        code('fleet.document.expiry-required'),
+      );
+      expect(verifyDocument(submitted, id, confirmed, T0).courier.documents[0]!.expiresAt).toEqual(
+        confirmed,
+      );
+
+      const otherId = nextId<'CourierDocument'>();
+      const noExpiry = submitDocument(
+        courier,
+        {
+          id: otherId,
+          type: neverExpires.type,
+          fileKey: `fleet/${marketId}/${courier.id}/${otherId}`,
+          mediaType: 'application/pdf',
+        },
+        rules,
+        T0,
+      ).courier;
+      expect(() => verifyDocument(noExpiry, otherId, confirmed, T0)).toThrow(
+        code('fleet.document.expiry-not-allowed'),
+      );
     });
   });
 });

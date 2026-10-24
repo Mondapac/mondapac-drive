@@ -89,15 +89,34 @@ function requireEligible(courier: CourierState, rules: MarketFleetRules, now: Te
 
 // --- Operator decisions ---------------------------------------------------------------------
 
-/** Approves an applicant whose documents already make them eligible for a vehicle. */
+/**
+ * What the operator confirmed when approving: the courier declares their employment type and
+ * cold-chain capability when applying, but those decide which documents are required, so the
+ * operator sets them from the contract and training records.
+ */
+export interface ConfirmedTerms {
+  readonly employmentType: EmploymentType;
+  readonly coldChainCapable: boolean;
+}
+
+/** Approves an applicant on the terms the operator confirmed, once they make a vehicle eligible. */
 export function approveCourier(
   courier: CourierState,
+  terms: ConfirmedTerms,
   rules: MarketFleetRules,
   now: Temporal.Instant,
 ): CourierChange {
   requireStatus(courier, ['applicant'], 'fleet.courier.not-an-applicant');
-  requireEligible(courier, rules, now);
-  return unchanged(next(courier, { status: 'active' }));
+  if (!(EMPLOYMENT_TYPES as readonly string[]).includes(terms.employmentType)) {
+    throw new FleetDomainError('fleet.courier.employment-type-unknown', 'Unknown employment type');
+  }
+  const confirmed: CourierState = {
+    ...courier,
+    employmentType: terms.employmentType,
+    coldChainCapable: terms.coldChainCapable,
+  };
+  requireEligible(confirmed, rules, now);
+  return unchanged(next(confirmed, { status: 'active' }));
 }
 
 /** Suspends an active courier, which also ends their shift. */
@@ -124,8 +143,14 @@ export function suspendCourier(
   };
 }
 
-export function reinstateCourier(courier: CourierState): CourierChange {
+/** Reinstates a suspended courier whose documents still make them eligible now. */
+export function reinstateCourier(
+  courier: CourierState,
+  rules: MarketFleetRules,
+  now: Temporal.Instant,
+): CourierChange {
   requireStatus(courier, ['suspended'], 'fleet.courier.not-suspended');
+  requireEligible(courier, rules, now);
   return unchanged(next(courier, { status: 'active' }));
 }
 
@@ -265,35 +290,73 @@ function reviewed(
   courier: CourierState,
   documentId: Id<'CourierDocument'>,
   review: (document: CourierDocument) => CourierDocument,
+  from: CourierDocument['status'] = 'submitted',
 ): CourierState {
   const document = courier.documents.find((candidate) => candidate.id === documentId);
   if (document === undefined) {
     throw new FleetDomainError('fleet.document.not-found', 'No such document');
   }
-  if (document.status !== 'submitted') {
-    throw new FleetDomainError('fleet.document.already-reviewed', 'The document was reviewed');
+  if (document.status !== from) {
+    throw new FleetDomainError(
+      from === 'submitted' ? 'fleet.document.already-reviewed' : 'fleet.document.not-verified',
+      `The document is ${document.status}`,
+    );
   }
   return next(courier, {
     documents: courier.documents.map((d) => (d.id === documentId ? review(d) : d)),
   });
 }
 
-/** An operator checked the file against the original: it counts from now until it expires. */
+/**
+ * An operator checked the file against the original: it counts from now until it expires. For
+ * a document that expires, the operator gives the expiry they read on it, which replaces the
+ * one the courier declared.
+ */
 export function verifyDocument(
   courier: CourierState,
   documentId: Id<'CourierDocument'>,
+  confirmedExpiresAt: Temporal.Instant | undefined,
   now: Temporal.Instant,
 ): CourierChange {
   return unchanged(
     reviewed(courier, documentId, (document) => {
-      if (
-        document.expiresAt !== undefined &&
-        document.expiresAt.epochMilliseconds <= now.epochMilliseconds
-      ) {
+      if (document.expiresAt === undefined) {
+        if (confirmedExpiresAt !== undefined) {
+          throw new FleetDomainError(
+            'fleet.document.expiry-not-allowed',
+            'This document does not expire',
+          );
+        }
+        return { ...document, status: 'verified', reviewedAt: now };
+      }
+      if (confirmedExpiresAt === undefined) {
+        throw new FleetDomainError('fleet.document.expiry-required', 'Confirm the expiry date');
+      }
+      if (confirmedExpiresAt.epochMilliseconds <= now.epochMilliseconds) {
         throw new FleetDomainError('fleet.document.expired', 'The document has expired');
       }
-      return { ...document, status: 'verified', reviewedAt: now };
+      return { ...document, expiresAt: confirmedExpiresAt, status: 'verified', reviewedAt: now };
     }),
+  );
+}
+
+/** An operator withdraws a verified document that was cancelled or found false. */
+export function revokeDocument(
+  courier: CourierState,
+  documentId: Id<'CourierDocument'>,
+  reason: RejectionReason,
+  now: Temporal.Instant,
+): CourierChange {
+  if (!(REJECTION_REASONS as readonly string[]).includes(reason)) {
+    throw new FleetDomainError('fleet.document.rejection-reason-unknown', 'Unknown reason');
+  }
+  return unchanged(
+    reviewed(
+      courier,
+      documentId,
+      (document) => ({ ...document, status: 'revoked', reviewedAt: now, rejectionReason: reason }),
+      'verified',
+    ),
   );
 }
 

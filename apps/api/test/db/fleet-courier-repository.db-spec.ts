@@ -11,6 +11,7 @@ import { PrismaCourierRepository } from '../../src/modules/fleet/infrastructure/
 import { StaleAggregateError } from '../../src/platform/unit-of-work/errors';
 import {
   applicant,
+  asDeclared,
   eligibleApplicant,
   fleetRules,
   IN_A_YEAR,
@@ -94,7 +95,7 @@ describe('fleet courier repository (database integration)', () => {
       const { courier, vehicleId } = eligible();
       await inUnit(code, () => repository.insert(market, courier));
 
-      const approved = approveCourier(courier, rules, T0).courier;
+      const approved = approveCourier(courier, asDeclared(courier), rules, T0).courier;
       const online = changeShift(approved, 'online', rules, T0).courier;
       const offline = changeShift(online, 'offline', rules, T0).courier;
       const retired = deactivateVehicle(offline, vehicleId).courier;
@@ -134,7 +135,7 @@ describe('fleet courier repository (database integration)', () => {
           actorId: `account-${newId()}`,
           serviceAreaCode: area,
         });
-        return approveCourier(courier, rules, T0).courier;
+        return approveCourier(courier, asDeclared(courier), rules, T0).courier;
       };
       const onlineOne = make();
       const offlineOne = make();
@@ -172,6 +173,30 @@ describe('fleet courier repository (database integration)', () => {
         { readOnly: true },
       );
       expect(byId).toEqual({ ok: true, value: undefined });
+    });
+
+    it('refuses a document naming the vehicle of another courier (foreign key)', async () => {
+      const owner = eligible();
+      const other = eligible();
+      await inUnit(code, () => repository.insert(market, owner.courier));
+      await inUnit(code, () => repository.insert(market, other.courier));
+
+      const forged = other.courier.documents.find((d) => d.vehicleId !== undefined)!;
+      const docId = nextId<'CourierDocument'>();
+      const tampered: CourierState = {
+        ...other.courier,
+        version: other.courier.version + 1,
+        documents: [
+          ...other.courier.documents,
+          {
+            ...forged,
+            id: docId,
+            vehicleId: owner.vehicleId,
+            fileKey: `fleet/${code}/${other.courier.id}/${docId}`,
+          },
+        ],
+      };
+      await expect(inUnit(code, () => repository.update(market, tampered))).rejects.toThrow();
     });
 
     it('refuses a shift for a courier who is not active (CHECK)', async () => {

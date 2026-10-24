@@ -34,7 +34,7 @@ export interface ChangeOfCourier {
     now: Temporal.Instant,
   ) => CourierChange;
   /** The audit row of an operator decision, written in the same unit. */
-  readonly audit?: (before: CourierState, after: CourierState) => AuditEntry;
+  readonly audit?: (before: CourierState, after: CourierState) => AuditEntry | undefined;
 }
 
 /**
@@ -66,8 +66,8 @@ export class CourierChanges {
         if (decided.courier === courier) return ok(courier);
         await this.couriers.update(context.market, decided.courier);
         if (decided.events.length > 0) await this.outbox.append(context, decided.events);
-        if (change.audit)
-          await this.auditLog.record(context, change.audit(courier, decided.courier));
+        const entry = change.audit?.(courier, decided.courier);
+        if (entry !== undefined) await this.auditLog.record(context, entry);
         return ok(decided.courier);
       }),
     );

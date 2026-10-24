@@ -4,18 +4,21 @@ import type { EmploymentType } from './courier-status';
 import type { Vehicle } from './vehicle';
 
 /**
- * A document's review: submitted by the courier, then verified or rejected by an operator. A
- * rejected document stays rejected; the courier submits a new one.
+ * A document's review: submitted by the courier, then verified or rejected by an operator. An
+ * operator revokes a verified document that was cancelled or found false. A rejected or
+ * revoked document stays so; the courier submits a new one.
  */
-export const DOCUMENT_STATUSES = ['submitted', 'verified', 'rejected'] as const;
+export const DOCUMENT_STATUSES = ['submitted', 'verified', 'rejected', 'revoked'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
-/** Why an operator rejected a document: codes, never free text. */
+/** Why an operator rejected or revoked a document: codes, never free text. */
 export const REJECTION_REASONS = [
   'illegible',
   'expired',
   'mismatch',
   'incomplete',
+  'cancelled',
+  'fraudulent',
   'other',
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];

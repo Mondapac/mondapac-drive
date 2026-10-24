@@ -5,6 +5,7 @@ import {
   registerCourier,
   submitDocument,
   verifyDocument,
+  type ConfirmedTerms,
   type CourierState,
 } from '../../src/modules/fleet/domain/courier';
 import type { EmploymentType } from '../../src/modules/fleet/domain/courier-status';
@@ -123,9 +124,15 @@ export function withVerifiedDocuments(
       rules,
       at,
     ).courier;
-    current = verifyDocument(current, id, at).courier;
+    const expiry = requirement.expires ? (options.expiresAt ?? IN_A_YEAR) : undefined;
+    current = verifyDocument(current, id, expiry, at).courier;
   }
   return current;
+}
+
+/** The terms an applicant declared, as an operator confirms them when approving. */
+export function asDeclared(courier: CourierState): ConfirmedTerms {
+  return { employmentType: courier.employmentType, coldChainCapable: courier.coldChainCapable };
 }
 
 /** An applicant with one van whose documents (cold chain included) are all verified. */

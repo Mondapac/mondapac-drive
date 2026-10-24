@@ -12,7 +12,7 @@ import pino from 'pino';
 import { AppModule } from '../../src/app.module';
 import { FleetDirectory } from '../../src/modules/fleet';
 import { ChangeShift } from '../../src/modules/fleet/application/change-shift';
-import { AddVehicle } from '../../src/modules/fleet/application/manage-vehicles';
+import { AddVehicle, DeactivateVehicle } from '../../src/modules/fleet/application/manage-vehicles';
 import {
   ApproveCourier,
   ReinstateCourier,
@@ -25,7 +25,13 @@ import type { CourierState } from '../../src/modules/fleet/domain/courier';
 import { requirementApplies } from '../../src/modules/fleet/domain/documents';
 import { CLOCK } from '../../src/platform/clock/clock.module';
 import { OBJECT_STORE, type ObjectStore } from '../../src/platform/storage/object-store';
-import { fleetRules, IN_A_YEAR, T0, TEST_SERVICE_AREAS } from '../support/fleet-markets';
+import {
+  asDeclared,
+  fleetRules,
+  IN_A_YEAR,
+  T0,
+  TEST_SERVICE_AREAS,
+} from '../support/fleet-markets';
 import { testAppConfig, TEST_MARKETS } from '../support/test-config';
 import { marketOf } from './persistence-support';
 import { testDatabaseUrl } from './test-database';
@@ -172,7 +178,12 @@ describe('fleet use cases (database integration)', () => {
         const document = submitted.courier.documents.find((d) => d.id === submitted.documentId)!;
         expect(files.objects.get(document.fileKey)).toEqual(PDF);
         courier = value(
-          await use(VerifyCourierDocument).execute(operator, courierId, submitted.documentId),
+          await use(VerifyCourierDocument).execute(
+            operator,
+            courierId,
+            submitted.documentId,
+            requirement.expires ? IN_A_YEAR : undefined,
+          ),
         );
       }
       return courier;
@@ -201,10 +212,11 @@ describe('fleet use cases (database integration)', () => {
       }
 
       const approver = person('admin', 'approver');
-      const approved = value(await use(ApproveCourier).execute(approver, applicant.id));
+      const terms = { employmentType: 'contractor' as const, coldChainCapable: true };
+      const approved = value(await use(ApproveCourier).execute(approver, applicant.id, terms));
       expect(approved.status).toBe('active');
       expect((await auditOf(approver.correlationId)).map((row) => row.after)).toEqual([
-        { status: 'active' },
+        { status: 'active', ...terms },
       ]);
 
       const online = value(await use(ChangeShift).execute(courierContext, applicant.id, 'online'));
@@ -300,8 +312,12 @@ describe('fleet use cases (database integration)', () => {
           file: PDF,
         }),
       ).toEqual(notFound);
-      expect(await use(ApproveCourier).execute(courierContext, courier.id)).toEqual(forbidden);
-      expect(await use(ApproveCourier).execute(system(), courier.id)).toEqual(forbidden);
+      expect(
+        await use(ApproveCourier).execute(courierContext, courier.id, asDeclared(courier)),
+      ).toEqual(forbidden);
+      expect(await use(ApproveCourier).execute(system(), courier.id, asDeclared(courier))).toEqual(
+        forbidden,
+      );
       expect(
         await use(RegisterCourier).execute(system(), {
           employmentType: 'employee',
@@ -309,6 +325,42 @@ describe('fleet use cases (database integration)', () => {
           coldChainCapable: false,
         }),
       ).toEqual(forbidden);
+    });
+
+    it('audits a vehicle an operator takes out of use, and not one the courier does', async () => {
+      const courierContext = person('customer', 'vehicles');
+      const { courier } = value(
+        await use(RegisterCourier).execute(courierContext, {
+          employmentType: 'employee',
+          serviceAreaCode: area,
+          coldChainCapable: false,
+        }),
+      );
+      const vehicle = (plate: string) => ({
+        type: 'van' as const,
+        plate,
+        maxWeightGrams: 1000,
+        maxVolumeLitres: 10,
+        coldBox: 'none' as const,
+      });
+      await use(AddVehicle).execute(courierContext, courier.id, vehicle('VAN1'));
+      const both = value(
+        await use(AddVehicle).execute(courierContext, courier.id, vehicle('VAN2')),
+      );
+      const [first, second] = both.vehicles;
+
+      value(await use(DeactivateVehicle).execute(courierContext, courier.id, first!.id));
+      expect(await auditOf(courierContext.correlationId)).toEqual([]);
+
+      const operator = person('admin', 'vehicle-off');
+      value(await use(DeactivateVehicle).execute(operator, courier.id, second!.id));
+      expect(await auditOf(operator.correlationId)).toEqual([
+        expect.objectContaining({
+          action: 'fleet.vehicle.deactivated',
+          target_id: second!.id,
+          after: { courierId: courier.id },
+        }),
+      ]);
     });
 
     it('keeps no file of a refused document, and reads the file type from its bytes', async () => {
