@@ -22,6 +22,7 @@ import {
 import {
   CancelDelivery,
   DispatchDelivery,
+  ListDeliveries,
   ViewDelivery,
 } from './application/use-cases/admin-deliveries.use-case';
 import { BookDelivery } from './application/use-cases/book-delivery.use-case';
@@ -110,6 +111,7 @@ function deliveryUseCase<U>(
     deliveryUseCase(CancelBooking),
     deliveryUseCase(ViewAssignment),
     deliveryUseCase(ReportAssignmentEvent),
+    deliveryUseCase(ListDeliveries),
     deliveryUseCase(ViewDelivery),
     {
       provide: DispatchDelivery,

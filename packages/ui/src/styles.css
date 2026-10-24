@@ -1,0 +1,125 @@
+/* Token mapping for the panels (ADR-0033 decision 2). The exported Figma tokens are imported
+ * as they are; this file only gives Tailwind names to them. Tailwind's default colours are
+ * switched off, so every colour in the panels is a token. */
+@import 'tailwindcss';
+@import '../../../docs/design/tokens/tokens.css';
+
+@theme inline {
+  --color-*: initial;
+  /* Panels IA 4: the sidebar column starts at 760 px; below it the drawer is used. */
+  --breakpoint-md: 47.5rem;
+  --radius-sm: var(--mp-radius-chip);
+  --radius-md: var(--mp-radius-control);
+  --radius-lg: var(--mp-radius-card);
+  --color-page: var(--mp-color-bg-page);
+  --color-surface: var(--mp-color-bg-surface);
+  --color-subtle: var(--mp-color-bg-subtle);
+  --color-muted: var(--mp-color-bg-muted);
+  --color-selected: var(--mp-color-bg-selected);
+  --color-line: var(--mp-color-border-default);
+  --color-line-row: var(--mp-color-border-row);
+  --color-line-control: var(--mp-color-border-control);
+  --color-line-input: var(--mp-color-border-input);
+  --color-fg: var(--mp-color-text-primary);
+  --color-fg-secondary: var(--mp-color-text-secondary);
+  --color-fg-muted: var(--mp-color-text-muted);
+  --color-link: var(--mp-color-text-link);
+  --color-icon: var(--mp-color-icon-default);
+  --color-icon-muted: var(--mp-color-icon-muted);
+  --color-on-accent: var(--mp-color-text-on-accent);
+  --color-accent: var(--mp-color-action-primary);
+  --color-accent-hover: var(--mp-color-action-primary-hover);
+  --color-accent-disabled: var(--mp-color-action-primary-disabled);
+  --color-scrim: var(--mp-color-bg-scrim);
+  --color-focus: var(--mp-color-focus-ring);
+  --color-success-bg: var(--mp-color-status-success-bg);
+  --color-success-fg: var(--mp-color-status-success-fg);
+  --color-attention-bg: var(--mp-color-status-attention-bg);
+  --color-attention-fg: var(--mp-color-status-attention-fg);
+  --color-critical-bg: var(--mp-color-status-critical-bg);
+  --color-critical-fg: var(--mp-color-status-critical-fg);
+  --color-info-bg: var(--mp-color-status-info-bg);
+  --color-info-fg: var(--mp-color-status-info-fg);
+  --color-neutral-bg: var(--mp-color-status-neutral-bg);
+  --color-neutral-fg: var(--mp-color-status-neutral-fg);
+  --color-showcase-seller: var(--mp-color-bg-auth-showcase-seller);
+  --color-showcase-admin: var(--mp-color-bg-auth-showcase-admin);
+  --color-on-showcase: var(--mp-color-text-on-showcase);
+  --color-on-showcase-muted: var(--mp-color-text-on-showcase-muted);
+  --color-showcase-card: var(--mp-color-bg-auth-showcase-card);
+  --color-critical-solid: var(--mp-color-status-critical-solid);
+  --color-critical-border: var(--mp-color-status-critical-border);
+  --color-info-border: var(--mp-color-border-info);
+  --color-info-banner: var(--mp-color-bg-info-banner);
+}
+
+@source './';
+
+html {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  background: var(--mp-color-bg-page);
+  color: var(--mp-color-text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--mp-color-focus-ring);
+  outline-offset: 2px;
+}
+
+body {
+  overflow-x: clip;
+}
+
+/* Browsers centre <th> by default; panel table headers start where their cells start. In the
+ * base layer, so a header with `text-end` (an Actions column) still wins. */
+@layer base {
+  th {
+    text-align: start;
+  }
+  /* A focused or linked element never lands under the sticky top bar. */
+  html {
+    scroll-padding-top: var(--mp-size-topbar-phone);
+  }
+  @media (width >= 48rem) {
+    html {
+      scroll-padding-top: var(--mp-size-topbar);
+    }
+  }
+}
+
+/* Native controls (checkboxes, selects, date pickers) follow the panel theme, not the browser's. */
+:root {
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* Colours made in code first (speed mode), to be back-ported to the Figma tokens: the cards on
+ * the sign-in showcase. In dark the surface colour sits too close to the showcase blue, so the
+ * cards take the muted background there and a control-coloured edge in both themes. */
+:root {
+  --mp-color-bg-auth-showcase-card: var(--mp-color-bg-surface);
+}
+[data-theme='dark'] {
+  --mp-color-bg-auth-showcase-card: var(--mp-color-bg-muted);
+}
+
+/* Sizes made in code first (speed mode), to be back-ported to the Figma tokens: the label
+ * column of Figma DataRow, shared by detail cards and the labelled lines of phone table cards;
+ * and the side sheet (the notifications drawer, plan 6c): 420 px on tablets, 480 px from 1280 px. */
+:root {
+  --mp-size-data-label: 168px;
+  --mp-size-sheet: 420px;
+  --mp-size-sheet-wide: 480px;
+}
+
+/* Phones use the touch density of the tokens (panels IA 4: targets of 48 px below 760 px). */
+@media (max-width: 47.49rem) {
+  :root {
+    --mp-radius-control: 10px;
+    --mp-size-control-sm: 44px;
+    --mp-size-control: 48px;
+    --mp-size-control-lg: 48px;
+  }
+}

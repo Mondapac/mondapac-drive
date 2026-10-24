@@ -6,3 +6,5 @@ coverage/
 node_modules/
 **/generated/
 prisma/migrations/
+.next/
+next-env.d.ts

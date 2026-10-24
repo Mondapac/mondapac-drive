@@ -1,0 +1,155 @@
+{
+  "$description": "MondaPac dimensions, touch density.",
+  "space": {
+    "0-5": {
+      "$type": "dimension",
+      "$value": "2px"
+    },
+    "1": {
+      "$type": "dimension",
+      "$value": "4px"
+    },
+    "1-5": {
+      "$type": "dimension",
+      "$value": "6px"
+    },
+    "2": {
+      "$type": "dimension",
+      "$value": "8px"
+    },
+    "2-5": {
+      "$type": "dimension",
+      "$value": "10px"
+    },
+    "3": {
+      "$type": "dimension",
+      "$value": "12px"
+    },
+    "3-5": {
+      "$type": "dimension",
+      "$value": "14px"
+    },
+    "4": {
+      "$type": "dimension",
+      "$value": "16px"
+    },
+    "4-5": {
+      "$type": "dimension",
+      "$value": "18px"
+    },
+    "5": {
+      "$type": "dimension",
+      "$value": "20px"
+    },
+    "6": {
+      "$type": "dimension",
+      "$value": "24px"
+    },
+    "7": {
+      "$type": "dimension",
+      "$value": "28px"
+    },
+    "8": {
+      "$type": "dimension",
+      "$value": "32px"
+    },
+    "10": {
+      "$type": "dimension",
+      "$value": "40px"
+    }
+  },
+  "radius": {
+    "chip": {
+      "$type": "dimension",
+      "$value": "6px"
+    },
+    "control": {
+      "$type": "dimension",
+      "$value": "10px"
+    },
+    "card": {
+      "$type": "dimension",
+      "$value": "12px"
+    },
+    "column": {
+      "$type": "dimension",
+      "$value": "14px"
+    },
+    "pill": {
+      "$type": "dimension",
+      "$value": "999px"
+    }
+  },
+  "size": {
+    "control-sm": {
+      "$type": "dimension",
+      "$value": "44px"
+    },
+    "control": {
+      "$type": "dimension",
+      "$value": "48px"
+    },
+    "control-lg": {
+      "$type": "dimension",
+      "$value": "48px"
+    },
+    "badge": {
+      "$type": "dimension",
+      "$value": "24px"
+    },
+    "icon": {
+      "$type": "dimension",
+      "$value": "20px"
+    },
+    "thumb": {
+      "$type": "dimension",
+      "$value": "32px"
+    },
+    "sidebar": {
+      "$type": "dimension",
+      "$value": "248px"
+    },
+    "sidebar-collapsed": {
+      "$type": "dimension",
+      "$value": "72px"
+    },
+    "topbar": {
+      "$type": "dimension",
+      "$value": "64px"
+    },
+    "bottom-bar": {
+      "$type": "dimension",
+      "$value": "64px"
+    },
+    "topbar-phone": {
+      "$type": "dimension",
+      "$value": "56px"
+    },
+    "auth-card": {
+      "$type": "dimension",
+      "$value": "400px"
+    },
+    "dialog-sm": {
+      "$type": "dimension",
+      "$value": "400px"
+    },
+    "dialog-md": {
+      "$type": "dimension",
+      "$value": "560px"
+    },
+    "form-max": {
+      "$type": "dimension",
+      "$value": "640px"
+    }
+  },
+  "border": {
+    "width": {
+      "$type": "dimension",
+      "$value": "1px"
+    },
+    "width-strong": {
+      "$type": "dimension",
+      "$value": "2px"
+    }
+  }
+}

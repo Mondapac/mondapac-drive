@@ -3,6 +3,7 @@ import eslint from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import { panelSyntaxRules } from './packages/ui/lint/panel-rules.mjs';
 
 // Market identifiers and the names of the places Drive serves must never appear as literals in
 // core code: they belong in config/markets/ and config/service-areas/ (marketplace ADR-0001
@@ -62,8 +63,8 @@ const noDateConversion = [
 // boundaries.spec.ts checks that apps/api/src and the kernel's src hold no other kind.
 const TS = '{ts,mts,cts}';
 const SPEC_FILES = [`**/*.spec.${TS}`];
-// The panel apps also hold .tsx; none is in this repository yet.
-const PANEL_TSX = [];
+// The operations panel and the shared UI package also hold .tsx (marketplace ADR-0033, ADR-0034).
+const PANEL_TSX = ['apps/panel/**/*.tsx', 'packages/ui/**/*.tsx'];
 // The courier app (React Native, Expo) is written in .ts and .tsx.
 const COURIER_TSX = ['apps/courier/**/*.tsx'];
 // The fixture tree is outside the globs below, so each block names its fixture files too.
@@ -531,6 +532,16 @@ export default tseslint.config(
   {
     files: [...SPEC_FILES, `**/test/**/*.${TS}`],
     languageOptions: { globals: { ...globals.jest } },
+  },
+  {
+    // The operations panel (marketplace ADR-0033, ADR-0034): browser code. No raw colours (every
+    // colour is a token), no physical left/right utilities (logical ones keep a right-to-left
+    // Market working), no raw HTML injection. The panel config files run in Node.
+    files: ['apps/panel/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } },
+    rules: {
+      'no-restricted-syntax': ['error', ...panelSyntaxRules],
+    },
   },
   {
     // The courier app: the wall-clock and Market-literal rules hold there too. Its Clock lives

@@ -7,6 +7,7 @@ import {
   Logger,
   Param,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -35,6 +37,11 @@ import {
   ReinstateMerchant,
   SuspendMerchant,
 } from '../application/use-cases/change-merchant-state.use-case';
+import {
+  ListCouriers,
+  MAX_COURIER_PAGE,
+  type CourierPage,
+} from '../application/use-cases/list-couriers.use-case';
 import { ListMerchants } from '../application/use-cases/list-merchants.use-case';
 import {
   IssueMerchantApiKey,
@@ -49,6 +56,7 @@ import {
   AdminApiKeyRevoked,
   AdminCourierInvitationIssued,
   AdminCourierInviteRequest,
+  AdminCourierPage,
   AdminCreateMerchantRequest,
   AdminIssueApiKeyRequest,
   AdminMerchantCreated,
@@ -404,9 +412,49 @@ export class AdminMerchantsController {
   }
 }
 
+const DEFAULT_COURIER_PAGE = 50;
+const COURIER_QUERY_KEYS = new Set(['after', 'limit']);
+
+/** `after` and `limit` as text; any other key, or a repeated one, is refused. */
+function courierQuery(
+  query: Record<string, unknown>,
+): { after: string | null; limit: number } | HttpException {
+  const fields: { path: string; code: string }[] = [];
+  for (const key of Object.keys(query).slice(0, 10)) {
+    if (!COURIER_QUERY_KEYS.has(key)) fields.push({ path: key.slice(0, 64), code: 'unknown' });
+  }
+  const { after, limit } = query;
+  if (after !== undefined && typeof after !== 'string') {
+    fields.push({ path: 'after', code: 'format' });
+  }
+  if (limit !== undefined && (typeof limit !== 'string' || !/^[0-9]{1,4}$/.test(limit))) {
+    fields.push({ path: 'limit', code: 'format' });
+  }
+  if (fields.length > 0) return refusal({ code: 'validation.failed', fields });
+  return {
+    after: typeof after === 'string' ? after : null,
+    limit: typeof limit === 'string' ? Number(limit) : DEFAULT_COURIER_PAGE,
+  };
+}
+
+function courierPageView(page: CourierPage): AdminCourierPage {
+  return {
+    items: page.items.map((row) =>
+      row.type === 'account'
+        ? row
+        : {
+            ...row,
+            createdAt: row.createdAt.toString(),
+            expiresAt: row.expiresAt === null ? null : row.expiresAt.toString(),
+          },
+    ),
+    next: page.next,
+  };
+}
+
 /**
- * Courier onboarding for dispatchers over HTTP (Drive): the invitation. Disabling and enabling a
- * courier are on the admin team routes (`couriers/:accountId/disable`, `.../enable`).
+ * Couriers for dispatchers over HTTP (Drive): the list and the invitation. Disabling and
+ * enabling a courier are on the admin team routes (`couriers/:accountId/disable`, `.../enable`).
  */
 @ApiTags('identity')
 @RoutePopulation('admin')
@@ -414,7 +462,53 @@ export class AdminMerchantsController {
 export class AdminCouriersController {
   readonly #logger = new Logger('AdminCouriersController');
 
-  constructor(private readonly inviteCourier: InviteCourier) {}
+  constructor(
+    private readonly listCouriers: ListCouriers,
+    private readonly inviteCourier: InviteCourier,
+  ) {}
+
+  @Get('couriers')
+  @ReadsSession()
+  @ApiOperation({
+    summary: 'The couriers of the Market: courier accounts and pending invitations',
+    description:
+      'Needs identity.courier-account.view. Merged by id (creation order), paged with `after` ' +
+      'and `limit`. Personal data: not cached.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: `Rows per page, 1 to ${MAX_COURIER_PAGE}; default ${DEFAULT_COURIER_PAGE}.`,
+  })
+  @ApiQuery({
+    name: 'after',
+    required: false,
+    description: '`next` of the previous page (a UUID v7); absent for the first page.',
+  })
+  @ApiOkResponse({ type: AdminCourierPage })
+  @ApiErrors()
+  async list(
+    @Call() context: CallContext,
+    @Query() query: Record<string, unknown>,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AdminCourierPage> {
+    response.setHeader('Cache-Control', 'no-store');
+    const input = courierQuery(query);
+    let outcome: AdminCourierPage | HttpException;
+    if (input instanceof HttpException) outcome = input;
+    else {
+      const result = await this.listCouriers.execute(context, input);
+      outcome = result.ok ? courierPageView(result.value) : refusal(result.error);
+    }
+    this.#logger.log({
+      msg: 'identity.admin-list-couriers',
+      outcome: outcome instanceof HttpException ? outcomeOf(outcome) : 'listed',
+      marketId: context.market.marketId,
+      correlationId: context.correlationId,
+    });
+    if (outcome instanceof HttpException) throw outcome;
+    return outcome;
+  }
 
   @Post('couriers/invitations')
   @HttpCode(201)

@@ -1,0 +1,522 @@
+{
+  "$description": "MondaPac semantic colour, dark theme. Aliases point to primitives.json.",
+  "color": {
+    "bg": {
+      "page": {
+        "$type": "color",
+        "$value": "{color.neutral.825}",
+        "$description": "Page background behind cards"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "{color.neutral.785}",
+        "$description": "Cards, sidebar, top bar"
+      },
+      "subtle": {
+        "$type": "color",
+        "$value": "{color.neutral.755}",
+        "$description": "Table header, card footers, hover"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "{color.neutral.720}",
+        "$description": "Document viewer, neutral fills"
+      },
+      "selected": {
+        "$type": "color",
+        "$value": "{color.blue.725}",
+        "$description": "Active nav item, applied filter, selected segment"
+      },
+      "row-selected": {
+        "$type": "color",
+        "$value": "{color.blue.745}",
+        "$description": "Selected table row"
+      },
+      "row-attention": {
+        "$type": "color",
+        "$value": "{color.amber.780}",
+        "$description": "Rows that need action"
+      },
+      "info-banner": {
+        "$type": "color",
+        "$value": "{color.blue.750}",
+        "$description": "Info banner"
+      },
+      "scrim": {
+        "$type": "color",
+        "$value": "#00000099",
+        "$description": "Overlay behind drawers and modals; alpha is part of the value"
+      },
+      "qr": {
+        "$type": "color",
+        "$value": "{color.neutral.0}",
+        "$description": "QR code plate; white in both themes"
+      },
+      "auth-showcase-admin": {
+        "$type": "color",
+        "$value": "{color.blue.780}",
+        "$description": "Auth brand panel, Admin; dark in both themes"
+      },
+      "auth-showcase-seller": {
+        "$type": "color",
+        "$value": "{color.teal.705}",
+        "$description": "Auth brand panel, Seller; dark in both themes"
+      }
+    },
+    "border": {
+      "default": {
+        "$type": "color",
+        "$value": "{color.neutral.690}",
+        "$description": "Card and section borders"
+      },
+      "row": {
+        "$type": "color",
+        "$value": "{color.neutral.725}",
+        "$description": "Row dividers"
+      },
+      "control": {
+        "$type": "color",
+        "$value": "{color.neutral.625}",
+        "$description": "Secondary buttons, segmented controls"
+      },
+      "input": {
+        "$type": "color",
+        "$value": "{color.neutral.440}",
+        "$description": "Inputs, checkboxes (3:1 on surface)"
+      },
+      "info": {
+        "$type": "color",
+        "$value": "{color.blue.625}",
+        "$description": "Info banner border"
+      }
+    },
+    "text": {
+      "primary": {
+        "$type": "color",
+        "$value": "{color.neutral.60}",
+        "$description": "Headings, values"
+      },
+      "secondary": {
+        "$type": "color",
+        "$value": "{color.neutral.165}",
+        "$description": "Body text, labels"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "{color.neutral.295}",
+        "$description": "Meta text, axis labels"
+      },
+      "link": {
+        "$type": "color",
+        "$value": "{color.blue.240}",
+        "$description": "Links, selected tab"
+      },
+      "link-hover": {
+        "$type": "color",
+        "$value": "{color.blue.170}",
+        "$description": "Link hover"
+      },
+      "on-accent": {
+        "$type": "color",
+        "$value": "{color.neutral.0}",
+        "$description": "Text and icons on primary"
+      },
+      "on-showcase": {
+        "$type": "color",
+        "$value": "{color.neutral.0}",
+        "$description": "Brand line on the Auth brand panel"
+      },
+      "on-showcase-muted": {
+        "$type": "color",
+        "$value": "#FFFFFFBD",
+        "$description": "Secondary brand line on the Auth brand panel; alpha is part of the value"
+      }
+    },
+    "icon": {
+      "default": {
+        "$type": "color",
+        "$value": "{color.neutral.165}",
+        "$description": "Default icon colour"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "{color.neutral.295}",
+        "$description": "Secondary icons"
+      }
+    },
+    "action": {
+      "primary": {
+        "$type": "color",
+        "$value": "{color.blue.440}",
+        "$description": "Primary button, focus, selection"
+      },
+      "primary-hover": {
+        "$type": "color",
+        "$value": "{color.blue.490}",
+        "$description": "Primary button hover"
+      },
+      "primary-disabled": {
+        "$type": "color",
+        "$value": "{color.blue.665}",
+        "$description": "Disabled primary button"
+      }
+    },
+    "focus": {
+      "ring": {
+        "$type": "color",
+        "$value": "{color.blue.240}",
+        "$description": "Keyboard focus ring"
+      }
+    },
+    "status": {
+      "success": {
+        "bg": {
+          "$type": "color",
+          "$value": "{color.green.730}",
+          "$description": "Success badge background"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{color.green.210}",
+          "$description": "Success text and icon"
+        },
+        "track": {
+          "$type": "color",
+          "$value": "{color.green.635}",
+          "$description": "Success ring track"
+        }
+      },
+      "info": {
+        "bg": {
+          "$type": "color",
+          "$value": "{color.blue.720}",
+          "$description": "Info badge background"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{color.blue.235}",
+          "$description": "Info text and icon"
+        }
+      },
+      "attention": {
+        "bg": {
+          "$type": "color",
+          "$value": "{color.amber.725}",
+          "$description": "Attention badge background"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{color.amber.180}",
+          "$description": "Attention text and icon"
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "{color.amber.290}",
+          "$description": "Attention meter fill, pips"
+        },
+        "track": {
+          "$type": "color",
+          "$value": "{color.amber.655}",
+          "$description": "Attention meter track"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "{color.amber.565}",
+          "$description": "Attention card border"
+        },
+        "surface": {
+          "$type": "color",
+          "$value": "{color.amber.775}",
+          "$description": "Attention panel background"
+        }
+      },
+      "critical": {
+        "bg": {
+          "$type": "color",
+          "$value": "{color.red.745}",
+          "$description": "Critical badge background"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{color.red.220}",
+          "$description": "Critical text and icon"
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "{color.red.365}",
+          "$description": "Urgent card border, red ring"
+        },
+        "meter": {
+          "$type": "color",
+          "$value": "{color.red.365}",
+          "$description": "Overdue meter fill"
+        },
+        "track": {
+          "$type": "color",
+          "$value": "{color.red.690}",
+          "$description": "Overdue meter track"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "{color.red.590}",
+          "$description": "Destructive secondary button border"
+        }
+      },
+      "neutral": {
+        "bg": {
+          "$type": "color",
+          "$value": "{color.neutral.710}",
+          "$description": "Neutral badge background"
+        },
+        "fg": {
+          "$type": "color",
+          "$value": "{color.neutral.165}",
+          "$description": "Neutral text"
+        }
+      }
+    },
+    "cert": {
+      "seller": {
+        "fg": {
+          "$type": "color",
+          "$value": "{color.teal.220}",
+          "$description": "Seller-level certificate"
+        },
+        "bg": {
+          "$type": "color",
+          "$value": "{color.teal.740}",
+          "$description": "Seller certificate chip"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "{color.teal.615}",
+          "$description": "Seller certificate chip border"
+        },
+        "tile": {
+          "$type": "color",
+          "$value": "{color.teal.700}",
+          "$description": "Teal identity tile"
+        }
+      },
+      "manufacturer": {
+        "fg": {
+          "$type": "color",
+          "$value": "{color.neutral.165}",
+          "$description": "Manufacturer certificate"
+        },
+        "bg": {
+          "$type": "color",
+          "$value": "{color.neutral.785}",
+          "$description": "Manufacturer chip"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "{color.neutral.625}",
+          "$description": "Manufacturer chip border"
+        }
+      },
+      "vegan": {
+        "fg": {
+          "$type": "color",
+          "$value": "{color.lime.180}",
+          "$description": "Vegan certificate"
+        },
+        "bg": {
+          "$type": "color",
+          "$value": "{color.lime.745}",
+          "$description": "Vegan chip"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "{color.lime.600}",
+          "$description": "Vegan chip border"
+        },
+        "self-declared-border": {
+          "$type": "color",
+          "$value": "{color.lime.390}",
+          "$description": "Self-declared chip, dashed"
+        }
+      }
+    },
+    "tile": {
+      "purple-bg": {
+        "$type": "color",
+        "$value": "{color.purple.730}",
+        "$description": "Identity tile: applications"
+      },
+      "purple-fg": {
+        "$type": "color",
+        "$value": "{color.purple.225}",
+        "$description": "Identity tile text"
+      }
+    },
+    "thumb": {
+      "meat-bg": {
+        "$type": "color",
+        "$value": "{color.coral.735}",
+        "$description": "Product thumbnail: meat"
+      },
+      "meat-fg": {
+        "$type": "color",
+        "$value": "{color.coral.205}",
+        "$description": "Meat glyph"
+      },
+      "poultry-bg": {
+        "$type": "color",
+        "$value": "{color.honey.720}",
+        "$description": "Product thumbnail: poultry"
+      },
+      "poultry-fg": {
+        "$type": "color",
+        "$value": "{color.honey.155}",
+        "$description": "Poultry glyph"
+      },
+      "bakery-bg": {
+        "$type": "color",
+        "$value": "{color.brown.730}",
+        "$description": "Product thumbnail: bakery"
+      },
+      "bakery-fg": {
+        "$type": "color",
+        "$value": "{color.brown.180}",
+        "$description": "Bakery glyph"
+      },
+      "pantry-bg": {
+        "$type": "color",
+        "$value": "{color.olive.730}",
+        "$description": "Product thumbnail: pantry"
+      },
+      "pantry-fg": {
+        "$type": "color",
+        "$value": "{color.olive.165}",
+        "$description": "Pantry glyph"
+      },
+      "other-bg": {
+        "$type": "color",
+        "$value": "{color.neutral.730}",
+        "$description": "Product thumbnail: other"
+      },
+      "other-fg": {
+        "$type": "color",
+        "$value": "{color.neutral.165}",
+        "$description": "Other glyph"
+      }
+    },
+    "chart": {
+      "series-1": {
+        "$type": "color",
+        "$value": "{color.blue.305}",
+        "$description": "Main series"
+      },
+      "series-1-soft": {
+        "$type": "color",
+        "$value": "{color.blue.620}",
+        "$description": "Past periods in bar charts"
+      },
+      "split-2": {
+        "$type": "color",
+        "$value": "{color.blue.465}",
+        "$description": "Second part of a split bar"
+      },
+      "compare": {
+        "$type": "color",
+        "$value": "{color.neutral.335}",
+        "$description": "Comparison series (dashed)"
+      },
+      "grid": {
+        "$type": "color",
+        "$value": "{color.neutral.720}",
+        "$description": "Gridlines"
+      },
+      "axis": {
+        "$type": "color",
+        "$value": "{color.neutral.625}",
+        "$description": "Baseline"
+      },
+      "meter-track": {
+        "$type": "color",
+        "$value": "{color.blue.680}",
+        "$description": "Meter track, accent"
+      },
+      "donut-track": {
+        "$type": "color",
+        "$value": "{color.teal.680}",
+        "$description": "Certificate donut track"
+      },
+      "tooltip-bg": {
+        "$type": "color",
+        "$value": "{color.neutral.60}",
+        "$description": "Chart tooltip background (inverse)"
+      },
+      "tooltip-fg": {
+        "$type": "color",
+        "$value": "{color.neutral.790}",
+        "$description": "Chart tooltip value"
+      },
+      "tooltip-muted": {
+        "$type": "color",
+        "$value": "{color.neutral.605}",
+        "$description": "Chart tooltip label"
+      }
+    },
+    "map": {
+      "land": {
+        "$type": "color",
+        "$value": "{color.neutral.775}",
+        "$description": "Map land"
+      },
+      "water": {
+        "$type": "color",
+        "$value": "{color.blue.735}",
+        "$description": "Map water"
+      },
+      "road": {
+        "$type": "color",
+        "$value": "{color.neutral.690}",
+        "$description": "Map roads"
+      },
+      "seller-pin": {
+        "$type": "color",
+        "$value": "{color.blue.305}",
+        "$description": "Seller with open orders"
+      },
+      "courier": {
+        "$type": "color",
+        "$value": "{color.teal.220}",
+        "$description": "Courier position"
+      }
+    },
+    "board": {
+      "action-bg": {
+        "$type": "color",
+        "$value": "{color.amber.780}",
+        "$description": "Needs action column"
+      },
+      "action-border": {
+        "$type": "color",
+        "$value": "{color.amber.655}",
+        "$description": "Needs action column border"
+      },
+      "prep-bg": {
+        "$type": "color",
+        "$value": "{color.blue.775}",
+        "$description": "Preparing column"
+      },
+      "prep-border": {
+        "$type": "color",
+        "$value": "{color.blue.625}",
+        "$description": "Preparing column border"
+      },
+      "ready-bg": {
+        "$type": "color",
+        "$value": "{color.green.765}",
+        "$description": "Ready column"
+      },
+      "ready-border": {
+        "$type": "color",
+        "$value": "{color.green.630}",
+        "$description": "Ready column border"
+      }
+    }
+  }
+}

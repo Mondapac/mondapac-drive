@@ -28,6 +28,13 @@ export interface AdminAccountReader {
     after: Id<'Account'> | null,
     limit: number,
   ): Promise<AdminAccountSummary[]>;
+
+  /** The same read of the `courier` population (Drive's courier list). */
+  courierAccounts(
+    market: MarketContext,
+    after: Id<'Account'> | null,
+    limit: number,
+  ): Promise<AdminAccountSummary[]>;
 }
 
 /** Nest token of the {@link AdminAccountReader}. */

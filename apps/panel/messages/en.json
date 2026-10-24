@@ -1,0 +1,890 @@
+{
+  "panel": {
+    "name": "Operations",
+    "market": "Mondapac Drive {marketName}",
+    "support": "Need help? Email {supportEmail}."
+  },
+  "theme": {
+    "menu": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "account-menu": {
+    "trigger": "Account menu for {name}",
+    "pages": "Your account",
+    "profile": "My profile",
+    "sessions": "Signed-in devices",
+    "sign-out": "Sign out",
+    "signing-out": "Signing out…",
+    "sign-out-failed": "We couldn't sign you out. Check your connection and try again."
+  },
+  "nav": {
+    "menu": "Open navigation menu",
+    "close": "Close navigation menu",
+    "more": "More",
+    "main": "Main navigation",
+    "breadcrumb": "Breadcrumb",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "home": "Home",
+    "team": "Roles & permissions",
+    "deliveries": "Deliveries",
+    "couriers": "Couriers",
+    "merchants": "Merchants"
+  },
+  "home": {
+    "title": "Home",
+    "intro": "Welcome, {name}. Pick where to start.",
+    "shortcuts": "Sections",
+    "deliveries": "Follow every delivery of the Market, dispatch a courier or cancel.",
+    "couriers": "Invite couriers and turn their accounts off and on.",
+    "merchants": "Add the businesses that book deliveries, and issue their API keys.",
+    "team": "Admins, their roles and what each role may do."
+  },
+  "showcase": {
+    "title": "Every delivery of the Market, in one place.",
+    "cards": {
+      "one": {
+        "name": "Chilled order, 4 km",
+        "detail": "Waiting for a courier"
+      },
+      "two": {
+        "name": "Scheduled van delivery",
+        "detail": "Window opens at 2 pm"
+      },
+      "three": {
+        "name": "Frozen parcel",
+        "detail": "Picked up at 3.2 °C"
+      }
+    }
+  },
+  "identity": {
+    "common": {
+      "account-type": {
+        "admin": "Admin account"
+      },
+      "label": {
+        "email": "Email",
+        "password": "Password",
+        "new-password": "New password"
+      },
+      "action": {
+        "show-password": "Show password",
+        "hide-password": "Hide password",
+        "back-to-sign-in": "Back to sign in"
+      },
+      "help": {
+        "password": "Use {min} to {max} characters. A short sentence works well."
+      }
+    },
+    "error": {
+      "credentials": {
+        "invalid": "Email or password is incorrect. Check both and try again."
+      },
+      "request": {
+        "throttled": "Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+        "csrf": "Refresh the page and try again."
+      },
+      "account": {
+        "disabled": {
+          "admin": "This admin account has been deactivated. Ask another admin if you think this is a mistake."
+        }
+      },
+      "validation": {
+        "email": {
+          "required": "Enter your email.",
+          "format": "Enter an email address like name@example.com."
+        },
+        "password": {
+          "required": "Enter your password."
+        },
+        "code": {
+          "required": "Enter the code."
+        },
+        "name": {
+          "required": "Enter your name.",
+          "invalid": "Use your name without links or special characters (1 to 100 characters)."
+        }
+      },
+      "second-factor": {
+        "code-rejected": "That code didn't work. Enter the newest code from your app.",
+        "challenge-ended": "Too many wrong codes. Sign in again to try once more.",
+        "locked": "Too many wrong codes. Two-step sign-in is paused for 24 hours. Reset your password to try again sooner."
+      },
+      "access": {
+        "denied": "You don't have permission to do that."
+      },
+      "unknown": "Something went wrong on our side. Try again.",
+      "network": "You're offline or the connection dropped. Check it and try again.",
+      "market": "This page isn't available.",
+      "password": {
+        "rejected": {
+          "length": "Use {min} to {max} characters.",
+          "common": "That password is too easy to guess. Choose a different one.",
+          "contains-identity": "Don't use your email or name in your password."
+        }
+      },
+      "accept": {
+        "enrolment-expired": "That setup key expired, so we made a new one. Add the new key to your app and enter the newest code.",
+        "busy": "We can't finish this right now. Try again in a moment.",
+        "locked": "Too many wrong codes. Start again: we'll make a new setup key."
+      }
+    },
+    "sign-in": {
+      "page-title": "Sign in – Admin account – Mondapac Drive",
+      "title": "Sign in to your admin account",
+      "action": {
+        "submit": "Sign in",
+        "forgot": "Forgot password?"
+      },
+      "banner": {
+        "session-ended": "Your session has ended. Sign in again to continue.",
+        "signed-out": "You're signed out.",
+        "password-changed": "Password changed. Sign in with your new password.",
+        "account-ready": "Your account is ready. Sign in."
+      }
+    },
+    "two-step": {
+      "title": "Enter your 6-digit code",
+      "body": "Open your authenticator app and enter the code for Mondapac Drive.",
+      "label": {
+        "code": "6-digit code",
+        "digit": "Digit {position} of {total}",
+        "backup-code": "Backup code"
+      },
+      "action": {
+        "verify": "Verify",
+        "use-backup": "Use a backup code instead",
+        "use-app": "Use your authenticator app instead"
+      },
+      "title-backup": "Enter a backup code",
+      "body-backup": "Each backup code works once.",
+      "help": {
+        "admin": "No phone and no backup codes? Ask another admin who manages admin accounts to reset it."
+      },
+      "page-title": "Two-step verification – Admin account – Mondapac Drive"
+    },
+    "check-email": {
+      "title": "Check your email",
+      "body": {
+        "re-enrol": "Your two-step verification was reset. We've sent a link to {email} to set it up again. The link works for 60 minutes. Signing in again sends a new one."
+      },
+      "page-title": "Check your email – Admin account – Mondapac Drive"
+    },
+    "members": {
+      "title": {
+        "admin": "Roles & permissions"
+      },
+      "tab": {
+        "admins": "Admins",
+        "roles": "Roles",
+        "label": "Roles and permissions sections"
+      },
+      "table-caption": "Admins and pending invitations",
+      "label": {
+        "person": "Person",
+        "role": "Role",
+        "status": "Status",
+        "you": "You"
+      },
+      "status": {
+        "active": "Active",
+        "invited": "Invited",
+        "expired": "Invitation expired",
+        "deactivated": "Deactivated"
+      },
+      "role": {
+        "none": "No role",
+        "custom": "Custom role",
+        "system": "(system role)",
+        "unknown": "Role",
+        "permission-count": "{count, plural, one {# permission} other {# permissions}}",
+        "not-grantable": "you can't give this role"
+      },
+      "empty": {
+        "title": "It's just you so far",
+        "body": "Invite the people who help run the platform. Each person gets their own sign-in.",
+        "page": "There is nobody on this page."
+      },
+      "next-page": "Next page",
+      "no-access": {
+        "title": "You don't have access to this page",
+        "body": "Your role doesn't include it. Ask an admin who manages roles.",
+        "action": "Go to Home"
+      },
+      "actions": "Actions",
+      "actions-for": "Actions for {name}",
+      "action": {
+        "deactivate": "Deactivate account…",
+        "reactivate": "Reactivate account",
+        "reset-two-step": "Reset two-step verification…",
+        "resend": "Resend invitation",
+        "cancel-invitation": "Cancel invitation…",
+        "change-role": "Change role",
+        "invite-admin": "Invite admin"
+      },
+      "dialog": {
+        "keep": "Keep as it is",
+        "deactivate": {
+          "title": "Deactivate {name}'s admin account?",
+          "body": "They're signed out straight away and can't sign in.",
+          "action": "Deactivate account"
+        },
+        "reset-two-step": {
+          "title": "Reset two-step verification for {name}?",
+          "body": "They're signed out. At their next sign-in we email them a link to set it up again.",
+          "action": "Reset"
+        },
+        "cancel-invitation": {
+          "title": "Cancel the invitation to {name}?",
+          "body": "The link in their email stops working.",
+          "action": "Cancel invitation"
+        },
+        "keep-invitation": "Keep invitation",
+        "change-role": {
+          "title": "Change role for {name}",
+          "body": "The change applies from their next action. They stay signed in.",
+          "label": "Role",
+          "current": "Current role: {role}",
+          "placeholder": "Choose a role",
+          "choose": "Choose a role.",
+          "action": "Change role"
+        },
+        "invite": {
+          "title": "Invite an admin",
+          "label-role": "Role",
+          "choose": "Choose a role.",
+          "help": "They'll get an email with a link to set their own password. The link works for {duration}.",
+          "duration": "72 hours",
+          "action": "Send invitation",
+          "cancel": "Cancel",
+          "toast-sent": "Invitation sent to {email}."
+        }
+      },
+      "toast": {
+        "deactivate": "{name}'s account is deactivated. They've been signed out.",
+        "reactivate": "{name}'s account is active again. They can sign in.",
+        "reset-two-step": "Two-step verification reset for {name}. We've emailed them a link to set it up again.",
+        "resend": "Invitation sent again to {name}.",
+        "cancel-invitation": "Invitation to {name} cancelled.",
+        "change-role": "{name}'s role is changed. It applies from their next action."
+      },
+      "reason": {
+        "access": {
+          "denied": "Your role doesn't include this.",
+          "unavailable": "This is not available right now. Try again in a moment."
+        },
+        "member": {
+          "self": "You can't do this to your own account.",
+          "outranks-actor": "This person has permissions you don't have.",
+          "last-holder": "At least one Platform Administrator must remain."
+        },
+        "second-factor": {
+          "none": "They have no two-step verification to reset."
+        },
+        "invitation": {
+          "unknown": "This invitation no longer exists. We've refreshed the list.",
+          "rejected": "This invitation can't be sent again. We've refreshed the list.",
+          "already-pending": "This person already has an invitation. Resend it from the list."
+        },
+        "conflict": {
+          "stale": "Someone has just changed this. We've refreshed it.",
+          "retry": "Try again."
+        },
+        "account": {
+          "exists": "That address can't be invited. Check the team list or use another address.",
+          "unknown": "This account no longer exists. We've refreshed the list.",
+          "already-disabled": "Someone has just changed this. We've refreshed it.",
+          "already-active": "Someone has just changed this. We've refreshed it."
+        },
+        "role": {
+          "not-grantable": "You can't give that role.",
+          "unknown": "That role no longer exists. We've refreshed the list."
+        }
+      }
+    },
+    "role": {
+      "platform-administrator": "Platform Administrator",
+      "operator": "Operator",
+      "dispatcher": "Dispatcher"
+    },
+    "forgot-password": {
+      "page-title": "Reset your password – Admin account – Mondapac Drive",
+      "title": "Reset your admin account password",
+      "action": {
+        "submit": "Send reset link"
+      },
+      "sent": {
+        "title": "Check your email",
+        "body": "If an admin account uses {email}, we've sent a link to reset its password. The link works for 60 minutes."
+      }
+    },
+    "reset-password": {
+      "page-title": "Choose a new password – Admin account – Mondapac Drive",
+      "title": "Choose a new password",
+      "body": "Changing your password signs you out everywhere. Two-step verification stays on.",
+      "status": {
+        "checking": "Checking your link…"
+      },
+      "action": {
+        "submit": "Save new password"
+      }
+    },
+    "link": {
+      "title": {
+        "rejected": "This link can't be used"
+      },
+      "body": {
+        "rejected": "It may have expired or already been used. Ask for a new link and we'll send one."
+      }
+    },
+    "accept": {
+      "page-title": "Accept your invitation – Admin account – Mondapac Drive",
+      "title": "Set up your admin account",
+      "status": {
+        "checking": "Checking your invitation…"
+      },
+      "rejected": {
+        "title": "This invitation can't be used",
+        "body": "It may have expired, been used or been cancelled. Ask the admin who invited you to send a new one."
+      },
+      "details": {
+        "body": "Choose how your name appears and a password. Next you'll set up two-step verification, which admin accounts must use.",
+        "title": "Your details"
+      },
+      "label": {
+        "name": "Your name"
+      },
+      "action": {
+        "continue": "Continue",
+        "finish": "Continue to sign in"
+      },
+      "secret": {
+        "title": "Set up two-step verification",
+        "body": "In your authenticator app, add a new account with this key, then enter the 6-digit code it shows.",
+        "scan": "Scan this code with an authenticator app on your phone.",
+        "qr-label": "QR code for your authenticator app",
+        "cannot-scan": "Can't scan it? Enter this key in the app instead.",
+        "key-label": "Setup key",
+        "open-app": "Open authenticator app",
+        "required": "Admin accounts must use two-step verification."
+      },
+      "codes": {
+        "title": "Save your backup codes",
+        "body": "Each code works once if you lose your phone. Keep them somewhere safe.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "download": "Download",
+        "print": "Print",
+        "saved": "I've saved these codes",
+        "once": "These codes can't be shown again after you leave this page."
+      }
+    },
+    "roles": {
+      "group": {
+        "system": "System",
+        "default": "Default",
+        "custom": "Custom"
+      },
+      "type": {
+        "system": "System",
+        "default": "Default",
+        "custom": "Custom"
+      },
+      "label": {
+        "role": "Role",
+        "type": "Type",
+        "permissions": "Permissions",
+        "members": "Members"
+      },
+      "members-count": "{count, plural, =0 {None} one {# admin} other {# admins}}",
+      "permissions-all": "All",
+      "permissions-none": "None yet",
+      "empty-custom": {
+        "title": "No custom roles yet",
+        "body": "Custom roles you create will appear here."
+      },
+      "action": {
+        "view": "View",
+        "edit": "Edit",
+        "duplicate": "Duplicate",
+        "create": "New role"
+      },
+      "back": "Back to roles",
+      "read-only": {
+        "system": "System role. It always has every permission in this panel and can't be changed or deleted.",
+        "default": "Default role from Mondapac Drive. It can't be changed."
+      },
+      "selected": "{selected} of {total} permissions selected",
+      "included": "Included:",
+      "protected": "Protected",
+      "editor": {
+        "title-create": "New custom role",
+        "title-edit": "Edit role",
+        "name": "Role name",
+        "name-help": "Up to {max} characters. Each custom role needs its own name.",
+        "name-required": "Enter a name for the role.",
+        "name-invalid": "Use 1 to 80 characters, with no control characters.",
+        "too-many": "A role can have at most {max} permissions.",
+        "protected-help": "Protected. Only a Platform Administrator can give this.",
+        "not-grantable-help": "You don't hold this permission, so you can't give it.",
+        "create": "Create role",
+        "save": "Save changes",
+        "saved": "Saved. People with this role see the change now.",
+        "delete": "Delete role",
+        "delete-title": "Delete {name}?",
+        "delete-body": "This can't be undone. A role that someone still holds can't be deleted: give those people another role first.",
+        "delete-confirm": "Delete role",
+        "keep": "Keep role",
+        "dispatch-needs-courier-view": "Dispatching needs “view couriers” too: without it, assigning a courier is refused."
+      },
+      "reason": {
+        "role": {
+          "name-taken": "Another custom role already has this name.",
+          "limit": "This market has reached its limit of custom roles. Delete one first.",
+          "in-use": "Someone still has this role. Give them another role, then delete it.",
+          "read-only": "This role can't be changed. We've refreshed the page.",
+          "unchanged": "Nothing changed."
+        }
+      }
+    }
+  },
+  "load": {
+    "retry": "Try again"
+  },
+  "route": {
+    "loading": "Loading the page",
+    "error": {
+      "title": "This page could not be shown",
+      "message": "Something went wrong on our side. Try again, or go back to the home page. Nothing you saved was lost.",
+      "retry": "Try again",
+      "home": "Go to the home page",
+      "reference": "Reference for support:"
+    }
+  },
+  "profile": {
+    "title": "My profile",
+    "details": "Details",
+    "name": "Name",
+    "email": "Sign-in email",
+    "two-step": "Two-step verification",
+    "two-step-on": "On",
+    "two-step-off": "Off",
+    "missing": "Not given",
+    "unavailable": "We couldn't load your profile. Try again.",
+    "last-sign-in": "Last sign-in",
+    "last-sign-in-none": "No earlier sign-in on record",
+    "name-title": "Your name",
+    "name-label": "Display name",
+    "name-help": "Other people on your team see this name. Use 1 to 100 characters.",
+    "name-save": "Save name",
+    "name-saved": "Your name was updated.",
+    "name-same": "That is already your name.",
+    "prefs-title": "Time zone and language",
+    "prefs-intro-admin": "These are your own display choices. Lists and reports in the admin panel keep showing UTC.",
+    "timezone": "Time zone",
+    "timezone-label": "Time zone",
+    "timezone-default-admin": "Default (UTC)",
+    "timezone-help-admin": "Used for the times on this page, such as your last sign-in.",
+    "language": "Language",
+    "language-label": "Language",
+    "language-default": "Default",
+    "language-en": "English",
+    "language-help": "English is the only language for now. Your choice is kept for when more are added.",
+    "prefs-save": "Save settings",
+    "prefs-saved": "Your settings were saved.",
+    "prefs-same": "Those settings are already saved.",
+    "password-title": "Change password",
+    "password-intro": "Changing your password signs you out on your other devices. You stay signed in here.",
+    "current-password": "Current password",
+    "new-password": "New password",
+    "new-password-help": "Use {min} to {max} characters. A short sentence works well.",
+    "show-password": "Show password",
+    "hide-password": "Hide password",
+    "code-label": "6-digit code",
+    "code-digit": "Digit {position} of {total}",
+    "backup-label": "Backup code",
+    "use-backup": "Use a backup code instead",
+    "use-app": "Use your authenticator app instead",
+    "password-save": "Change password",
+    "password-saved": "Your password was changed. Your other devices were signed out.",
+    "error": {
+      "name-length": "Enter a name of 1 to 100 characters.",
+      "prefs-invalid": "That time zone or language is not available. Choose one from the list.",
+      "name-characters": "Remove web addresses and special formatting characters from the name.",
+      "current-required": "Enter your current password.",
+      "current-incorrect": "That password is incorrect.",
+      "new-length": "Use {min} to {max} characters.",
+      "new-common": "That password is too easy to guess. Choose a different one.",
+      "new-contains-identity": "Don't use your email or name in your password.",
+      "code-required": "Enter the code.",
+      "code-rejected": "That code didn't work. Enter the newest code from your app.",
+      "code-locked": "Too many wrong codes. Code checks are paused for now. Try again later.",
+      "throttled": "Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "csrf": "Refresh the page and try again.",
+      "denied": "You don't have permission to do that.",
+      "unavailable": "We can't do that right now. Try again in a moment.",
+      "network": "You're offline or the connection dropped. Check it and try again.",
+      "unknown": "Something went wrong on our side. Try again."
+    }
+  },
+  "sessions": {
+    "title": "Signed-in devices",
+    "unavailable": "We couldn't load your signed-in devices. Try again.",
+    "list-title": "Where you're signed in",
+    "intro": "These are the browsers and devices signed in to your account now. If you don't recognise one, sign out of all other devices and change your password.",
+    "this-device": "This device",
+    "signed-in": "Signed in",
+    "last-active": "Last active",
+    "active-now": "Active now",
+    "device": "{browser} on {system}",
+    "unknown-device": "Unknown device",
+    "browser": {
+      "edge": "Edge",
+      "opera": "Opera",
+      "samsung": "Samsung Internet",
+      "firefox": "Firefox",
+      "chrome": "Chrome",
+      "safari": "Safari",
+      "other": "A browser"
+    },
+    "system": {
+      "windows": "Windows",
+      "macos": "macOS",
+      "ios": "iPhone or iPad",
+      "android": "Android",
+      "chromeos": "ChromeOS",
+      "linux": "Linux",
+      "other": "another system"
+    },
+    "only-this-device": "You're signed in on this device only.",
+    "sign-out-others": "Sign out of all other devices",
+    "signed-out-others": "{count, plural, =0 {No other device was signed in.} one {Signed out of # other device.} other {Signed out of # other devices.}}",
+    "dialog": {
+      "title": "Sign out of all other devices?",
+      "body": "{count, plural, one {The other device} other {The # other devices}} will have to sign in again. This device stays signed in.",
+      "keep": "Keep them signed in",
+      "action": "Sign out others"
+    }
+  },
+  "common": {},
+  "merchants": {
+    "title": "Merchants",
+    "intro": "The businesses that book deliveries through the API.",
+    "table-caption": "Merchants of the Market",
+    "label": {
+      "name": "Name",
+      "state": "Status",
+      "since": "Since",
+      "created": "Added",
+      "actions": "Actions"
+    },
+    "state": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "empty": {
+      "title": "No merchants yet",
+      "body": "Add the first business that will book deliveries."
+    },
+    "add": {
+      "button": "Add merchant",
+      "title": "Add a merchant",
+      "name": "Business name",
+      "help": "As operators see it. Up to 100 characters.",
+      "action": "Add merchant",
+      "done": "{name} was added."
+    },
+    "action": {
+      "keys": "API keys",
+      "suspend": "Suspend…",
+      "reinstate": "Reinstate"
+    },
+    "suspend": {
+      "title": "Suspend {name}?",
+      "body": "Every API key of the merchant stops working at once. Deliveries already booked stay as they are.",
+      "action": "Suspend merchant",
+      "done": "{name} was suspended."
+    },
+    "reinstated": "{name} is active again. Issue a new API key: the old keys stay revoked.",
+    "no-access": {
+      "title": "You don't have access to merchants",
+      "body": "Your role doesn't include it."
+    },
+    "back": "Merchants",
+    "keys": {
+      "title": "API keys of {name}",
+      "intro": "A key lets the merchant quote and book deliveries. Send it as a bearer token.",
+      "table-caption": "API keys",
+      "label": {
+        "label": "Label",
+        "created": "Issued",
+        "last-seen": "Last used",
+        "expires": "Expires"
+      },
+      "empty": "No active keys.",
+      "issue": {
+        "button": "Issue API key",
+        "title": "Issue an API key",
+        "label": "Label",
+        "help": "What the key is for, for example “marketplace production”.",
+        "action": "Issue key"
+      },
+      "issued": {
+        "title": "Copy the key now",
+        "body": "This is the only time the key is shown. It is not stored, so it cannot be shown again. If it is lost, revoke it and issue another.",
+        "copy": "Copy key",
+        "copied": "Copied",
+        "done": "I've stored it",
+        "expires": "Expires {when}.",
+        "label": "API key"
+      },
+      "revoke": {
+        "action": "Revoke…",
+        "title": "Revoke the key “{label}”?",
+        "body": "Calls with this key stop working at once.",
+        "confirm": "Revoke key",
+        "done": "The key “{label}” was revoked."
+      },
+      "suspended": "This merchant is suspended: reinstate it before issuing a key."
+    }
+  },
+  "couriers": {
+    "title": "Couriers",
+    "intro": "Courier accounts and pending invitations.",
+    "table-caption": "Couriers and pending invitations",
+    "label": {
+      "person": "Courier",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "pending": "Invited",
+      "expired": "Invitation expired"
+    },
+    "empty": {
+      "title": "No couriers yet",
+      "body": "Invite the first courier: they get an email with a link to the app."
+    },
+    "invite": {
+      "button": "Invite courier",
+      "title": "Invite a courier",
+      "email": "Email address",
+      "help": "They get an email with a link to set their password in the courier app.",
+      "action": "Send invitation",
+      "done": "An invitation is on its way to {email}."
+    },
+    "action": {
+      "disable": "Disable…",
+      "enable": "Enable"
+    },
+    "disable": {
+      "title": "Disable {name}'s account?",
+      "body": "They are signed out of the app at once and cannot sign in until enabled again.",
+      "action": "Disable account",
+      "done": "{name} was disabled."
+    },
+    "enabled": "{name} can sign in again.",
+    "next-page": "Next page",
+    "no-access": {
+      "title": "You don't have access to couriers",
+      "body": "Your role doesn't include it."
+    }
+  },
+  "deliveries": {
+    "title": "Deliveries",
+    "intro": "Every delivery of the Market, newest first.",
+    "table-caption": "Deliveries",
+    "filter": {
+      "label": "Show",
+      "all": "All",
+      "waiting": "Waiting for a courier",
+      "active": "On the way",
+      "done": "Finished",
+      "scheduled": "Scheduled"
+    },
+    "label": {
+      "reference": "Reference",
+      "status": "Status",
+      "route": "Pickup → drop-off",
+      "vehicle": "Vehicle",
+      "temperature": "Temperature",
+      "total": "Price",
+      "created": "Booked",
+      "courier": "Courier",
+      "window": "Window",
+      "mode": "Type",
+      "area": "Service area",
+      "merchant": "Merchant",
+      "parcel": "Parcel"
+    },
+    "route": "{from} → {to}",
+    "mode": {
+      "on_demand": "On demand",
+      "scheduled": "Scheduled"
+    },
+    "vehicle": {
+      "bicycle": "Bicycle",
+      "motorbike": "Motorbike",
+      "car": "Car",
+      "van": "Van"
+    },
+    "temperature": {
+      "ambient": "Ambient",
+      "chilled": "Chilled",
+      "frozen": "Frozen"
+    },
+    "status": {
+      "SCHEDULED": "Scheduled",
+      "DISPATCHING": "Finding a courier",
+      "ASSIGNED": "Courier assigned",
+      "AT_PICKUP": "At pickup",
+      "PICKED_UP": "Picked up",
+      "AT_DROPOFF": "At drop-off",
+      "DELIVERED": "Delivered",
+      "DELIVERY_FAILED": "Delivery failed",
+      "RETURNING": "Returning",
+      "RETURNED": "Returned",
+      "CANCELLED": "Cancelled"
+    },
+    "event": {
+      "dispatch_opened": "Dispatch opened",
+      "courier_assigned": "Courier assigned",
+      "courier_unassigned": "Courier unassigned",
+      "arrived_at_pickup": "Arrived at pickup",
+      "picked_up": "Picked up",
+      "arrived_at_dropoff": "Arrived at drop-off",
+      "delivered": "Delivered",
+      "delivery_failed": "Delivery failed",
+      "return_started": "Return started",
+      "returned": "Returned",
+      "cancelled": "Cancelled"
+    },
+    "empty": {
+      "title": "No deliveries here",
+      "body": "Deliveries appear as merchants book them."
+    },
+    "next-page": "Older deliveries",
+    "first-page": "Newest",
+    "no-access": {
+      "title": "You don't have access to deliveries",
+      "body": "Your role doesn't include it."
+    },
+    "not-found": "This delivery was not found in this Market.",
+    "back": "Deliveries",
+    "detail": {
+      "title": "Delivery {reference}",
+      "pickup": "Pickup",
+      "dropoff": "Drop-off",
+      "contact": "Contact",
+      "notes": "Notes",
+      "parcel": "{weight} kg, {volume} L, {temperature}",
+      "history": "History",
+      "history-caption": "What happened, oldest first",
+      "at": "When",
+      "what": "What",
+      "who": "Courier",
+      "reading": "Reading",
+      "reason": "Reason",
+      "proof": "Proof",
+      "proof-pin": "PIN matched",
+      "proof-photo": "Photo",
+      "quote": "Price",
+      "breakdown": {
+        "base": "Base",
+        "distance": "Distance",
+        "coldChain": "Cold chain",
+        "scheduledDiscount": "Scheduled discount",
+        "tax": "Of which tax",
+        "total": "Total"
+      },
+      "distance": "{km} km",
+      "no-courier": "No courier yet",
+      "unknown-courier": "A courier no longer in the list",
+      "address": "Address"
+    },
+    "dispatch": {
+      "title": "Dispatch",
+      "open": "Open dispatch now",
+      "opened": "Dispatch is open.",
+      "assign": "Assign courier",
+      "courier": "Courier",
+      "choose-courier": "Choose a courier",
+      "vehicle": "Vehicle",
+      "choose-vehicle": "Choose a vehicle",
+      "assigned": "{name} was assigned.",
+      "unassign": "Unassign courier",
+      "unassigned": "The courier was unassigned.",
+      "no-couriers": "There is no active courier to assign. Invite one first.",
+      "required": "Choose a courier and a vehicle."
+    },
+    "cancel": {
+      "button": "Cancel delivery…",
+      "title": "Cancel this delivery?",
+      "body": "The merchant is told. A delivery cannot be cancelled once it is picked up.",
+      "reason": "Reason",
+      "reason-help": "Shown to the merchant. Up to 500 characters.",
+      "action": "Cancel delivery",
+      "keep": "Keep delivery",
+      "done": "The delivery was cancelled.",
+      "required": "Give a reason."
+    },
+    "error": {
+      "delivery": {
+        "conflict": "Someone changed this delivery at the same time. Reload and try again.",
+        "invalid-transition": "That step is not possible in the delivery's current status. Reload to see it.",
+        "courier-required": "Choose a courier and a vehicle.",
+        "reason-required": "Give a reason.",
+        "not-found": "This delivery was not found."
+      },
+      "validation": {
+        "failed": "Check the fields and try again."
+      }
+    }
+  },
+  "ops": {
+    "error": {
+      "access": {
+        "denied": "Your role does not allow this.",
+        "unavailable": "The service is not available right now. Try again shortly."
+      },
+      "request": {
+        "csrf": "Your session changed. Reload the page and try again.",
+        "throttled": "Too many attempts. Wait a moment and try again."
+      },
+      "network": "The panel could not reach the server. Check your connection and try again.",
+      "unknown": "Something went wrong. Try again.",
+      "merchant": {
+        "already-suspended": "This merchant is already suspended.",
+        "already-active": "This merchant is already active.",
+        "suspended": "This merchant is suspended.",
+        "unknown": "This merchant was not found."
+      },
+      "api-key": {
+        "unknown": "This key was not found or is already revoked."
+      },
+      "account": {
+        "unknown": "This account was not found.",
+        "already-disabled": "This account is already disabled.",
+        "already-active": "This account is already active.",
+        "exists": "There is already an account with this address."
+      },
+      "invitation": {
+        "already-pending": "This address already has a pending invitation."
+      },
+      "conflict": {
+        "stale": "Someone changed this at the same time. Reload and try again.",
+        "retry": "Someone changed this at the same time. Try again."
+      },
+      "validation": {
+        "failed": "Check the fields and try again."
+      }
+    },
+    "close": "Close",
+    "cancel": "Cancel",
+    "reload": "Reload"
+  }
+}

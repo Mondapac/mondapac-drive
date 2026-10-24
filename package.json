@@ -24,7 +24,7 @@
     "db:check-reversible": "node scripts/check-migrations-reversible.mjs",
     "db:bootstrap": "docker compose exec -T postgres sh /docker-entrypoint-initdb.d/20-init-drive-database.sh",
     "verify": "pnpm db:generate && pnpm typecheck && pnpm lint && pnpm boundaries && pnpm test && pnpm test:db && pnpm db:check-reversible",
-    "boundaries": "pnpm --filter @mondapac-drive/api boundaries && node scripts/check-prisma-boundaries.mjs"
+    "boundaries": "pnpm --filter @mondapac-drive/api boundaries && node scripts/check-prisma-boundaries.mjs && node scripts/check-panel-boundaries.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

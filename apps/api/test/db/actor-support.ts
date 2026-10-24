@@ -89,9 +89,15 @@ export class TestActors {
     if (!seeded.ok) throw new Error(`seed roles: ${seeded.error.code}`);
   }
 
-  /** An admin holding the Platform Administrator role, with a cookie session. */
-  async admin(origin: string): Promise<AdminActor> {
-    const accountId = await this.#account('admin', 'platform', 'platform-administrator');
+  /**
+   * An admin holding a seeded platform role (Platform Administrator by default) or a custom role
+   * given by id, with a cookie session.
+   */
+  async admin(
+    origin: string,
+    role: string | { readonly roleId: Id<'Role'> } = 'platform-administrator',
+  ): Promise<AdminActor> {
+    const accountId = await this.#account('admin', 'platform', role);
     const token = await this.#session(accountId, 'admin', 'cookie');
     return {
       accountId,
@@ -142,7 +148,7 @@ export class TestActors {
   async #account(
     population: 'admin' | 'courier',
     scope: 'platform' | 'courier',
-    seedCode: string,
+    seedCode: string | { readonly roleId: Id<'Role'> },
   ): Promise<Id<'Account'>> {
     const id = this.#ids.next<'Account'>();
     const email = parseEmailAddress(`${population}-${id}@example.com`);
@@ -163,12 +169,12 @@ export class TestActors {
         account,
       );
       if (!added.ok) throw new Error(`add account: ${added.error.code}`);
-      const role = await this.#get<RoleRepository>(ROLE_REPOSITORY).findBySeedCode(
-        this.market,
-        scope,
-        seedCode,
-      );
-      if (role === null) throw new Error(`no seeded role ${scope}:${seedCode}`);
+      const roles = this.#get<RoleRepository>(ROLE_REPOSITORY);
+      const role =
+        typeof seedCode === 'string'
+          ? await roles.findBySeedCode(this.market, scope, seedCode)
+          : await roles.findById(this.market, seedCode.roleId);
+      if (role === null) throw new Error(`no role ${scope}:${JSON.stringify(seedCode)}`);
       const assignment = role.isSystem
         ? RoleAssignment.found({ id: this.#ids.next(), account: account.state, role, now })
         : RoleAssignment.grant({

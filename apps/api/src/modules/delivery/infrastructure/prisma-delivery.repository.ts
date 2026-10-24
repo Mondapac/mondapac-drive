@@ -9,7 +9,7 @@ import {
 import type { Prisma } from '../../../generated/prisma/client';
 import type { PrismaService } from '../../../platform/persistence/prisma.service';
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
-import type { DeliveryRepository } from '../application/ports';
+import type { DeliveryListFilter, DeliveryRepository, DeliverySummary } from '../application/ports';
 import type {
   DeliveryHistoryEntry,
   DeliveryState,
@@ -280,6 +280,57 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
     if (created.count === 0) return false;
     await this.appendHistory(market, delivery, 0);
     return true;
+  }
+
+  async list(market: MarketContext, filter: DeliveryListFilter): Promise<DeliverySummary[]> {
+    const rows = await this.prisma.tx(market).deliveryDelivery.findMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        ...(filter.statuses === undefined ? {} : { status: { in: [...filter.statuses] } }),
+        ...(filter.merchantId === undefined ? {} : { merchantId: filter.merchantId }),
+        ...(filter.courierId === undefined ? {} : { courierId: filter.courierId }),
+        ...(filter.before === undefined ? {} : { id: { lt: filter.before } }),
+      },
+      select: {
+        id: true,
+        merchantId: true,
+        externalReference: true,
+        serviceAreaCode: true,
+        status: true,
+        mode: true,
+        windowStart: true,
+        windowEnd: true,
+        pickup: true,
+        dropoff: true,
+        temperature: true,
+        vehicle: true,
+        totalAmount: true,
+        currency: true,
+        courierId: true,
+        createdAt: true,
+      },
+      orderBy: { id: 'desc' },
+      take: filter.limit,
+    });
+    return rows.map((row) => ({
+      id: row.id as Id<'Delivery'>,
+      merchantId: row.merchantId,
+      externalReference: row.externalReference,
+      serviceAreaCode: row.serviceAreaCode,
+      status: row.status as DeliveryStatus,
+      mode: row.mode as DeliveryMode,
+      ...(row.windowStart !== null && row.windowEnd !== null
+        ? { window: { start: toInstant(row.windowStart), end: toInstant(row.windowEnd) } }
+        : {}),
+      vehicle: row.vehicle as VehicleType,
+      temperature: row.temperature as Temperature,
+      pickupPostcode: (row.pickup as unknown as StoredStop).postcode,
+      dropoffPostcode: (row.dropoff as unknown as StoredStop).postcode,
+      total: money(row.totalAmount, row.currency),
+      ...(row.courierId === null ? {} : { courierId: row.courierId }),
+      createdAt: toInstant(row.createdAt),
+    }));
   }
 
   async update(market: MarketContext, delivery: DeliveryState): Promise<void> {

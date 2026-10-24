@@ -13,6 +13,40 @@ export class AdminCourierInvitationIssued {
   invitationId!: string;
 }
 
+export class AdminCourierRowView {
+  @ApiProperty({ enum: ['account', 'invitation'] })
+  type!: 'account' | 'invitation';
+
+  @ApiProperty({ format: 'uuid', required: false, description: 'An account row' })
+  accountId?: string;
+
+  @ApiProperty({ format: 'uuid', required: false, description: 'An invitation row' })
+  invitationId?: string;
+
+  @ApiProperty({ description: 'Personal data.' })
+  email!: string;
+
+  @ApiProperty({ type: String, nullable: true, required: false, description: 'An account row' })
+  displayName?: string | null;
+
+  @ApiProperty({ enum: ['active', 'disabled', 'pending', 'expired'] })
+  status!: 'active' | 'disabled' | 'pending' | 'expired';
+
+  @ApiProperty({ required: false, description: 'An invitation row (ISO 8601)' })
+  createdAt?: string;
+
+  @ApiProperty({ type: String, nullable: true, required: false, description: 'An invitation row' })
+  expiresAt?: string | null;
+}
+
+export class AdminCourierPage {
+  @ApiProperty({ type: [AdminCourierRowView] })
+  items!: AdminCourierRowView[];
+
+  @ApiProperty({ type: String, nullable: true })
+  next!: string | null;
+}
+
 export class AdminCreateMerchantRequest {
   @ApiProperty({ description: "The business's name, as operators see it.", maxLength: 100 })
   name!: string;
