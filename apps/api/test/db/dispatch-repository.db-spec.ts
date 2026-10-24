@@ -13,12 +13,14 @@ import {
   openEarly,
   openDispatchJob,
   pendingOffers,
+  recordCollection,
   sendWave,
   sweep,
   type DispatchJob,
 } from '../../src/modules/dispatch/domain/dispatch-job';
 import { DISPATCH_EVENTS } from '../../src/modules/dispatch/domain/events/dispatch-events';
 import { InMemoryCouriers } from '../support/dispatch-couriers';
+import { FakeDeliveryFacts } from '../support/dispatch-fakes';
 import { PrismaDispatchJobRepository } from '../../src/modules/dispatch/infrastructure/prisma-dispatch-job.repository';
 import { EventCatalogue } from '../../src/platform/events/event-catalogue';
 import { NO_PERMISSION_KEYS } from '../../src/platform/events/outbox-writer';
@@ -168,6 +170,22 @@ describe('dispatch repository (database integration)', () => {
       expect(none.ok && none.value.map((job) => job.id)).not.toContain(opened.id);
     });
 
+    it('stores a collected job, and refuses stops on a job that is not offering', async () => {
+      const opened = newJob(code);
+      await inUnit(code, () => repository.insert(market, opened));
+      const collected = recordCollection(opened, courierId(4), at).job;
+      await inUnit(code, () => repository.update(market, collected));
+      const read = await inUnit(code, () => repository.findById(market, opened.id), true);
+      expect(read.ok && read.value?.status).toBe('COLLECTED');
+      expect(read.ok && read.value?.assignment?.courierId).toBe(courierId(4));
+
+      const waiting = newJob(code, at.add({ hours: 24 }));
+      expect(waiting.stops).toBeUndefined();
+      await expect(
+        inUnit(code, () => repository.insert(market, { ...waiting, stops: stops() })),
+      ).rejects.toThrow();
+    });
+
     it('moves the opening time of a scheduled job forward', async () => {
       const later = newJob(code, at.add({ hours: 24 }));
       await inUnit(code, () => repository.insert(market, later));
@@ -242,6 +260,7 @@ describe('dispatch repository (database integration)', () => {
         dispatchSettings,
         couriers,
         couriers,
+        new FakeDeliveryFacts(),
         outbox,
         db.unitOfWork,
         ids,

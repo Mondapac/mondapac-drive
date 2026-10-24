@@ -16,6 +16,7 @@ import {
   isOpen,
   openEarly,
   recordAssignment,
+  recordCollection,
   redispatch,
   type DispatchJob,
   type JobChange,
@@ -58,6 +59,16 @@ export interface FollowDeliveryStatusDependencies {
   readonly advancer: JobAdvancer;
 }
 
+/** The delivery statuses in which its courier has collected the parcel, as events carry them. */
+const COLLECTED_STATUSES: ReadonlySet<string> = new Set([
+  'picked-up',
+  'at-dropoff',
+  'delivered',
+  'delivery-failed',
+  'returning',
+  'returned',
+]);
+
 /** Whether the delivery lost its courier and needs one again (not half of a reassignment). */
 function droppedCourier(input: FollowDeliveryStatusInput): boolean {
   return (
@@ -73,7 +84,9 @@ function droppedCourier(input: FollowDeliveryStatusInput): boolean {
  *   starts again without that courier, the offer's addresses read again from the delivery;
  * - a courier was assigned outside dispatch (a dispatcher on the delivery's route): offers out
  *   are withdrawn and the job records that courier;
- * - a dispatcher opened a scheduled delivery early (scheduled -> dispatching): the job opens.
+ * - a dispatcher opened a scheduled delivery early (scheduled -> dispatching): the job opens;
+ * - the courier collected the parcel (picked-up or later): the job is done for good, so a
+ *   dispatcher can no longer reassign it.
  * Events come at least once and in no order: one at or below the delivery version the job last
  * followed changes nothing, and half of a reassignment is ignored. Rule `system`.
  */
@@ -140,6 +153,7 @@ export class FollowDeliveryStatus extends UseCase<
     stops: OfferStops | undefined,
     now: Temporal.Instant,
   ): JobChange {
+    if (COLLECTED_STATUSES.has(input.status)) return recordCollection(job, input.courierId, now);
     if (stops !== undefined && job.status === 'ASSIGNED') return redispatch(job, stops, now);
     if (input.status === 'assigned' && input.courierId !== null) {
       return recordAssignment(job, input.courierId, now);

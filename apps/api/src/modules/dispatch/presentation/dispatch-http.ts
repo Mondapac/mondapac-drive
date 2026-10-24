@@ -10,6 +10,7 @@ const STATUS: Readonly<Record<string, number>> = Object.freeze({
   'dispatch.not-found': 404,
   'dispatch.conflict': 409,
   'dispatch.cancelled': 409,
+  'dispatch.collected': 409,
   'dispatch.already-assigned': 409,
   'dispatch.not-exhausted': 409,
   'dispatch.courier-not-active': 422,

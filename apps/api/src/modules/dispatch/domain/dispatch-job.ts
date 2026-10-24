@@ -22,9 +22,18 @@ import type { DispatchRequirements, RankedCandidate } from './matching';
 /**
  * A dispatch job's lifecycle. A scheduled delivery's job WAITs until it opens; OFFERING sends
  * waves of offers until a courier accepts (ASSIGNED) or every round went unanswered
- * (EXHAUSTED, for a dispatcher). A dispatcher may assign from any status but CANCELLED.
+ * (EXHAUSTED, for a dispatcher). Once the courier collected the parcel the job is COLLECTED:
+ * custody can no longer change through dispatch. A dispatcher may assign from any status but
+ * COLLECTED and CANCELLED.
  */
-export const JOB_STATUSES = ['WAITING', 'OFFERING', 'ASSIGNED', 'EXHAUSTED', 'CANCELLED'] as const;
+export const JOB_STATUSES = [
+  'WAITING',
+  'OFFERING',
+  'ASSIGNED',
+  'EXHAUSTED',
+  'COLLECTED',
+  'CANCELLED',
+] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
 export const OFFER_STATUSES = ['PENDING', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'] as const;
@@ -53,9 +62,9 @@ export interface Assignment {
 
 /**
  * What a courier's offer shows besides the requirements: both addresses, the drop-off point and
- * the trip distance. Personal data, so the job holds it only while it may still send offers:
- * it is dropped once a courier has the delivery or it is cancelled, and read again from the
- * delivery when offering restarts.
+ * the trip distance. Personal data, so the job holds it only while OFFERING: a scheduled job
+ * reads it when it opens, it is dropped once a courier has the delivery, every round lapsed or
+ * the delivery was cancelled, and it is read again from the delivery when offering restarts.
  */
 export interface OfferStops {
   readonly pickupAddress: string;
@@ -69,7 +78,7 @@ export interface DispatchJob {
   readonly marketId: MarketId;
   readonly deliveryId: Id<'Delivery'>;
   readonly requirements: DispatchRequirements;
-  /** Absent once a courier has the delivery or it was cancelled. */
+  /** Present only while OFFERING (read again when absent and a wave is due). */
   readonly stops?: OfferStops;
   readonly status: JobStatus;
   /** When offering starts: at once for on-demand, the window minus the Market's lead time. */
@@ -103,6 +112,7 @@ export interface NewDispatchJob {
   readonly marketId: MarketId;
   readonly deliveryId: Id<'Delivery'>;
   readonly requirements: DispatchRequirements;
+  /** Kept only when the job opens at once; a scheduled job reads them again when it opens. */
   readonly stops: OfferStops;
   /** The start of a scheduled delivery's window; absent for on-demand. */
   readonly windowStart?: Temporal.Instant;
@@ -121,13 +131,14 @@ export function openDispatchJob(
     scheduledOpen !== undefined && Temporal.Instant.compare(scheduledOpen, now) > 0
       ? scheduledOpen
       : now;
+  const offering = opensAt === now;
   return {
     id: input.id,
     marketId: input.marketId,
     deliveryId: input.deliveryId,
     requirements: input.requirements,
-    stops: input.stops,
-    status: opensAt === now ? 'OFFERING' : 'WAITING',
+    ...(offering ? { stops: input.stops } : {}),
+    status: offering ? 'OFFERING' : 'WAITING',
     opensAt,
     round: 0,
     nextActionAt: opensAt,
@@ -213,7 +224,7 @@ export function sweep(
         payload: { deliveryId: job.deliveryId, rounds: job.round },
       }),
     );
-    const rest = settled(job);
+    const rest = closed(job);
     return {
       job: { ...rest, status: 'EXHAUSTED', offers, version },
       events,
@@ -371,6 +382,12 @@ export function assignManually(
   if (job.status === 'CANCELLED') {
     throw new DispatchDomainError('dispatch.cancelled', 'The delivery was cancelled');
   }
+  if (job.status === 'COLLECTED') {
+    throw new DispatchDomainError(
+      'dispatch.collected',
+      'The courier collected the parcel: the delivery can no longer be reassigned',
+    );
+  }
   if (job.assignment?.courierId === courierId) {
     throw new DispatchDomainError('dispatch.already-assigned', 'The courier already has it');
   }
@@ -436,7 +453,11 @@ export function recordAssignment(
   courierId: Id<'Courier'>,
   now: Temporal.Instant,
 ): JobChange {
-  if (job.status === 'CANCELLED' || job.assignment?.courierId === courierId) {
+  if (
+    job.status === 'CANCELLED' ||
+    job.status === 'COLLECTED' ||
+    job.assignment?.courierId === courierId
+  ) {
     return { job, events: [] };
   }
   const { offers, events } = withdrawPending(job, now);
@@ -471,11 +492,52 @@ export function followedDeliveryVersion(
   };
 }
 
+/**
+ * The delivery says its courier collected the parcel: the job is done for good, and records
+ * the courier the delivery names (it wins over a reassignment that raced the pickup).
+ */
+export function recordCollection(
+  job: DispatchJob,
+  courierId: Id<'Courier'> | null,
+  now: Temporal.Instant,
+): JobChange {
+  if (job.status === 'COLLECTED' || job.status === 'CANCELLED') return { job, events: [] };
+  const { offers, events } = withdrawPending(job, now);
+  const held = job.assignment;
+  const assignment: Assignment | undefined =
+    courierId === null || held?.courierId === courierId
+      ? held
+      : {
+          courierId,
+          vehicle: held?.vehicle ?? job.requirements.minimumVehicle,
+          method: 'manual',
+          at: now,
+        };
+  const { assignment: dropped, ...rest } = closed(job);
+  void dropped;
+  return {
+    job: {
+      ...rest,
+      ...(assignment === undefined ? {} : { assignment }),
+      status: 'COLLECTED',
+      offers,
+      version: job.version + 1,
+    },
+    events,
+  };
+}
+
+/** The job with the offer's stops, read again for a wave; any other job is left as it is. */
+export function withStops(job: DispatchJob, stops: OfferStops): DispatchJob {
+  return job.status === 'OFFERING' && job.stops === undefined ? { ...job, stops } : job;
+}
+
 /** The delivery was cancelled: offers out are withdrawn and the job stops. */
 export function cancelJob(job: DispatchJob, now: Temporal.Instant): JobChange {
-  if (job.status === 'CANCELLED') return { job, events: [] };
+  if (job.status === 'CANCELLED' || job.status === 'COLLECTED') return { job, events: [] };
   const { offers, events } = withdrawPending(job, now);
-  const rest = closed(job);
+  const { assignment, ...rest } = closed(job);
+  void assignment;
   return { job: { ...rest, status: 'CANCELLED', offers, version: job.version + 1 }, events };
 }
 

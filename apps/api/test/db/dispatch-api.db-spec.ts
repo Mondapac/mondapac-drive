@@ -43,17 +43,12 @@ describe('dispatch API (database integration)', () => {
   let sql: Client;
 
   beforeAll(async () => {
-    ({ app } = await createTestApp({
-      panelOrigins: true,
-      env: { DATABASE_URL: testDatabaseUrl(), HOSTED_MARKETS: TEST_MARKETS.join(',') },
-    }));
     sql = new Client({ connectionString: testDatabaseUrl() });
     await sql.connect();
   });
 
   afterAll(async () => {
     await sql.end();
-    await app.close();
   });
 
   const get = (code: string, path: string, headers: object = {}) =>
@@ -91,13 +86,22 @@ describe('dispatch API (database integration)', () => {
     let courier: CourierActor;
     let otherCourier: CourierActor;
 
+    // One application per Market: its in-memory rate limiter starts empty for each.
     beforeAll(async () => {
+      ({ app } = await createTestApp({
+        panelOrigins: true,
+        env: { DATABASE_URL: testDatabaseUrl(), HOSTED_MARKETS: TEST_MARKETS.join(',') },
+      }));
       const actors = new TestActors(app, code);
       await actors.seedRoles();
       dispatcher = await actors.admin(panelHeaders(code).origin, 'dispatcher');
       operator = await actors.admin(panelHeaders(code).origin, 'operator');
       courier = await actors.courier();
       otherCourier = await actors.courier();
+    });
+
+    afterAll(async () => {
+      await app.close();
     });
 
     /** A job whose first wave went to `courierIds`, stored as dispatch stores it. */
@@ -382,6 +386,37 @@ describe('dispatch API (database integration)', () => {
           status: 'CANCELLED',
           dropoff_address: null,
         });
+      });
+
+      it('closes the job once the courier collected the parcel, and refuses a reassignment', async () => {
+        const deliveryId = await book();
+        const base = `/dispatch/admin/deliveries/${deliveryId}`;
+        const assign = (c: CourierActor) =>
+          post(code, `${base}/assign`, dispatcher.headers, {
+            courierId: c.accountId,
+            vehicle: 'van',
+          });
+        expect((await assign(courier)).status).toBe(200);
+        await handleAll();
+
+        for (const type of ['arrived_at_pickup', 'picked_up']) {
+          const reported = await post(
+            code,
+            `/delivery/courier/deliveries/${deliveryId}/events`,
+            courier.headers,
+            { type },
+          );
+          expect(reported.status).toBe(200);
+        }
+        await handleAll();
+        expect(await jobOf(deliveryId)).toMatchObject({
+          status: 'COLLECTED',
+          assigned_courier_id: courier.accountId,
+        });
+
+        const refused = await assign(otherCourier);
+        expect(refused.status).toBe(409);
+        expect((refused.body as { code: string }).code).toBe('dispatch.collected');
       });
     });
 

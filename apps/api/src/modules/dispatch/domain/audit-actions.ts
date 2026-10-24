@@ -11,6 +11,7 @@ export const JOB_STATUS_CODES = [
   'offering',
   'assigned',
   'exhausted',
+  'collected',
   'cancelled',
 ] as const;
 export type JobStatusCode = (typeof JOB_STATUS_CODES)[number];

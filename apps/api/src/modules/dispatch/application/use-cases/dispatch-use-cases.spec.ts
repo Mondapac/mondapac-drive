@@ -88,6 +88,7 @@ describe.each([
       dispatchSettings,
       couriers,
       couriers,
+      facts,
       outbox,
       unitOfWork,
       ids,
@@ -231,11 +232,17 @@ describe.each([
       });
       await book(t);
       expect(await offeredTo(t)).toEqual([]);
+      expect((await jobOf(t)).stops).toBeUndefined();
 
+      t.facts.book(deliveryId, {
+        status: 'SCHEDULED',
+        dropoff: { address: '3 New Lane', postcode: '4101', point: geoPoint(-27.6, 153.1) },
+      });
       t.clock.set(windowStart.subtract({ minutes: settings.scheduledLeadMinutes }));
       await sweep(t);
 
       expect(await offeredTo(t)).toEqual([courierId(1)]);
+      expect((await jobOf(t)).stops?.dropoffAddress).toBe('3 New Lane');
     });
 
     it('is exhausted after the last round', async () => {
@@ -246,7 +253,9 @@ describe.each([
         await sweep(t);
       }
 
-      expect((await jobOf(t)).status).toBe('EXHAUSTED');
+      const job = await jobOf(t);
+      expect(job.status).toBe('EXHAUSTED');
+      expect(job.stops).toBeUndefined();
       expect(t.outbox.take()).toEqual(['dispatch.job-exhausted.v1']);
       expect(await sweep(t)).toEqual({ advanced: 0 });
     });
@@ -416,6 +425,7 @@ describe.each([
 
       await sweep(t);
       expect(await offeredTo(t)).toEqual([courierId(1)]);
+      expect((await jobOf(t)).stops?.pickupAddress).toBe('1 Pickup Street');
 
       const again = await t.restart.execute(dispatcher, { deliveryId });
       expect(again.ok || again.error.code).toBe('dispatch.not-exhausted');
@@ -489,6 +499,37 @@ describe.each([
       expect(t.outbox.take()).toEqual(
         Array.from({ length: settings.waveSize }, () => 'dispatch.offer-withdrawn.v1'),
       );
+    });
+
+    it('closes the job once the courier collected the parcel, and refuses a reassignment', async () => {
+      const t = setUp();
+      await assignedByOffer(t);
+      t.accounts.active.add(courierId(2));
+
+      await status(t, 4, 'at-pickup', 'picked-up', { courierId: courierId(1) });
+
+      const job = await jobOf(t);
+      expect(job.status).toBe('COLLECTED');
+      expect(job.assignment?.courierId).toBe(courierId(1));
+      const refused = await t.assign.execute(dispatcher, {
+        deliveryId,
+        courierId: courierId(2),
+        vehicle: 'car',
+      });
+      expect(refused.ok || refused.error.code).toBe('dispatch.collected');
+      expect(t.audit.entries).toEqual([]);
+      expect(t.outbox.take()).toEqual([]);
+    });
+
+    it('records the courier the delivery names at pickup over a reassignment that raced it', async () => {
+      const t = setUp();
+      await assignedByOffer(t);
+      t.accounts.active.add(courierId(2));
+      await t.assign.execute(dispatcher, { deliveryId, courierId: courierId(2), vehicle: 'car' });
+
+      await status(t, 4, 'at-pickup', 'picked-up', { courierId: courierId(1) });
+
+      expect((await jobOf(t)).assignment?.courierId).toBe(courierId(1));
     });
 
     it('changes nothing for a late or repeated event', async () => {

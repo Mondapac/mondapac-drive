@@ -6,11 +6,11 @@
     "actors": ["authenticated"],
     "before": {
       "courierId": "optional(id)",
-      "status": "enumOf(waiting|offering|assigned|exhausted|cancelled)"
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)"
     },
     "after": {
       "courierId": "id",
-      "status": "enumOf(waiting|offering|assigned|exhausted|cancelled)",
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)",
       "vehicle": "enumOf(bicycle|motorbike|car|van)"
     }
   },
@@ -20,10 +20,10 @@
     "targetId": "id",
     "actors": ["authenticated"],
     "before": {
-      "status": "enumOf(waiting|offering|assigned|exhausted|cancelled)"
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)"
     },
     "after": {
-      "status": "enumOf(waiting|offering|assigned|exhausted|cancelled)"
+      "status": "enumOf(waiting|offering|assigned|exhausted|collected|cancelled)"
     }
   },
   {
