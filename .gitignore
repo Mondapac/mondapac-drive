@@ -8,3 +8,4 @@ coverage/
 *.tsbuildinfo
 apps/api/src/generated/
 .expo/
+.object-store/

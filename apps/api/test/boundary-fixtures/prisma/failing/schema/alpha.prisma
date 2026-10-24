@@ -1,0 +1,137 @@
+// Deliberate violations of P 9; boundaries.spec.ts expects each one, and nothing else.
+
+/// Violation: neither scoped nor exempt.
+model AlphaNeither {
+  id   String @id @db.Uuid
+  name String
+
+  @@schema("alpha")
+}
+
+/// @market-scope none: violation, a scoped model that also claims the exemption.
+model AlphaBoth {
+  id       String @id @db.Uuid
+  marketId String @map("market_id")
+  tenantId String @map("tenant_id")
+
+  @@schema("alpha")
+}
+
+/// Violation: market_id without tenant_id.
+model AlphaMarketOnly {
+  id       String @id @db.Uuid
+  marketId String @map("market_id")
+
+  @@schema("alpha")
+}
+
+/// Violations: keys of a scoped model without marketId (a field @unique, a @@unique and a
+/// compound @@id).
+model AlphaBadKeys {
+  marketId String @map("market_id")
+  tenantId String @map("tenant_id")
+  kind     String
+  code     String
+  ref      String @unique
+
+  @@id([kind, code])
+  @@unique([kind, ref])
+  @@schema("alpha")
+}
+
+/// Violation: a single-column @id that is not a UUID.
+model AlphaIntId {
+  id       Int    @id
+  marketId String @map("market_id")
+  tenantId String @map("tenant_id")
+
+  @@schema("alpha")
+}
+
+/// Allowed (control): a `name:`-named selector and @@unique([kind, marketId]).
+model AlphaParent {
+  id         String                @id @db.Uuid
+  marketId   String                @map("market_id")
+  tenantId   String                @map("tenant_id")
+  kind       String
+  code       String
+  orphans    AlphaChildNoMarket[]
+  misaligned AlphaChildMisaligned[]
+  exemptRefs AlphaExemptChild[]
+
+  @@unique([marketId, id])
+  @@unique([id, marketId])
+  @@unique([marketId, code], name: "byCode")
+  @@unique([kind, marketId])
+  @@schema("alpha")
+}
+
+/// Violation: a foreign key between scoped models without marketId (PM6).
+model AlphaChildNoMarket {
+  id       String      @id @db.Uuid
+  marketId String      @map("market_id")
+  tenantId String      @map("tenant_id")
+  parentId String      @map("parent_id")
+  parent   AlphaParent @relation(fields: [parentId], references: [id])
+
+  @@schema("alpha")
+}
+
+/// Violation: marketId paired with another column (different positions in the two lists).
+model AlphaChildMisaligned {
+  id       String      @id @db.Uuid
+  marketId String      @map("market_id")
+  tenantId String      @map("tenant_id")
+  parentId String      @map("parent_id")
+  parent   AlphaParent @relation(fields: [marketId, parentId], references: [id, marketId])
+
+  @@schema("alpha")
+}
+
+/// Violation: declared in schema "beta" from alpha's file.
+model AlphaWrongSchema {
+  id       String @id @db.Uuid
+  marketId String @map("market_id")
+  tenantId String @map("tenant_id")
+
+  @@schema("beta")
+}
+
+model AlphaOutbox {
+  eventId   String @id @map("event_id") @db.Uuid
+  marketId  String @map("market_id")
+  tenantId  String @map("tenant_id")
+  type      String
+  payload   Json
+
+  @@map("outbox")
+  @@schema("alpha")
+}
+
+/// @market-scope none: allowed on its own; the two relations below are the violations.
+model AlphaExemptParent {
+  code    String             @id
+  scopedChildren AlphaScopedChild[]
+
+  @@schema("alpha")
+}
+
+/// Violation: a market-scoped model related to an exempt model.
+model AlphaScopedChild {
+  id         String            @id @db.Uuid
+  marketId   String            @map("market_id")
+  tenantId   String            @map("tenant_id")
+  parentCode String            @map("parent_code")
+  parent     AlphaExemptParent @relation(fields: [parentCode], references: [code])
+
+  @@schema("alpha")
+}
+
+/// @market-scope none: violation, an exempt model related to a market-scoped model.
+model AlphaExemptChild {
+  code     String      @id
+  parentId String      @map("parent_id") @db.Uuid
+  parent   AlphaParent @relation(fields: [parentId], references: [id])
+
+  @@schema("alpha")
+}

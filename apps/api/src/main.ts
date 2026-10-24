@@ -1,18 +1,42 @@
 import 'reflect-metadata';
-import { join } from 'node:path';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module.js';
-import { configureApp } from './configure-app.js';
-import { repositoryRoot } from './platform/platform.module.js';
+import { loadEnvFile } from './load-env-file';
+import { loadAppConfig } from './platform/config/app-config';
+import { startApi } from './start-api';
+import { startWorker } from './start-worker';
 
+/**
+ * The composition root (platform persistence design, "P", 8). It reads `APP_ROLE` and
+ * branches once: `api` serves HTTP, `worker` runs the relay and the scheduler. Both build the
+ * same module graph. Only this file and `platform/worker/` read the role (P 12.2 rule 3).
+ *
+ * A missing or unknown `APP_ROLE` fails boot here, before either role starts (no default;
+ * main.spec.ts). The worker exits 0 after a clean stop on SIGTERM or SIGINT and 1 if the stop
+ * fails; its path never calls `enableShutdownHooks`, so nothing re-raises the signal.
+ */
 async function bootstrap(): Promise<void> {
-  try {
-    process.loadEnvFile(join(repositoryRoot(), '.env'));
-  } catch {
-    // No .env file: use the real environment.
+  loadEnvFile();
+  const config = loadAppConfig(process.env);
+
+  if (config.appRole === 'worker') {
+    const worker = await startWorker(config);
+    if (worker === undefined) process.exit(1);
+    for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+      process.once(signal, () => {
+        worker.stop().then(
+          () => process.exit(0),
+          () => process.exit(1),
+        );
+      });
+    }
+    return;
   }
-  const app = configureApp(await NestFactory.create(AppModule));
-  await app.listen(Number(process.env.PORT ?? 3100));
+
+  const api = await startApi(config);
+  if (api === undefined) process.exit(1);
 }
 
-void bootstrap();
+bootstrap().catch((error: unknown) => {
+  // Startup failures (for example invalid configuration) happen before the logger exists.
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});

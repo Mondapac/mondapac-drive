@@ -1,0 +1,10 @@
+// Allowed: a scoped model whose only key is the single-column UUID @id.
+model AuditLog {
+  id       String @id @db.Uuid
+  marketId String @map("market_id")
+  tenantId String @map("tenant_id")
+  action   String
+
+  @@map("audit_log")
+  @@schema("platform")
+}

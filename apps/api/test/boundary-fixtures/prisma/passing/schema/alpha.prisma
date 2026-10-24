@@ -1,0 +1,64 @@
+// Allowed cases of P 9 (each says why).
+
+/// A scoped parent. Its keys all contain marketId: the composite key children point at, a
+/// `name:`-named selector, and a selector whose marketId is not the leading field.
+model AlphaParent {
+  id       String       @id @db.Uuid
+  marketId String       @map("market_id")
+  tenantId String       @map("tenant_id")
+  code     String
+  kind     String
+  children AlphaChild[]
+
+  @@unique([marketId, id])
+  @@unique([marketId, code], name: "byCode", map: "alpha_parent_code_key")
+  @@unique([kind, marketId])
+  @@map("parent")
+  @@schema("alpha")
+}
+
+/// A scoped child: its foreign key carries marketId at the same position on both sides (PM6).
+model AlphaChild {
+  id       String      @id @db.Uuid
+  marketId String      @map("market_id")
+  tenantId String      @map("tenant_id")
+  parentId String      @map("parent_id")
+  parent   AlphaParent @relation(fields: [marketId, parentId], references: [marketId, id])
+
+  @@unique([marketId, id])
+  @@map("child")
+  @@schema("alpha")
+}
+
+/// A compound @@id that contains marketId (the throttle shape).
+model AlphaThrottle {
+  marketId String @map("market_id")
+  tenantId String @map("tenant_id")
+  kind     String
+  keyHash  Bytes  @map("key_hash")
+
+  @@id([marketId, kind, keyHash])
+  @@map("throttle")
+  @@schema("alpha")
+}
+
+/// @market-scope none: a Market-free lookup the fixture needs to prove the exemption line.
+model AlphaLookup {
+  code  String @id
+  label String
+
+  @@map("lookup")
+  @@schema("alpha")
+}
+
+/// The module's outbox: the same fields as every other outbox.
+model AlphaOutbox {
+  eventId   String @id @map("event_id") @db.Uuid
+  marketId  String @map("market_id")
+  tenantId  String @map("tenant_id")
+  type      String
+  payload   Json
+
+  @@map("outbox")
+  @@schema("alpha")
+}

@@ -1,7 +1,6 @@
 import type { MarketId } from '@mondapac-drive/shared-kernel';
-import type { Temperature } from './parcel.js';
-import type { ServiceArea } from './service-area.js';
-import type { VehicleType } from './vehicle.js';
+import type { Temperature } from './parcel';
+import type { VehicleType } from './vehicle';
 
 /** One vehicle's prices and limits. Money values are minor units of the Market's currency. */
 export interface VehicleRate {
@@ -13,20 +12,22 @@ export interface VehicleRate {
   readonly temperatures: readonly Temperature[];
 }
 
-/** Everything about delivery that differs by Market (config/markets/<CODE>.json). */
+/**
+ * Everything about delivery that differs by Market: the `delivery` and `tax` sections and the
+ * conventions of `config/markets/<CODE>.json`, read through the platform's MarketRegistry.
+ */
 export interface MarketDeliverySettings {
   readonly marketId: MarketId;
   readonly currency: string;
   readonly timezone: string;
   readonly pricesIncludeTax: boolean;
   readonly taxRateBps: number;
-  readonly serviceAreas: readonly ServiceArea[];
   readonly rateCard: {
     readonly vehicles: Partial<Record<VehicleType, VehicleRate>>;
-    readonly coldChainSurcharge: Record<Temperature, number>;
+    readonly coldChainSurcharge: Readonly<Record<Temperature, number>>;
     readonly scheduledDiscountBps: number;
   };
-  readonly coldChain: Record<'chilled' | 'frozen', { readonly maxCelsius: number }>;
+  readonly coldChain: Readonly<Record<'chilled' | 'frozen', { readonly maxCelsius: number }>>;
   readonly scheduling: {
     readonly minLeadMinutes: number;
     readonly maxDaysAhead: number;
