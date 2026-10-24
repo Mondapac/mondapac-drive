@@ -2,7 +2,8 @@ import type { Temporal } from '@mondapac-drive/shared-kernel';
 import type { CourierState } from './courier-state';
 import { requirementApplies, requirementMet } from './documents';
 import type { MarketFleetRules } from './fleet-rules';
-import { carriesColdChain, type Vehicle, type VehicleType } from './vehicle';
+import { carriesColdChain, type Temperature, type Vehicle, type VehicleType } from './vehicle';
+import { vehicleTemperatures } from './vehicle-class';
 
 /**
  * The active vehicles a courier may drive now: every document the Market requires for that
@@ -61,4 +62,40 @@ export function canTakeWork(
       need.vehicleTypes.includes(vehicle.type),
     )
   );
+}
+
+/** A vehicle dispatch may give the courier a job in, and the temperatures it may carry now. */
+export interface WorkingVehicle {
+  readonly vehicle: Vehicle;
+  /** Ambient always; chilled or frozen only when the courier may carry cold chain in it now. */
+  readonly temperatures: readonly Temperature[];
+}
+
+/**
+ * The vehicles of a courier who {@link canTakeWork} that dispatch may use for `need`, smallest
+ * type first as the courier keeps them. A vehicle is listed when it is eligible for the job and
+ * of an asked type; its temperatures are what its box keeps and the Market lets its type carry,
+ * cut to ambient unless the courier and the vehicle hold every cold-chain document now. For a
+ * cold-chain job, a vehicle that may carry nothing cold is left out.
+ */
+export function vehiclesForWork(
+  courier: CourierState,
+  need: DispatchNeed,
+  rules: MarketFleetRules,
+  now: Temporal.Instant,
+): WorkingVehicle[] {
+  if (!canTakeWork(courier, need, rules, now)) return [];
+  const coldChain = new Set(eligibleVehicles(courier, rules, now, true).map((v) => v.id));
+  return eligibleVehicles(courier, rules, now, need.coldChain)
+    .filter((vehicle) => need.vehicleTypes.includes(vehicle.type))
+    .map((vehicle) => ({
+      vehicle,
+      temperatures: vehicleTemperatures(vehicle, rules).filter(
+        (temperature) => temperature === 'ambient' || coldChain.has(vehicle.id),
+      ),
+    }))
+    .filter(
+      ({ temperatures }) =>
+        temperatures.length > 0 && (!need.coldChain || temperatures.some((t) => t !== 'ambient')),
+    );
 }

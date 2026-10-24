@@ -236,6 +236,33 @@ describe('fleet use cases (database integration)', () => {
         await directory.findEligibleCouriers(system(), { ...ask, vehicleTypes: ['bicycle'] }),
       ).not.toContain(applicant.id);
 
+      // Dispatch's richer answer: the account id, the van's capacity and the idle time.
+      const accountId =
+        courierContext.actor.kind === 'authenticated' ? courierContext.actor.accountId : '';
+      const available = await directory.findAvailableCouriers(system(), ask);
+      expect(available.find((c) => c.courierId === accountId)).toEqual({
+        courierId: accountId,
+        vehicles: [
+          {
+            vehicleId: applicant.vehicles[0]!.id,
+            type: 'van',
+            maxWeightGrams: 300_000,
+            maxVolumeLitres: 2000,
+            temperatures: rules.vehicleClasses.van!.temperatures,
+          },
+        ],
+        idleSince: T0,
+      });
+      expect(available.map((c) => c.courierId)).not.toContain(applicant.id);
+      expect(await directory.payeeProfiles(system(), [accountId, newId()])).toEqual([
+        {
+          courierId: accountId,
+          employmentType: 'contractor',
+          taxRegistered: false,
+          businessIdVerified: true,
+        },
+      ]);
+
       const suspended = value(
         await use(SuspendCourier).execute(person('admin', 'suspend'), applicant.id, 'documents'),
       );
@@ -257,6 +284,40 @@ describe('fleet use cases (database integration)', () => {
         });
       } finally {
         clock.set(T0);
+      }
+    });
+
+    it("gives a vehicle the rate card's capacity when the courier gives none", async () => {
+      const courierContext = person('courier', 'capacity');
+      const { courier } = value(
+        await use(RegisterCourier).execute(courierContext, {
+          employmentType: 'employee',
+          serviceAreaCode: area,
+          coldChainCapable: false,
+        }),
+      );
+      const withVan = value(
+        await use(AddVehicle).execute(courierContext, courier.id, {
+          type: 'van',
+          plate: 'CAP1',
+          coldBox: 'none',
+        }),
+      );
+      expect(withVan.vehicles[0]).toMatchObject({
+        maxWeightGrams: rules.vehicleClasses.van!.maxWeightGrams,
+        maxVolumeLitres: rules.vehicleClasses.van!.maxVolumeLitres,
+      });
+      const missing = (['bicycle', 'motorbike', 'car'] as const).find(
+        (type) => rules.vehicleClasses[type] === undefined,
+      );
+      if (missing !== undefined) {
+        expect(
+          await use(AddVehicle).execute(courierContext, courier.id, {
+            type: missing,
+            plate: 'CAP2',
+            coldBox: 'none',
+          }),
+        ).toEqual({ ok: false, error: containing({ code: 'fleet.vehicle.type-not-offered' }) });
       }
     });
 

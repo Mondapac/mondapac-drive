@@ -243,7 +243,8 @@
         "perVehicle": false,
         "expires": true
       }
-    ]
+    ],
+    "businessIdDocumentType": "business_number"
   },
   "payouts": {
     "earnings": {

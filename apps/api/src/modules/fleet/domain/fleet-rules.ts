@@ -1,6 +1,6 @@
 import type { MarketId } from '@mondapac-drive/shared-kernel';
 import type { EmploymentType } from './courier-status';
-import type { VehicleType } from './vehicle';
+import type { Temperature, VehicleType } from './vehicle';
 
 /**
  * One document a Market requires of its couriers (the `fleet.documents` list of
@@ -22,8 +22,26 @@ export interface DocumentRequirement {
   readonly expires: boolean;
 }
 
+/**
+ * What a vehicle type of the Market's rate card carries (`delivery.rateCard.vehicles`): the
+ * capacity a new vehicle of the type gets unless the courier or an operator gives its own, and
+ * the temperatures the Market lets the type carry.
+ */
+export interface VehicleClass {
+  readonly maxWeightGrams: number;
+  readonly maxVolumeLitres: number;
+  readonly temperatures: readonly Temperature[];
+}
+
 /** The fleet rules of one Market. */
 export interface MarketFleetRules {
   readonly marketId: MarketId;
   readonly documents: readonly DocumentRequirement[];
+  /** The vehicle types the Market offers; a type it does not offer is not listed. */
+  readonly vehicleClasses: Partial<Readonly<Record<VehicleType, VehicleClass>>>;
+  /**
+   * The document type that proves a contractor's business registration (the ABN in AU), for
+   * payouts. Absent: the Market has none, and no courier counts as verified for it.
+   */
+  readonly businessIdDocumentType?: string;
 }
