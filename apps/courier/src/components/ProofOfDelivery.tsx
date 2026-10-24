@@ -20,20 +20,24 @@ export function proofReady(draft: ProofDraft): boolean {
 interface Props {
   readonly draft: ProofDraft;
   readonly onChange: (draft: ProofDraft) => void;
+  /** The server closed PIN entry for this delivery (too many wrong PINs): photo only. */
+  readonly pinLocked?: boolean;
 }
 
-export function ProofOfDelivery({ draft, onChange }: Props) {
+export function ProofOfDelivery({ draft, onChange, pinLocked = false }: Props) {
   return (
     <View style={styles.box}>
       <Text style={styles.title}>{t('proof.title')}</Text>
       <View style={styles.modes}>
-        <View style={styles.mode}>
-          <Button
-            label={t('proof.byPin')}
-            variant={draft.kind === 'pin' ? 'primary' : 'secondary'}
-            onPress={() => onChange({ kind: 'pin', pin: '' })}
-          />
-        </View>
+        {!pinLocked && (
+          <View style={styles.mode}>
+            <Button
+              label={t('proof.byPin')}
+              variant={draft.kind === 'pin' ? 'primary' : 'secondary'}
+              onPress={() => onChange({ kind: 'pin', pin: '' })}
+            />
+          </View>
+        )}
         <View style={styles.mode}>
           <Button
             label={t('proof.byPhoto')}
@@ -50,7 +54,7 @@ export function ProofOfDelivery({ draft, onChange }: Props) {
             onChangeText={(pin) => onChange({ kind: 'pin', pin: pin.replace(/\D/g, '') })}
             keyboardType="number-pad"
             secureTextEntry
-            maxLength={6}
+            maxLength={8}
             autoComplete="off"
           />
           {draft.pin.length > 0 && !proofReady(draft) && (

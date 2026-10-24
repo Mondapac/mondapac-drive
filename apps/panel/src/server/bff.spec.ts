@@ -448,6 +448,16 @@ describe('relay allowlist of the Drive operations routes', () => {
     `identity/admin/couriers/${ID}/enable`,
     `delivery/admin/deliveries/${ID}/dispatch`,
     `delivery/admin/deliveries/${ID}/cancel`,
+    `payouts/admin/couriers/${ID}/adjustments`,
+    `payouts/admin/lines/${ID}/settle`,
+    `fleet/admin/couriers/${ID}/approve`,
+    `fleet/admin/couriers/${ID}/suspend`,
+    `fleet/admin/couriers/${ID}/reinstate`,
+    `fleet/admin/couriers/${ID}/offboard`,
+    `fleet/admin/couriers/${ID}/documents/${KEY}/verify`,
+    `fleet/admin/couriers/${ID}/documents/${KEY}/reject`,
+    `fleet/admin/couriers/${ID}/documents/${KEY}/revoke`,
+    `fleet/admin/couriers/${ID}/vehicles/${KEY}/deactivate`,
   ])('relays POST %s same-origin only', async (path) => {
     expect(await call('POST', path)).toEqual({ status: 200, called: 1 });
     const crossSite = { ...sameOrigin, 'sec-fetch-site': 'cross-site' };
@@ -471,8 +481,119 @@ describe('relay allowlist of the Drive operations routes', () => {
     ['POST', 'delivery/deliveries'],
     ['POST', `delivery/courier/deliveries/${ID}/events`],
     ['POST', 'delivery/quotes'],
+    // Payouts: lines and balances are read by the page server; no courier route crosses.
+    ['GET', 'payouts/admin/lines'],
+    ['GET', `payouts/admin/couriers/${ID}/balance`],
+    ['POST', 'payouts/admin/couriers/not-a-uuid/adjustments'],
+    ['POST', `payouts/admin/lines/${ID}/retry`],
+    ['POST', 'payouts/courier/me/onboarding-link'],
+    ['GET', 'fleet/admin/couriers'],
+    ['GET', `fleet/admin/couriers/${ID}`],
+    ['POST', `fleet/admin/couriers/${ID}/tax-registration`],
+    ['PUT', `fleet/admin/couriers/${ID}/approve`],
+    ['POST', `fleet/admin/couriers/${ID}/documents/not-a-uuid/verify`],
+    ['GET', `fleet/admin/couriers/${ID}/documents/not-a-uuid/file`],
+    ['POST', 'fleet/courier/me/documents'],
   ])('refuses %s %s (404) without calling the API', async (method, path) => {
     expect(await call(method, path)).toEqual({ status: 404, called: 0 });
+  });
+});
+
+describe('relay of the fleet routes (Drive)', () => {
+  const ID = '0190a000-0000-7000-8000-0000000000a1';
+  const DOC = '0190a000-0000-7000-8000-0000000000d2';
+  const sameSite = {
+    host: 'admin.localhost:3002',
+    origin: 'http://admin.localhost:3002',
+    'sec-fetch-site': 'same-origin',
+    'content-type': 'application/json',
+  };
+  const send = (
+    method: string,
+    path: string,
+    headers: Record<string, string>,
+    answer: Response,
+  ) => {
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve(answer));
+    return relay(
+      config,
+      new Request(`http://admin.localhost:3002/api/${path}`, {
+        method,
+        headers,
+        ...(method === 'GET' ? {} : { body: '{}' }),
+      }),
+      path.split('/'),
+      fetchImpl,
+    ).then((response) => ({ response, called: fetchImpl.mock.calls.length }));
+  };
+
+  it.each([
+    `fleet/admin/couriers/${ID}/tax-registration`,
+    `fleet/admin/couriers/${ID}/vehicles/${DOC}/capacity`,
+  ])('relays PUT %s same-origin only', async (path) => {
+    const ok = () => new Response('{}', { status: 200 });
+    expect((await send('PUT', path, sameSite, ok())).called).toBe(1);
+    const crossSite = { ...sameSite, 'sec-fetch-site': 'cross-site' };
+    expect((await send('PUT', path, crossSite, ok())).response.status).toBe(403);
+  });
+
+  it('relays a document file as an attachment the browser never renders', async () => {
+    const file = new Response(new Uint8Array([37, 80, 68, 70]), {
+      status: 200,
+      headers: {
+        'content-type': 'application/pdf',
+        'content-disposition': `attachment; filename="${DOC}.pdf"`,
+        'content-security-policy': "sandbox; default-src 'none'",
+        'cache-control': 'no-store',
+        'set-cookie': 'x=1',
+      },
+    });
+    const { response } = await send(
+      'GET',
+      `fleet/admin/couriers/${ID}/documents/${DOC}/file`,
+      { host: 'admin.localhost:3002', 'sec-fetch-site': 'same-origin' },
+      file,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-disposition')).toBe(`attachment; filename="${DOC}.pdf"`);
+    expect(response.headers.get('content-security-policy')).toBe("sandbox; default-src 'none'");
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([37, 80, 68, 70]));
+  });
+
+  it("sets its own CSP on every answer and never passes the API's disposition elsewhere", async () => {
+    const answer = new Response('{}', {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        'content-disposition': 'attachment; filename="x.html"',
+        'content-security-policy': 'default-src *',
+      },
+    });
+    const { response } = await send(
+      'PUT',
+      `fleet/admin/couriers/${ID}/tax-registration`,
+      sameSite,
+      answer,
+    );
+    expect(response.headers.get('content-security-policy')).toBe("sandbox; default-src 'none'");
+    expect(response.headers.get('content-disposition')).toBeNull();
+  });
+
+  it('refuses a document download another site asks for (an audited read)', async () => {
+    const path = `fleet/admin/couriers/${ID}/documents/${DOC}/file`;
+    for (const headers of [
+      { host: 'admin.localhost:3002', 'sec-fetch-site': 'cross-site' } as Record<string, string>,
+      { host: 'admin.localhost:3002', 'sec-fetch-site': 'same-site' },
+      { host: 'admin.localhost:3002', 'sec-fetch-site': 'none' },
+      { host: 'admin.localhost:3002' },
+    ]) {
+      const { response, called } = await send('GET', path, headers, new Response('x'));
+      expect(response.status).toBe(403);
+      expect(called).toBe(0);
+    }
   });
 });
 

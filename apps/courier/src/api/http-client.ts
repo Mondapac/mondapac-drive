@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import {
   ApiError,
+  type ActiveJobMemory,
   type CourierApi,
   type JobEvent,
   type PhotoFile,
@@ -17,7 +18,18 @@ import {
   job,
   offerAccepted,
   proofPhoto,
+  type CourierStatus,
+  type Job,
 } from './schemas';
+
+/** Statuses after which the courier has nothing left to do on a delivery. */
+const FINISHED: ReadonlySet<Job['status']> = new Set([
+  'DELIVERED',
+  'DELIVERY_FAILED',
+  'RETURNING',
+  'RETURNED',
+  'CANCELLED',
+]);
 
 /** An id as the API issues it; anything else (such as `..`) never reaches a path. */
 function segment(id: string): string {
@@ -25,11 +37,7 @@ function segment(id: string): string {
   return id;
 }
 
-/**
- * The routes the app calls. Identity, the courier delivery routes and tracking exist on main;
- * fleet, dispatch, payouts and the proof-photo upload are proposals for the packages that own
- * them and change here, in one place, when those routes land.
- */
+/** The routes the app calls, in one place: identity, fleet, dispatch, delivery, tracking, payouts. */
 export const ROUTES = {
   signIn: '/identity/courier/sign-in',
   signOut: '/identity/courier/sign-out',
@@ -54,6 +62,8 @@ interface Options {
   /** The Market the app is built for; sign-in is scoped to it, then the session carries it. */
   readonly marketId: string;
   readonly fetch?: Fetch;
+  /** Where the accepted delivery is kept while fleet reports none; nothing is kept without it. */
+  readonly activeJob?: ActiveJobMemory;
   /** Milliseconds before a call is abandoned. */
   readonly timeoutMs?: number;
 }
@@ -75,6 +85,29 @@ export function createHttpCourierApi(options: Options): CourierApi {
   const baseUrl = options.baseUrl.replace(/\/+$/, '');
   const doFetch: Fetch = options.fetch ?? ((input, init) => fetch(input, init));
   const timeoutMs = options.timeoutMs ?? 15_000;
+  const activeJob = options.activeJob;
+
+  /** A finished job, or one the courier no longer has (404), is no longer the active one. */
+  async function followJob<T extends { id: string; status: Job['status'] }>(
+    deliveryId: string,
+    load: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      const loaded = await load();
+      if (activeJob?.current() === deliveryId && FINISHED.has(loaded.status)) {
+        await activeJob.forget();
+      }
+      return loaded;
+    } catch (error) {
+      // 404: not (or no longer) the courier's; id.invalid: an id the API never issued.
+      const gone =
+        error instanceof ApiError && (error.status === 404 || error.code === 'id.invalid');
+      if (gone && activeJob?.current() === deliveryId) {
+        await activeJob.forget();
+      }
+      throw error;
+    }
+  }
 
   async function call<T>(
     method: string,
@@ -129,6 +162,13 @@ export function createHttpCourierApi(options: Options): CourierApi {
     return parsed.data;
   }
 
+  /** The server's active delivery, or the one the courier accepted on this device. */
+  function withActiveJob(status: CourierStatus): CourierStatus {
+    return status.activeDeliveryId
+      ? status
+      : { ...status, activeDeliveryId: activeJob?.current() ?? null };
+  }
+
   return {
     signIn: async (input) => {
       const signedIn = await call('POST', ROUTES.signIn, courierSignedIn, input, {
@@ -138,14 +178,22 @@ export function createHttpCourierApi(options: Options): CourierApi {
     },
     signOut: () => call('POST', ROUTES.signOut, null, {}),
     settings: () => call('GET', ROUTES.settings, courierSettings),
-    status: () => call('GET', ROUTES.status, courierStatus),
-    setShift: (state) => call('PUT', ROUTES.shift, courierStatus, { state }),
+    status: async () => withActiveJob(await call('GET', ROUTES.status, courierStatus)),
+    setShift: async (state) =>
+      withActiveJob(await call('PUT', ROUTES.shift, courierStatus, { state })),
     currentOffer: async () => (await call('GET', ROUTES.currentOffer, currentOffer)).offer,
-    acceptOffer: (offerId) => call('POST', () => ROUTES.acceptOffer(offerId), offerAccepted, {}),
+    acceptOffer: async (offerId) => {
+      const accepted = await call('POST', () => ROUTES.acceptOffer(offerId), offerAccepted, {});
+      await activeJob?.remember(accepted.deliveryId);
+      return accepted;
+    },
     declineOffer: (offerId) => call('POST', () => ROUTES.declineOffer(offerId), null, {}),
-    job: (deliveryId) => call('GET', () => ROUTES.delivery(deliveryId), job),
+    job: (deliveryId) =>
+      followJob(deliveryId, () => call('GET', () => ROUTES.delivery(deliveryId), job)),
     recordEvent: (deliveryId, event) =>
-      call('POST', () => ROUTES.deliveryEvents(deliveryId), job, eventBody(event)),
+      followJob(deliveryId, () =>
+        call('POST', () => ROUTES.deliveryEvents(deliveryId), job, eventBody(event)),
+      ),
     uploadProofPhoto: (deliveryId, photo: PhotoFile) => {
       const form = new FormData();
       // React Native's FormData takes a file as { uri, name, type }.

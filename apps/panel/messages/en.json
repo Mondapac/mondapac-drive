@@ -32,7 +32,9 @@
     "deliveries": "Deliveries",
     "couriers": "Couriers",
     "merchants": "Merchants",
-    "live-map": "Live map"
+    "live-map": "Live map",
+    "payouts": "Payouts",
+    "fleet": "Fleet"
   },
   "home": {
     "title": "Home",
@@ -41,7 +43,10 @@
     "deliveries": "Follow every delivery of the Market, dispatch a courier or cancel.",
     "couriers": "Invite couriers and turn their accounts off and on.",
     "merchants": "Add the businesses that book deliveries, and issue their API keys.",
-    "team": "Admins, their roles and what each role may do."
+    "team": "Admins, their roles and what each role may do.",
+    "live-map": "See couriers on the road and the deliveries that need attention.",
+    "payouts": "Courier payouts that are held or need a decision, and each courier's balance.",
+    "fleet": "Approve applicants, review courier documents and look after their vehicles."
   },
   "showcase": {
     "title": "Every delivery of the Market, in one place.",
@@ -937,6 +942,372 @@
     "no-access": {
       "title": "You don't have access to the live map",
       "body": "Your role doesn't include it."
+    }
+  },
+  "fleet": {
+    "title": "Fleet",
+    "intro": "Couriers on the fleet: approve applicants, review their documents and look after their vehicles. Every decision is recorded.",
+    "no-access": {
+      "title": "You don't have access to the fleet",
+      "body": "Your role doesn't include it."
+    },
+    "back": "Fleet",
+    "table-caption": "Fleet couriers",
+    "filter": {
+      "label": "Show couriers",
+      "applicant": "Applicants",
+      "active": "Active",
+      "suspended": "Suspended",
+      "offboarded": "Offboarded",
+      "all": "All"
+    },
+    "empty": {
+      "title": "No couriers here",
+      "body": "Couriers appear once they apply in the courier app.",
+      "page": "No more couriers."
+    },
+    "first-page": "First page",
+    "next-page": "Next page",
+    "courier-ref": "Courier {id}",
+    "courier": {
+      "title": "Courier {id}"
+    },
+    "label": {
+      "courier": "Courier",
+      "status": "Status",
+      "terms": "Employment",
+      "shift": "Shift",
+      "vehicles": "Active vehicles",
+      "to-review": "To review",
+      "joined": "Joined",
+      "cold-chain": "Cold chain",
+      "tax": "Sales tax",
+      "service-area": "Service area",
+      "actions": "Actions"
+    },
+    "status": {
+      "applicant": "Applicant",
+      "active": "Active",
+      "suspended": "Suspended",
+      "offboarded": "Offboarded"
+    },
+    "employment": {
+      "employee": "Employee",
+      "contractor": "Contractor"
+    },
+    "shift": {
+      "offline": "Offline",
+      "online": "Online",
+      "on_delivery": "On a delivery",
+      "paused": "On a break"
+    },
+    "cold-chain": "Cold chain",
+    "to-review": "{count, plural, one {# document} other {# documents}}",
+    "yes": "Yes",
+    "no": "No",
+    "idle-since": "Idle since {when}",
+    "profile": {
+      "title": "Standing and terms"
+    },
+    "reason": "Reason",
+    "choose-reason": "Choose a reason",
+    "field-invalid": "Check this value.",
+    "suspension": {
+      "documents": "Documents",
+      "conduct": "Conduct",
+      "safety": "Safety",
+      "other": "Other"
+    },
+    "rejection": {
+      "illegible": "Illegible",
+      "expired": "Expired",
+      "mismatch": "Doesn't match the courier",
+      "incomplete": "Incomplete",
+      "cancelled": "Cancelled by the issuer",
+      "fraudulent": "Not genuine",
+      "other": "Other"
+    },
+    "approve": {
+      "button": "Approve…",
+      "title": "Approve this applicant?",
+      "body": "Confirm the terms they work on. They can go online once their documents for a vehicle are verified.",
+      "action": "Approve",
+      "done": "Courier approved.",
+      "cold-chain": "May carry cold-chain deliveries",
+      "cold-chain-help": "Chilled and frozen goods, with a vehicle box that keeps them cold."
+    },
+    "suspend": {
+      "button": "Suspend…",
+      "title": "Suspend this courier?",
+      "body": "Their shift ends now and they get no new work until reinstated.",
+      "action": "Suspend",
+      "done": "Courier suspended."
+    },
+    "reinstate": {
+      "button": "Reinstate…",
+      "title": "Reinstate this courier?",
+      "body": "They can go online again if they are still eligible.",
+      "action": "Reinstate",
+      "done": "Courier reinstated."
+    },
+    "offboard": {
+      "button": "Offboard…",
+      "title": "Offboard this courier for good?",
+      "body": "Their work with the fleet ends. This can't be undone; they would apply again.",
+      "action": "Offboard",
+      "done": "Courier offboarded."
+    },
+    "tax": {
+      "button": "Sales tax…",
+      "title": "Sales tax registration",
+      "body": "A registered contractor is paid the Market's sales tax on top of their earnings.",
+      "action": "Save",
+      "done": "Sales tax registration saved.",
+      "registered": "Registered for sales tax",
+      "not-registered": "Not registered"
+    },
+    "vehicles": {
+      "title": "Vehicles",
+      "empty": "No vehicles yet.",
+      "vehicle": "Vehicle",
+      "state": "State",
+      "capacity": "Capacity",
+      "cold-box": "Cold box",
+      "no-plate": "No plate",
+      "active": "In use",
+      "inactive": "Out of use",
+      "capacity-value": "{grams} g · {litres} L"
+    },
+    "vehicle-type": {
+      "bicycle": "Bicycle",
+      "motorbike": "Motorbike",
+      "car": "Car",
+      "van": "Van"
+    },
+    "cold-box": {
+      "none": "None",
+      "insulated": "Insulated",
+      "refrigerated": "Refrigerated"
+    },
+    "capacity": {
+      "button": "Capacity…",
+      "title": "Set the vehicle's capacity",
+      "body": "Dispatch offers this vehicle only deliveries that fit.",
+      "action": "Save",
+      "done": "Capacity saved.",
+      "grams": "Maximum weight (grams)",
+      "grams-help": "For example 25000 for 25 kg.",
+      "litres": "Maximum volume (litres)"
+    },
+    "deactivate": {
+      "button": "Take out of use…",
+      "title": "Take this vehicle out of use?",
+      "body": "Dispatch stops offering it work. The courier adds it again to use it.",
+      "action": "Take out of use",
+      "done": "Vehicle taken out of use."
+    },
+    "documents": {
+      "title": "Documents",
+      "empty": "No documents yet.",
+      "document": "Document",
+      "state": "Review",
+      "expires": "Expires",
+      "submitted": "Submitted",
+      "no-expiry": "No expiry",
+      "for-vehicle": "For vehicle {plate}",
+      "download": "Download"
+    },
+    "document-type": {
+      "abn": "Business number (ABN)",
+      "business_number": "Business number",
+      "cold_chain_training": "Cold-chain training",
+      "driver_licence": "Driver licence",
+      "driving_permit": "Driving permit",
+      "food_handling": "Food handling certificate",
+      "insurance": "Insurance",
+      "police_check": "Police check",
+      "vehicle_inspection": "Vehicle inspection",
+      "vehicle_registration": "Vehicle registration"
+    },
+    "document-status": {
+      "submitted": "To review",
+      "verified": "Verified",
+      "rejected": "Rejected",
+      "revoked": "Revoked"
+    },
+    "verify": {
+      "button": "Verify…",
+      "title": "Verify this document?",
+      "body": "Check the file first. If the document expires, enter the expiry date printed on it.",
+      "action": "Verify",
+      "done": "Document verified.",
+      "expiry": "Expiry date",
+      "expiry-help": "Leave empty for a document that doesn't expire."
+    },
+    "reject": {
+      "button": "Reject…",
+      "title": "Reject this document?",
+      "body": "The courier is told the reason and submits a new one.",
+      "action": "Reject",
+      "done": "Document rejected."
+    },
+    "revoke": {
+      "button": "Revoke…",
+      "title": "Revoke this verified document?",
+      "body": "The courier may lose their eligibility until they submit a new one.",
+      "action": "Revoke",
+      "done": "Document revoked."
+    },
+    "error": {
+      "fleet": {
+        "conflict": "Someone changed this courier at the same time. Reload and try again.",
+        "courier": {
+          "not-found": "This courier no longer exists.",
+          "not-an-applicant": "Only an applicant can be approved.",
+          "not-active": "Only an active courier can be suspended.",
+          "not-suspended": "Only a suspended courier can be reinstated.",
+          "not-eligible": "The courier isn't eligible yet: check their documents and vehicles.",
+          "offboarded": "This courier is offboarded."
+        },
+        "document": {
+          "not-found": "This document no longer exists.",
+          "already-reviewed": "This document was already reviewed.",
+          "not-verified": "Only a verified document can be revoked.",
+          "expiry-required": "This document expires: enter its expiry date.",
+          "expiry-not-allowed": "This kind of document has no expiry date.",
+          "expired": "The expiry date has passed.",
+          "rejection-reason-unknown": "Choose a reason."
+        },
+        "vehicle": {
+          "not-found": "This vehicle no longer exists.",
+          "inactive": "This vehicle is already out of use.",
+          "in-use": "The vehicle is on a delivery. Try again when it's done.",
+          "capacity-invalid": "Enter a capacity within the allowed range."
+        },
+        "storage-unavailable": "Document storage isn't available right now. Try again shortly."
+      }
+    }
+  },
+  "payouts": {
+    "title": "Payouts",
+    "intro": "Courier payout lines that need a person: held lines wait for the courier's details, unresolved lines need settling against the payment provider.",
+    "table-caption": "Payout lines",
+    "filter": {
+      "label": "Show",
+      "attention": "Needs attention",
+      "held": "Held",
+      "unresolved": "Unresolved",
+      "failed": "Failed or reversed",
+      "transferred": "Paid"
+    },
+    "label": {
+      "courier": "Courier",
+      "status": "Status",
+      "amount": "Amount",
+      "attempts": "Attempts",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "held": "Held",
+      "transferred": "Paid",
+      "failed": "Failed",
+      "unresolved": "Unresolved",
+      "reversed": "Reversed"
+    },
+    "hold": {
+      "unknown-courier": "Courier not found in the fleet",
+      "paid-by-payroll": "Paid through payroll",
+      "missing-business-id": "Missing business number",
+      "no-payout-account": "No payout account yet",
+      "payouts-disabled": "Payouts disabled at the provider"
+    },
+    "line-ref": "Line {id}",
+    "of-which-tax": "of which tax {tax}",
+    "last-error": "Last error: {code}",
+    "empty": {
+      "title": "Nothing here",
+      "body": "No payout line is in this state."
+    },
+    "next-page": "More lines",
+    "first-page": "First page",
+    "back": "Payouts",
+    "no-access": {
+      "title": "You don't have access to payouts",
+      "body": "Your role doesn't include the payouts ledger."
+    },
+    "settle": {
+      "button": "Settle",
+      "title": "Settle this payout line?",
+      "body": "The line of {amount} is checked against the payment provider's transfers. If the provider holds the transfer, the line is marked paid; if it holds none, the line fails and the courier's balance gets the amount back. Follow the runbook for unresolved lines.",
+      "action": "Settle line",
+      "done": "The line was settled."
+    },
+    "courier": {
+      "title": "Payouts for {name}"
+    },
+    "balance": {
+      "title": "Balance",
+      "amount": "Before tax",
+      "tax": "Tax",
+      "total": "Total owed"
+    },
+    "entries": {
+      "caption": "Ledger entries, newest first",
+      "empty": "No ledger entries yet.",
+      "when": "When",
+      "kind": "Entry",
+      "amount": "Amount",
+      "about": "About",
+      "delivery": "Delivery"
+    },
+    "kind": {
+      "earning": "Delivery earning",
+      "tip": "Tip",
+      "adjustment": "Adjustment",
+      "reversal": "Reversal",
+      "payout": "Payout"
+    },
+    "reason": {
+      "bonus": "Bonus",
+      "correction": "Correction",
+      "damage-claim": "Damage claim",
+      "other": "Other",
+      "delivery-reversed": "Delivery reversed",
+      "transfer-failed": "Transfer failed",
+      "transfer-reversed": "Transfer reversed",
+      "payout-held": "Payout held"
+    },
+    "adjust": {
+      "button": "Record adjustment",
+      "title": "Adjust this courier's balance",
+      "body": "The adjustment is recorded in the ledger and audited. Enter the amount before tax; any tax due is added.",
+      "direction": "Type",
+      "credit": "Credit (pay the courier more)",
+      "debit": "Debit (take from the balance)",
+      "amount": "Amount ({currency})",
+      "amount-help": "Digits only, for example 12.50.",
+      "amount-invalid": "Enter an amount above zero, with no more digits after the point than the currency has.",
+      "reason": "Reason",
+      "choose-reason": "Choose a reason",
+      "reason-required": "Choose a reason.",
+      "action": "Record adjustment",
+      "done": "The adjustment was recorded.",
+      "already": "This adjustment was already recorded; nothing new was added."
+    },
+    "error": {
+      "payouts": {
+        "key-reused": "This form was already used for a different adjustment. Close it and start again.",
+        "line-state": "The line is no longer unresolved. Reload to see its state.",
+        "settle-too-early": "The line is under an hour old and the provider has no transfer yet. Try again later.",
+        "settle-mismatch": "The provider's transfer doesn't match this line. Check it by hand, following the runbook.",
+        "settle-ambiguous": "The provider holds more than one possible transfer. Check it by hand, following the runbook.",
+        "provider-unavailable": "The payment provider can't be reached right now. Try again in a few minutes.",
+        "unknown-courier": "This courier was not found.",
+        "line-not-found": "This payout line was not found.",
+        "currency-mismatch": "The amount must be in the courier's balance currency."
+      }
     }
   }
 }

@@ -25,7 +25,7 @@ describe.each(MARKETS)('home in $marketId', (settings) => {
       style: 'currency',
       currency: settings.currency,
     });
-    expect(offer!.earnings.currency).toBe(settings.currency);
+    expect(offer!.earnings!.currency).toBe(settings.currency);
     expect(screen.getByText(/^You earn /).props.children).toContain(
       pay.format(settings.currency === 'JPY' ? 950 : 9.5),
     );
