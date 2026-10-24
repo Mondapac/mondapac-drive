@@ -448,6 +448,8 @@ describe('relay allowlist of the Drive operations routes', () => {
     `identity/admin/couriers/${ID}/enable`,
     `delivery/admin/deliveries/${ID}/dispatch`,
     `delivery/admin/deliveries/${ID}/cancel`,
+    `payouts/admin/couriers/${ID}/adjustments`,
+    `payouts/admin/lines/${ID}/settle`,
   ])('relays POST %s same-origin only', async (path) => {
     expect(await call('POST', path)).toEqual({ status: 200, called: 1 });
     const crossSite = { ...sameOrigin, 'sec-fetch-site': 'cross-site' };
@@ -471,6 +473,12 @@ describe('relay allowlist of the Drive operations routes', () => {
     ['POST', 'delivery/deliveries'],
     ['POST', `delivery/courier/deliveries/${ID}/events`],
     ['POST', 'delivery/quotes'],
+    // Payouts: lines and balances are read by the page server; no courier route crosses.
+    ['GET', 'payouts/admin/lines'],
+    ['GET', `payouts/admin/couriers/${ID}/balance`],
+    ['POST', 'payouts/admin/couriers/not-a-uuid/adjustments'],
+    ['POST', `payouts/admin/lines/${ID}/retry`],
+    ['POST', 'payouts/courier/me/onboarding-link'],
   ])('refuses %s %s (404) without calling the API', async (method, path) => {
     expect(await call(method, path)).toEqual({ status: 404, called: 0 });
   });

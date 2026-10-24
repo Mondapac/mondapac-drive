@@ -68,6 +68,9 @@ const ALLOWED_WITH_ID: Readonly<Record<string, readonly string[]>> = {
     'identity/admin/couriers/:id/enable',
     'delivery/admin/deliveries/:id/dispatch',
     'delivery/admin/deliveries/:id/cancel',
+    // Drive payouts: a balance adjustment (idempotency key in the body) and the settle tool.
+    'payouts/admin/couriers/:id/adjustments',
+    'payouts/admin/lines/:id/settle',
   ],
   PUT: ['identity/admin/roles/:id'],
   DELETE: ['identity/admin/roles/:id'],
