@@ -78,6 +78,17 @@ function JobSteps({
     [],
   );
 
+  // A photo the draft no longer holds (retaken, or the courier switched to the PIN) is deleted.
+  const changeProof = (next: ProofDraft) => {
+    const previous = latestProof.current;
+    const kept = next.kind === 'photo' ? next.photo?.uri : undefined;
+    if (previous.kind === 'photo' && previous.photo && previous.photo.uri !== kept) {
+      discardPhoto(previous.photo.uri);
+    }
+    latestProof.current = next;
+    setProof(next);
+  };
+
   const record = useMutation({
     mutationFn: async (event: JobEvent) => api.recordEvent(job.id, event),
     onSuccess: (updated) => {
@@ -203,7 +214,7 @@ function JobSteps({
                 value={reading}
                 onChange={setReading}
               />
-              {check.kind !== 'breach' && <ProofOfDelivery draft={proof} onChange={setProof} />}
+              {check.kind !== 'breach' && <ProofOfDelivery draft={proof} onChange={changeProof} />}
               {deliver.isPending && proof.kind === 'photo' && <Text>{t('proof.uploading')}</Text>}
               <Button
                 label={t('job.deliver')}

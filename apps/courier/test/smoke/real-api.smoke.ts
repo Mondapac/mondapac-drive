@@ -4,7 +4,8 @@
  * delivered with the customer's PIN, read the earnings, go offline and sign out.
  *
  * SMOKE_API_URL, SMOKE_MARKET_ID, SMOKE_COURIER_EMAIL, SMOKE_COURIER_PASSWORD are required;
- * SMOKE_DELIVERY_ID (when no offer is waiting) and SMOKE_DELIVERY_PIN are optional.
+ * SMOKE_DELIVERY_ID (when no offer is waiting) and SMOKE_DELIVERY_PIN are optional. It records a
+ * real delivery, so it runs only against a local API unless SMOKE_ALLOW_REMOTE=1.
  */
 import type { ApiError, CourierApi } from '../../src/api/client';
 import { createHttpCourierApi } from '../../src/api/http-client';
@@ -23,12 +24,30 @@ function reading(job: Job, settings: CourierSettings): number | undefined {
   return temperature === 'ambient' ? undefined : settings.coldChain[temperature].maxCelsius - 1;
 }
 
+/** The API under test; a remote one only on purpose, never by a mistyped variable. */
+function apiUrl(): string {
+  const url = required('SMOKE_API_URL');
+  const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url);
+  if (!local && process.env.SMOKE_ALLOW_REMOTE !== '1') {
+    throw new Error('SMOKE_API_URL is not local; set SMOKE_ALLOW_REMOTE=1 to run against it');
+  }
+  return url;
+}
+
 describe('courier app on the real API', () => {
   let session: CourierSession | null = null;
+  const baseUrl = apiUrl();
   const api: CourierApi = createHttpCourierApi({
-    baseUrl: required('SMOKE_API_URL'),
+    baseUrl,
     marketId: required('SMOKE_MARKET_ID'),
     session: { current: () => session },
+  });
+
+  // A run that fails halfway still leaves the test courier offline and signed out.
+  afterAll(async () => {
+    if (!session) return;
+    await api.setShift('offline').catch(() => undefined);
+    await api.signOut().catch(() => undefined);
   });
 
   it('runs a delivery from sign-in to sign-out', async () => {
@@ -81,10 +100,11 @@ describe('courier app on the real API', () => {
     await api.setShift('offline');
     const token = session;
     await api.signOut();
+    session = null;
     // The signed-out token is refused from now on.
     await expect(
       createHttpCourierApi({
-        baseUrl: required('SMOKE_API_URL'),
+        baseUrl,
         marketId: token.marketId,
         session: { current: () => token },
       }).status(),

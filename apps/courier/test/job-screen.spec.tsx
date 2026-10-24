@@ -163,6 +163,16 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
     await screen.unmount();
     expect(deviceFiles.size).toBe(0);
   });
+
+  it('deletes the photo when the courier switches to the PIN', async () => {
+    await reachDropoff();
+    await press('Photo');
+    await press('Take photo');
+    await screen.findByText('Photo ready to upload.');
+    expect(deviceFiles.size).toBe(1);
+    await press('Customer PIN');
+    expect(deviceFiles.size).toBe(0);
+  });
 });
 
 it('opens the device map app at the next stop', async () => {
