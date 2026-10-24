@@ -8,13 +8,13 @@ import {
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
 } from '../application/ports';
+import { FleetDirectory } from '../../fleet';
+import { NearestCouriers } from '../../tracking';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
-import { InMemoryCouriers } from './in-memory-couriers';
+import { FleetCourierAvailability } from './fleet-courier-availability';
 import { PrismaDispatchJobRepository } from './prisma-dispatch-job.repository';
+import { TrackingCourierProximity } from './tracking-courier-proximity';
 import { UnlinkedDelivery } from './unlinked-delivery';
-
-/** Until fleet (05) and tracking (06) are on main, one in-memory stand-in answers both ports. */
-const couriers = Symbol('InMemoryCouriers');
 
 /** The implementations of the dispatch ports. Only infrastructure/ reaches the persistence internals. */
 export const dispatchProviders: Provider[] = [
@@ -28,8 +28,16 @@ export const dispatchProviders: Provider[] = [
     inject: [MarketRegistry],
     useFactory: (markets: MarketRegistry) => new ConfigDispatchSettingsProvider(markets),
   },
-  { provide: couriers, useFactory: () => new InMemoryCouriers() },
-  { provide: COURIER_AVAILABILITY, useExisting: couriers },
-  { provide: COURIER_PROXIMITY, useExisting: couriers },
+  {
+    provide: COURIER_AVAILABILITY,
+    inject: [FleetDirectory, MarketRegistry],
+    useFactory: (fleet: FleetDirectory, markets: MarketRegistry) =>
+      new FleetCourierAvailability(fleet, markets),
+  },
+  {
+    provide: COURIER_PROXIMITY,
+    inject: [NearestCouriers],
+    useFactory: (nearest: NearestCouriers) => new TrackingCourierProximity(nearest),
+  },
   { provide: DELIVERY_LINK, useValue: new UnlinkedDelivery() },
 ];

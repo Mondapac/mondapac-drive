@@ -112,10 +112,11 @@ export class JobAdvancer {
   ): Promise<RankedCandidate[]> {
     const needs = job.requirements;
     const [available, nearby] = await Promise.all([
-      this.availability.findEligibleCouriers(context.market, needs),
-      this.proximity.nearestCouriers(context.market, needs.pickup, {
+      this.availability.findEligibleCouriers(context, needs),
+      this.proximity.nearestCouriers(context, needs.pickup, {
         radiusMetres: settings.searchRadiusMetres,
         limit: settings.candidateLimit,
+        serviceArea: needs.serviceAreaCode,
       }),
     ]);
     return rankCandidates(needs, available, nearby, {

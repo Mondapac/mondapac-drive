@@ -38,23 +38,28 @@ export interface DispatchJobRepository {
 export const DISPATCH_JOB_REPOSITORY = Symbol('DispatchJobRepository');
 
 /**
- * Couriers on shift and free to take a delivery, with their vehicle (fleet, work package 05:
- * `findEligibleCouriers`). Read before the unit of work opens.
+ * Couriers on shift and free to take a delivery, with their vehicle (fleet's
+ * `FleetDirectory.findEligibleCouriers`). Read before the unit of work opens.
  */
 export interface CourierAvailability {
   findEligibleCouriers(
-    market: MarketContext,
+    context: CallContext,
     needs: DispatchRequirements,
   ): Promise<readonly AvailableCourier[]>;
 }
 export const COURIER_AVAILABILITY = Symbol('CourierAvailability');
 
-/** Couriers' last known distance from a point (tracking, work package 06: `nearestCouriers`). */
+/** Couriers' last known distance from a point (tracking's `NearestCouriers`). */
 export interface CourierProximity {
   nearestCouriers(
-    market: MarketContext,
+    context: CallContext,
     point: GeoPoint,
-    options: { readonly radiusMetres: number; readonly limit: number },
+    options: {
+      readonly radiusMetres: number;
+      readonly limit: number;
+      /** Only couriers whose latest position names this service area. */
+      readonly serviceArea: string;
+    },
   ): Promise<readonly NearbyCourier[]>;
 }
 export const COURIER_PROXIMITY = Symbol('CourierProximity');
