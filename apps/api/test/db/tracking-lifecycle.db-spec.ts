@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { testCallContext } from '@mondapac-drive/shared-kernel/testing';
 import { Client } from 'pg';
 import request from 'supertest';
+import { DeliveryRecipients } from '../../src/modules/delivery';
 import { IssueTrackingLink } from '../../src/modules/tracking';
 import { OUTBOX_RELAY, type OutboxRelay } from '../../src/platform/events/event-bus';
 import { EVENT_DISPATCHER, type EventDispatcher } from '../../src/platform/events/event-delivery';
@@ -150,7 +151,14 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
       });
 
       await report(id, { type: 'arrived_at_dropoff' });
-      await report(id, { type: 'delivered', proof: { kind: 'photo', photoRef: 'p-1' } });
+      // The server checks the proof: the recipient's PIN, as notifications sends it.
+      const recipients = await app
+        .get(DeliveryRecipients, { strict: false })
+        .forNotification(system(), id as never);
+      const pin = recipients!.recipientPin!;
+      expect((await report(id, { type: 'delivered', proof: { kind: 'pin', pin } })).status).toBe(
+        200,
+      );
       await handleAll();
       expect(await tracked(id)).toMatchObject({ status: 'DELIVERED', ended: true });
       const ended = await request(app.getHttpServer())
