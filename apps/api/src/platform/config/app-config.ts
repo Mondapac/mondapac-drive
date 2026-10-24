@@ -171,6 +171,16 @@ export function loadAppConfig(env: Record<string, string | undefined>): AppConfi
       'LOG_LEVEL: the worker logs at info, debug or trace (audit anchors are info lines)',
     );
   }
+  // Live courier positions and routes cross the network to Redis: TLS in production (Hassan,
+  // routing review). The URL is never printed.
+  if (
+    parsed.success &&
+    parsed.data.NODE_ENV === 'production' &&
+    parsed.data.REDIS_URL !== undefined &&
+    new URL(parsed.data.REDIS_URL).protocol !== 'rediss:'
+  ) {
+    issues.push('REDIS_URL: must be a rediss:// (TLS) URL in production');
+  }
   const clientAddress = parseClientAddressTrust(env.TRUSTED_BFF_CIDRS, env.CLIENT_ADDRESS_KEYS);
   issues.push(...clientAddress.issues);
   const paymentProvider = parsePaymentProvider(

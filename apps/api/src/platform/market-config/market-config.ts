@@ -90,6 +90,40 @@ const deliverySchema = z.strictObject({
   }),
 });
 
+/** Whole seconds, bounded so a typo cannot disable a check. */
+const seconds = (max: number) => z.number().int().positive().max(max);
+
+/**
+ * The `tracking` section, owned by the tracking module: which courier location pings are
+ * accepted, how long a live position and a breadcrumb trail are kept (personal data, Privacy
+ * Act: the trail's retention is the Market's decision), how long a customer tracking link lives,
+ * and how often the ETA is asked of routing.
+ */
+const trackingSchema = z.strictObject({
+  ping: z.strictObject({
+    /** A ping recorded longer ago than this is stale and refused. */
+    maxAgeSeconds: seconds(3600),
+    /** A ping recorded further ahead of the server clock than this is refused. */
+    maxFutureSkewSeconds: seconds(300),
+    /** One accepted ping per courier per this many seconds; the others are throttled. */
+    minIntervalSeconds: seconds(300),
+    maxAccuracyMetres: z.number().int().positive().max(10_000),
+    maxSpeedKmh: z.number().int().positive().max(400),
+  }),
+  /** A courier without a ping for this long drops out of the live map and of dispatch. */
+  livePositionTtlSeconds: seconds(86_400),
+  breadcrumbRetentionDays: z.number().int().positive().max(365),
+  trackingLinkTtlHours: z.number().int().positive().max(720),
+  /** How often the tracking page's live channel sends a new view. */
+  streamIntervalSeconds: seconds(60),
+  nearestCouriers: z.strictObject({
+    maxRadiusMetres: z.number().int().positive().max(200_000),
+    maxResults: z.number().int().positive().max(500),
+  }),
+  /** How long one road ETA (platform routing) is reused before routing is asked again. */
+  etaRefreshSeconds: seconds(600),
+});
+
 /** Employment types of the hybrid fleet (fleet domain). */
 export const EMPLOYMENT_TYPES = ['employee', 'contractor'] as const;
 
@@ -136,6 +170,7 @@ const marketSchema = z
     delivery: deliverySchema,
     /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
     routing: routingConfigSchema.optional(),
+    tracking: trackingSchema,
     notifications: notificationsSchema,
     fleet: fleetSchema,
     /** Courier earnings and payouts (payouts-config.ts). */

@@ -42,6 +42,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     notifications: ['USAGE'],
     payouts: ['USAGE'],
     platform: ['USAGE'],
+    tracking: ['USAGE'],
     fleet: ['USAGE'],
   },
   tables: {
@@ -84,6 +85,14 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The tracking module (20261025060000): only the status, courier and end of a tracked
+    // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
+    'tracking.tracked_deliveries': {
+      table: ['DELETE', 'INSERT', 'SELECT'],
+      columnUpdate: ['courier_id', 'ended_at', 'status', 'updated_at', 'vehicle', 'version'],
+    },
+    'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and
     // the status and secret version of a subscription change.
     'notifications.webhook_subscriptions': {

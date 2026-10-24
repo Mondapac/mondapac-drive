@@ -211,5 +211,23 @@
       "onboardingReturnUrl": "https://drive.mondapac.com/courier/payouts/return",
       "onboardingRefreshUrl": "https://drive.mondapac.com/courier/payouts/refresh"
     }
+  },
+  "tracking": {
+    "ping": {
+      "maxAgeSeconds": 120,
+      "maxFutureSkewSeconds": 30,
+      "minIntervalSeconds": 3,
+      "maxAccuracyMetres": 500,
+      "maxSpeedKmh": 160
+    },
+    "livePositionTtlSeconds": 300,
+    "breadcrumbRetentionDays": 30,
+    "trackingLinkTtlHours": 24,
+    "streamIntervalSeconds": 5,
+    "nearestCouriers": {
+      "maxRadiusMetres": 20000,
+      "maxResults": 50
+    },
+    "etaRefreshSeconds": 60
   }
 }
