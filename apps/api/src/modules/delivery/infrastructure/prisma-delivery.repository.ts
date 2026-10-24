@@ -11,6 +11,7 @@ import type { PrismaService } from '../../../platform/persistence/prisma.service
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
 import type { DeliveryListFilter, DeliveryRepository, DeliverySummary } from '../application/ports';
 import type {
+  DeliveryException,
   DeliveryHistoryEntry,
   DeliveryState,
   ProofOfDelivery,
@@ -116,6 +117,7 @@ interface DeliveryRow {
   readonly temperature: string;
   readonly quote: Prisma.JsonValue;
   readonly courierId: string | null;
+  readonly exception: string | null;
   readonly createdAt: Date;
   readonly version: number;
 }
@@ -152,9 +154,13 @@ const SELECT_DELIVERY = {
   temperature: true,
   quote: true,
   courierId: true,
+  exception: true,
   createdAt: true,
   version: true,
 } as const;
+
+/** A point on the delivery list: 4 decimals, about 11 m. */
+const rounded = (value: number): number => Math.round(value * 1e4) / 1e4;
 
 function readStop(stored: Prisma.JsonValue, lat: number, lng: number): Stop {
   const stop = stored as unknown as StoredStop;
@@ -201,10 +207,17 @@ function readDelivery(
     quote: readQuote(row.quote as unknown as StoredQuote),
     status: row.status as DeliveryStatus,
     ...(row.courierId === null ? {} : { courierId: row.courierId }),
+    ...(row.exception === null ? {} : { exception: row.exception as DeliveryException }),
     history: events.map(readEntry),
     createdAt: toInstant(row.createdAt),
     version: row.version,
   };
+}
+
+/** Whether the last step of the delivery is one that clears its exception flag. */
+function clearsException(delivery: DeliveryState): boolean {
+  const last = delivery.history[delivery.history.length - 1];
+  return last?.type === 'courier_assigned' || last?.type === 'cancelled';
 }
 
 /**
@@ -303,11 +316,16 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
         windowEnd: true,
         pickup: true,
         dropoff: true,
+        pickupLat: true,
+        pickupLng: true,
+        dropoffLat: true,
+        dropoffLng: true,
         temperature: true,
         vehicle: true,
         totalAmount: true,
         currency: true,
         courierId: true,
+        exception: true,
         createdAt: true,
       },
       orderBy: { id: 'desc' },
@@ -327,24 +345,35 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
       temperature: row.temperature as Temperature,
       pickupPostcode: (row.pickup as unknown as StoredStop).postcode,
       dropoffPostcode: (row.dropoff as unknown as StoredStop).postcode,
+      pickupPoint: geoPoint(rounded(row.pickupLat), rounded(row.pickupLng)),
+      dropoffPoint: geoPoint(rounded(row.dropoffLat), rounded(row.dropoffLng)),
       total: money(row.totalAmount, row.currency),
       ...(row.courierId === null ? {} : { courierId: row.courierId }),
+      ...(row.exception === null ? {} : { exception: row.exception as DeliveryException }),
       createdAt: toInstant(row.createdAt),
     }));
   }
 
-  async update(market: MarketContext, delivery: DeliveryState): Promise<void> {
+  async update(
+    market: MarketContext,
+    delivery: DeliveryState,
+    fromVersion = delivery.version - 1,
+  ): Promise<void> {
     const tx = this.prisma.tx(market);
     const updated = await tx.deliveryDelivery.updateMany({
       where: {
         marketId: market.marketId,
         tenantId: market.tenantId,
         id: delivery.id,
-        version: delivery.version - 1,
+        version: fromVersion,
       },
       data: {
         status: delivery.status,
         courierId: delivery.courierId ?? null,
+        // Only a step that clears the flag writes it: a flag raised since the read stays.
+        ...(delivery.exception === undefined && clearsException(delivery)
+          ? { exception: null }
+          : {}),
         version: delivery.version,
       },
     });
@@ -353,6 +382,19 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
       where: { marketId: market.marketId, tenantId: market.tenantId, deliveryId: delivery.id },
     });
     await this.appendHistory(market, delivery, stored);
+  }
+
+  async raiseException(
+    market: MarketContext,
+    id: Id<'Delivery'>,
+    exception: DeliveryException,
+    whileStatus: DeliveryStatus,
+  ): Promise<boolean> {
+    const updated = await this.prisma.tx(market).deliveryDelivery.updateMany({
+      where: { marketId: market.marketId, tenantId: market.tenantId, id, status: whileStatus },
+      data: { exception },
+    });
+    return updated.count === 1;
   }
 
   private async appendHistory(

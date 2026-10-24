@@ -1,5 +1,38 @@
 [
   {
+    "type": "delivery.booked.v1",
+    "aggregateType": "delivery",
+    "fields": {
+      "deliveryId": "id",
+      "merchantId": "id",
+      "status": "enumOf(scheduled|dispatching|assigned|at-pickup|picked-up|at-dropoff|delivered|delivery-failed|returning|returned|cancelled)",
+      "vehicle": "enumOf(bicycle|motorbike|car|van)",
+      "temperature": "enumOf(ambient|chilled|frozen)",
+      "windowStart": "optional(instant)",
+      "windowEnd": "optional(instant)"
+    }
+  },
+  {
+    "type": "delivery.cancelled.v1",
+    "aggregateType": "delivery",
+    "fields": {
+      "deliveryId": "id",
+      "previousStatus": "enumOf(scheduled|dispatching|assigned|at-pickup|picked-up|at-dropoff|delivered|delivery-failed|returning|returned|cancelled)",
+      "reason": "enumOf(merchant-cancelled|operator-cancelled)"
+    }
+  },
+  {
+    "type": "delivery.status-changed.v1",
+    "aggregateType": "delivery",
+    "fields": {
+      "deliveryId": "id",
+      "status": "enumOf(scheduled|dispatching|assigned|at-pickup|picked-up|at-dropoff|delivered|delivery-failed|returning|returned|cancelled)",
+      "previousStatus": "enumOf(scheduled|dispatching|assigned|at-pickup|picked-up|at-dropoff|delivered|delivery-failed|returning|returned|cancelled)",
+      "courierId": "optional(id)",
+      "reason": "optional(enumOf(dispatcher-unassigned|courier-reassigned|delivery-failed))"
+    }
+  },
+  {
     "type": "dispatch.courier-assigned.v1",
     "aggregateType": "dispatch-job",
     "fields": {

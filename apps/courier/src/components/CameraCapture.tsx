@@ -1,9 +1,9 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import type { PhotoFile } from '../api/client';
 import { t } from '../i18n';
-import { compressProofPhoto } from '../pod/photo';
+import { compressProofPhoto, discardPhoto } from '../pod/photo';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
 
@@ -17,6 +17,13 @@ export function CameraCapture({ photo, onCaptured }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   if (!permission) return null;
   if (!permission.granted) {
@@ -53,9 +60,15 @@ export function CameraCapture({ photo, onCaptured }: Props) {
     setBusy(true);
     try {
       const picture = await camera.current.takePictureAsync({ quality: 0.8, exif: false });
-      onCaptured(await compressProofPhoto(picture.uri, picture.width));
+      const compressed = await compressProofPhoto(picture.uri, picture.width);
+      // The courier left while the photo was being compressed: nothing will upload it.
+      if (!mounted.current) {
+        discardPhoto(compressed.uri);
+        return;
+      }
+      onCaptured(compressed);
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
 
