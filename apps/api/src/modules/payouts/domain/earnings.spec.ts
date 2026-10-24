@@ -76,7 +76,7 @@ describe('earningFor', () => {
 
   it('refuses a vehicle the Market has no courier rate for', () => {
     expect(() => earningFor(zz, 'contractor', delivery({ vehicle: 'car' }))).toThrow(
-      expect.objectContaining({ code: 'earnings.vehicle-not-rated' }) as unknown,
+      expect.objectContaining({ code: 'earnings.vehicle-not-rated' }) as Error,
     );
   });
 
@@ -112,7 +112,7 @@ describe('paidWaitingMinutes', () => {
 
   it('refuses a courier who left a stop before arriving', () => {
     expect(() => paidWaitingMinutes(au, delivery({ pickedUpAt: at(-1) }))).toThrow(
-      expect.objectContaining({ code: 'earnings.invalid-timeline' }) as unknown,
+      expect.objectContaining({ code: 'earnings.invalid-timeline' }) as Error,
     );
   });
 });

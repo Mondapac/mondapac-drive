@@ -131,7 +131,7 @@ describe.each([
     };
 
     expect(() => plan(code, [foreign], [contractor('c-1')], [account('c-1')])).toThrow(
-      expect.objectContaining({ code: 'payouts.currency-mismatch' }) as unknown,
+      expect.objectContaining({ code: 'payouts.currency-mismatch' }) as Error,
     );
   });
 });
@@ -187,7 +187,7 @@ describe('a payout line', () => {
 
     expect(line.status).toBe('failed');
     expect(() => lineTransferred(line, 'tr_1', later)).toThrow(
-      expect.objectContaining({ code: 'payouts.line-state' }) as unknown,
+      expect.objectContaining({ code: 'payouts.line-state' }) as Error,
     );
   });
 
@@ -205,10 +205,10 @@ describe('a payout line', () => {
     expect(again.line).toBe(partly.line);
     expect(whole.newlyReversed).toEqual(m(800n));
     expect(() => lineReversed(transferred, m(1101n), later)).toThrow(
-      expect.objectContaining({ code: 'payouts.invalid-reversal' }) as unknown,
+      expect.objectContaining({ code: 'payouts.invalid-reversal' }) as Error,
     );
     expect(() => lineReversed(pending(), m(1n), later)).toThrow(
-      expect.objectContaining({ code: 'payouts.line-state' }) as unknown,
+      expect.objectContaining({ code: 'payouts.line-state' }) as Error,
     );
   });
 });
