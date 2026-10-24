@@ -24,6 +24,7 @@ interface DeliveryRow {
   readonly updatedAt: Date;
   readonly endedAt: Date | null;
   readonly version: number;
+  readonly deliveryVersion: number | null;
 }
 
 const SELECT_DELIVERY = {
@@ -39,6 +40,7 @@ const SELECT_DELIVERY = {
   updatedAt: true,
   endedAt: true,
   version: true,
+  deliveryVersion: true,
 } as const;
 
 function readDelivery(row: DeliveryRow): TrackedDelivery {
@@ -53,6 +55,7 @@ function readDelivery(row: DeliveryRow): TrackedDelivery {
     updatedAt: toInstant(row.updatedAt),
     ...(row.endedAt === null ? {} : { endedAt: toInstant(row.endedAt) }),
     version: row.version,
+    ...(row.deliveryVersion === null ? {} : { deliveryVersion: row.deliveryVersion }),
   };
 }
 
@@ -80,6 +83,7 @@ export class PrismaTrackingRepository implements TrackingRepository {
       updatedAt: toDate(delivery.updatedAt),
       endedAt: delivery.endedAt === undefined ? null : toDate(delivery.endedAt),
       version: delivery.version,
+      deliveryVersion: delivery.deliveryVersion ?? null,
     };
     if (delivery.version === 1) {
       const created = await tx.trackingDelivery.createMany({

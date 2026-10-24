@@ -33,4 +33,10 @@ export interface MarketDeliverySettings {
     readonly maxDaysAhead: number;
     readonly minWindowMinutes: number;
   };
+  readonly proofOfDelivery: {
+    /** Digits of the recipient's PIN. */
+    readonly pinLength: number;
+    /** Wrong PINs a delivery takes before only a photo proves the hand-over. */
+    readonly maxPinAttempts: number;
+  };
 }

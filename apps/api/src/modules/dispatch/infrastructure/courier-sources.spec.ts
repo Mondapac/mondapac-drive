@@ -5,7 +5,7 @@ import { TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS } from '../../../../test/suppo
 import { loadMarketConfigs } from '../../../platform/market-config/market-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import type { FleetDirectory } from '../../fleet';
-import type { CourierPositions } from '../../tracking';
+import type { CourierPositions } from '../../tracking/contracts/courier-positions.contract';
 import { FleetCourierAvailability } from './fleet-courier-availability';
 import { TrackingCourierProximity } from './tracking-courier-proximity';
 
