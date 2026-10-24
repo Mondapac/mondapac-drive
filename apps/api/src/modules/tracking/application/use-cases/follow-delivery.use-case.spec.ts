@@ -8,6 +8,9 @@ import {
   InMemoryTrackingRepository,
   newClock,
 } from '../../../../../test/support/tracking-markets';
+import { DELIVERY_STATUS_CODES } from '../../../delivery';
+import { TRACKED_STATUSES } from '../../domain/tracked-delivery';
+import { trackedStatusOf } from '../../presentation/subscribers/delivery-lifecycle.subscriptions';
 import type { EventDelivery } from '../../../../platform/events/event-delivery';
 import type { DeliveryRoute } from '../../domain/tracked-delivery';
 import type { DeliveryRoutes } from '../ports';
@@ -142,5 +145,11 @@ describe.each(TEST_MARKETS)('FollowDelivery in market %s', (code) => {
     const s = setup(route);
     const started = await s.follow.execute(system, input(1));
     expect(started.ok && Temporal.Instant.compare(started.value!.startedAt, s.clock.now())).toBe(0);
+  });
+});
+
+describe("delivery's event status codes", () => {
+  it('map one to one onto the statuses tracking keeps', () => {
+    expect(DELIVERY_STATUS_CODES.map(trackedStatusOf)).toEqual([...TRACKED_STATUSES]);
   });
 });

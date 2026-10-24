@@ -2,15 +2,19 @@ import { Module, type FactoryProvider } from '@nestjs/common';
 import type { Clock } from '@mondapac-drive/shared-kernel';
 import { registerPermissions, USE_CASE_GATE, type UseCaseGate } from '../../platform/authz';
 import { CLOCK } from '../../platform/clock/clock.module';
+import { DeliveryModule, DeliveryDispatchView } from '../delivery';
 import { IdentityModule } from '../identity';
+import { registerSubscriptionsFrom } from '../../platform/events/event-subscriptions';
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import {
+  DELIVERY_ROUTES,
   ETA_PROVIDER,
   LIVE_POSITION_STORE,
   TRACKING_REPOSITORY,
   TRACKING_SETTINGS,
   TRACKING_TOKENS,
+  type DeliveryRoutes,
   type EtaProvider,
   type LivePositionStore,
   type TrackingRepository,
@@ -19,6 +23,7 @@ import {
 } from './application/ports';
 import type { PositionDependencies } from './application/positions';
 import { CourierPositions } from './application/use-cases/courier-positions.use-case';
+import { FollowDelivery } from './application/use-cases/follow-delivery.use-case';
 import { DeliveryTrail } from './application/use-cases/delivery-trail.use-case';
 import { IssueTrackingLink } from './application/use-cases/issue-tracking-link.use-case';
 import { PurgeTrackingData } from './application/use-cases/purge-tracking-data.use-case';
@@ -30,8 +35,10 @@ import {
 } from './application/use-cases/view-courier-positions.use-case';
 import { ViewTrackingLink } from './application/use-cases/view-tracking-link.use-case';
 import { TRACKING_PERMISSIONS } from './contracts/permissions';
+import { DeliveryDispatchRoutes } from './infrastructure/delivery-routes.adapter';
 import { trackingProviders } from './infrastructure/tracking-providers';
 import { AdminSessionCheck } from './presentation/admin-session-check';
+import { deliveryLifecycleSubscriptions } from './presentation/subscribers/delivery-lifecycle.subscriptions';
 import { purgeTrackingDataJob } from './presentation/jobs/purge-tracking-data.job';
 import { TrackingLinkController } from './presentation/tracking-link.controller';
 import {
@@ -66,7 +73,8 @@ function positionUseCase<U>(
  */
 @Module({
   // identity's Authenticator: the dispatcher map re-checks its session on every event (L1).
-  imports: [IdentityModule],
+  // delivery's DeliveryDispatchView: the route of a delivery tracking first hears of.
+  imports: [IdentityModule, DeliveryModule],
   controllers: [TrackingLinkController, CourierTrackingController, DispatcherTrackingController],
   providers: [
     registerPermissions('tracking', TRACKING_PERMISSIONS),
@@ -177,6 +185,25 @@ function positionUseCase<U>(
         clock: Clock,
       ) => new PurgeTrackingData(gate, { tracking, settings, unitOfWork, clock }),
     },
+    {
+      provide: DELIVERY_ROUTES,
+      inject: [DeliveryDispatchView],
+      useFactory: (view: DeliveryDispatchView) => new DeliveryDispatchRoutes(view),
+    },
+    {
+      provide: FollowDelivery,
+      inject: [USE_CASE_GATE, TRACKING_REPOSITORY, DELIVERY_ROUTES, UNIT_OF_WORK, CLOCK],
+      useFactory: (
+        gate: UseCaseGate,
+        tracking: TrackingRepository,
+        routes: DeliveryRoutes,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+      ) => new FollowDelivery(gate, { tracking, routes, unitOfWork, clock }),
+    },
+    registerSubscriptionsFrom('tracking', [FollowDelivery], (follow: FollowDelivery) =>
+      deliveryLifecycleSubscriptions(follow),
+    ),
     registerJobsFrom('tracking', [PurgeTrackingData], (purge: PurgeTrackingData) => [
       purgeTrackingDataJob(purge),
     ]),
