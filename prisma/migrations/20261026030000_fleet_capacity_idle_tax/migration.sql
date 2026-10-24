@@ -14,6 +14,9 @@ ALTER TABLE "fleet"."couriers"
 -- Existing rows take false above; new rows always state it (no database default, like tenant_id).
 ALTER TABLE "fleet"."couriers" ALTER COLUMN "tax_registered" DROP DEFAULT;
 
+-- A courier online while this runs starts waiting now, so the CHECK below holds for every row.
+UPDATE "fleet"."couriers" SET "idle_since" = now() WHERE "shift" = 'online';
+
 -- A courier who works no shift has nothing to wait for: offline couriers may keep the last value,
 -- but a never-online courier has none, and an online one always has one.
 ALTER TABLE "fleet"."couriers"

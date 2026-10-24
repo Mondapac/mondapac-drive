@@ -121,8 +121,7 @@ export class FleetDirectory {
           maxVolumeLitres: vehicle.maxVolumeLitres,
           temperatures,
         })),
-        // An online courier always has one (a database CHECK); the creation time stands in for
-        // a row written before idle time was recorded.
+        // An online courier always has one (a database CHECK); defensive only.
         idleSince: courier.idleSince ?? courier.createdAt,
       });
     }
@@ -136,7 +135,8 @@ export class FleetDirectory {
   /**
    * The payee facts of the couriers of these accounts in the Market, whatever their standing
    * (an offboarded courier is still owed money). Unknown accounts are left out; at most
-   * {@link MAX_PAYEE_PROFILES} ids per call, more is a programming error.
+   * {@link MAX_PAYEE_PROFILES} ids per call, more is a programming error. Throws when the read
+   * fails, so the caller fails closed.
    */
   async payeeProfiles(
     context: CallContext,
@@ -145,14 +145,18 @@ export class FleetDirectory {
     if (courierIds.length > MAX_PAYEE_PROFILES) {
       throw new RangeError(`At most ${MAX_PAYEE_PROFILES} couriers per call`);
     }
+    // An account id is at most 64 characters (fleet.couriers.actor_id); a longer one is nobody.
+    const ids = [...new Set(courierIds)].filter((id) => id.length > 0 && id.length <= 64);
+    if (ids.length === 0) return [];
     const { businessIdDocumentType } = this.rules.get(context.market.marketId);
     const now = this.clock.now();
     const found = await this.unitOfWork.run(
       context.market,
-      async () => ok(await this.couriers.findByActorIds(context.market, [...new Set(courierIds)])),
+      async () => ok(await this.couriers.findByActorIds(context.market, ids)),
       { readOnly: true },
     );
-    if (!found.ok) return [];
+    // A failed read fails the payouts run: it must never look like "no such payee".
+    if (!found.ok) throw new Error('fleet.payee-profiles.unavailable');
     return found.value.map((courier) => ({
       courierId: courier.actorId,
       employmentType: courier.employmentType,
