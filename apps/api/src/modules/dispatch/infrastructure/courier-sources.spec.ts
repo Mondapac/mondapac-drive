@@ -5,7 +5,7 @@ import { TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS } from '../../../../test/suppo
 import { loadMarketConfigs } from '../../../platform/market-config/market-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import type { FleetDirectory } from '../../fleet';
-import type { NearestCouriers } from '../../tracking';
+import type { CourierPositions } from '../../tracking';
 import { FleetCourierAvailability } from './fleet-courier-availability';
 import { TrackingCourierProximity } from './tracking-courier-proximity';
 
@@ -72,23 +72,32 @@ describe.each([
 
   it('asks tracking for the service area and drops a position without a courier id', async () => {
     const calls: unknown[] = [];
-    const nearest = {
-      perform: (...args: unknown[]) => {
-        calls.push(args.slice(2));
+    const positions = {
+      nearest: (...args: unknown[]) => {
+        calls.push(args.slice(1));
         return Promise.resolve([
           { position: { courierId: courierId(1) }, distanceMetres: 120 },
           { position: { courierId: 'not-an-id' }, distanceMetres: 50 },
         ]);
       },
-    } as unknown as NearestCouriers;
+    } as unknown as CourierPositions;
 
-    const found = await new TrackingCourierProximity(nearest).nearestCouriers(
+    const found = await new TrackingCourierProximity(positions).nearestCouriers(
       context,
       requirements().pickup,
       { radiusMetres: 5000, limit: 10, serviceArea: 'area-1' },
     );
 
-    expect(calls).toEqual([[5000, 10, { serviceArea: 'area-1' }]]);
+    expect(calls).toEqual([
+      [
+        {
+          point: requirements().pickup,
+          radiusMetres: 5000,
+          limit: 10,
+          serviceArea: 'area-1',
+        },
+      ],
+    ]);
     expect(found).toEqual([{ courierId: courierId(1), distanceMetres: 120 }]);
   });
 });

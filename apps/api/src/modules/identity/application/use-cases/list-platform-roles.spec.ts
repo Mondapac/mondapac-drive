@@ -96,6 +96,7 @@ const LEAD_KEYS = [
   'identity.courier-account.view',
   'identity.platform-role.assign',
   'identity.platform-role.view',
+  'tracking.map.view',
 ];
 /** The keys of the custom viewer role: it holds less than every other admin role. */
 const VIEWER_KEYS = ['identity.admin-account.view', 'identity.platform-role.view'];
@@ -333,11 +334,11 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
       roleId: roleOf('operator'),
       kind: 'default',
       seedCode: 'operator',
-      permissionCount: 6,
+      permissionCount: 7,
       grantable: true,
     });
     expect(byId(items, roleOf('operator')).name).toBeNull();
-    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(6);
+    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(7);
     expect(byId(items, LEAD_ROLE)).toMatchObject({
       kind: 'custom',
       seedCode: null,

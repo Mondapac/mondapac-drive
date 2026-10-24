@@ -1,13 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   err,
   ok,
+  type CallContext,
   type Clock,
   type MarketContext,
   type Result,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import {
   phaseOf,
   showsCourierToCustomer,
@@ -20,21 +20,31 @@ import {
   type CustomerView,
 } from '../../domain/tracking-link';
 import { failure, type TrackingFailure } from '../failure';
+import type {
+  EtaProvider,
+  LivePositionStore,
+  TrackingRepository,
+  TrackingSettingsProvider,
+  TrackingTokens,
+} from '../ports';
 
 /** The refusals of every tracking use case, for the entry points that map them. */
 export type { TrackingFailure };
-import {
-  ETA_PROVIDER,
-  LIVE_POSITION_STORE,
-  TRACKING_REPOSITORY,
-  TRACKING_SETTINGS,
-  TRACKING_TOKENS,
-  type EtaProvider,
-  type LivePositionStore,
-  type TrackingRepository,
-  type TrackingSettingsProvider,
-  type TrackingTokens,
-} from '../ports';
+
+export interface TrackingLinkRef {
+  /** The token as the customer's link carries it. */
+  readonly token: string;
+}
+
+export interface ViewTrackingLinkDependencies {
+  readonly tracking: TrackingRepository;
+  readonly tokens: TrackingTokens;
+  readonly positions: LivePositionStore;
+  readonly eta: EtaProvider;
+  readonly settings: TrackingSettingsProvider;
+  readonly unitOfWork: UnitOfWork;
+  readonly clock: Clock;
+}
 
 const MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   'tracking.link-not-found': 'No such tracking link',
@@ -45,43 +55,47 @@ const MESSAGES: Readonly<Record<string, string>> = Object.freeze({
 /**
  * What a customer's tracking link shows (no login: the token is the only credential). An unknown
  * or malformed token, an expired link and an ended delivery answer a refusal and nothing else.
+ * Rule `anonymous`: the body always runs with the Market's anonymous actor.
  */
-@Injectable()
-export class ViewTrackingLink {
+export class ViewTrackingLink extends UseCase<TrackingLinkRef, CustomerView, TrackingFailure> {
+  static override readonly access: AccessDeclaration = {
+    name: 'tracking.view-tracking-link',
+    rule: { kind: 'anonymous' },
+  };
+
   constructor(
-    @Inject(TRACKING_REPOSITORY) private readonly tracking: TrackingRepository,
-    @Inject(TRACKING_TOKENS) private readonly tokens: TrackingTokens,
-    @Inject(LIVE_POSITION_STORE) private readonly positions: LivePositionStore,
-    @Inject(ETA_PROVIDER) private readonly eta: EtaProvider,
-    @Inject(TRACKING_SETTINGS) private readonly settings: TrackingSettingsProvider,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-  ) {}
+    gate: UseCaseGate,
+    private readonly deps: ViewTrackingLinkDependencies,
+  ) {
+    super(gate);
+  }
 
   /** How often the tracking page's live channel sends a new view (Market setting). */
   refreshIntervalSeconds(market: MarketContext): number {
-    return this.settings.get(market.marketId).streamIntervalSeconds;
+    return this.deps.settings.get(market.marketId).streamIntervalSeconds;
   }
 
-  async perform(
-    market: MarketContext,
-    token: string,
+  protected async handle(
+    context: CallContext,
+    input: TrackingLinkRef,
   ): Promise<Result<CustomerView, TrackingFailure>> {
-    const hash = this.tokens.hashOf(token);
+    const { market } = context;
+    const { tracking, tokens, positions, eta, unitOfWork, clock } = this.deps;
+    const hash = tokens.hashOf(input.token);
     if (hash === undefined) return refused('tracking.link-not-found');
-    const found = await this.unitOfWork.run(
+    const found = await unitOfWork.run(
       market,
       async (): Promise<Result<{ delivery: TrackedDelivery; showPosition: boolean }, string>> => {
-        const link = await this.tracking.findLink(market, hash);
+        const link = await tracking.findLink(market, hash);
         if (link === undefined) return err('tracking.link-not-found');
-        const open = checkLinkOpen(link, this.clock.now());
+        const open = checkLinkOpen(link, clock.now());
         if (!open.ok) return err(open.error.code);
-        const delivery = await this.tracking.findDelivery(market, link.deliveryId);
+        const delivery = await tracking.findDelivery(market, link.deliveryId);
         if (delivery === undefined) return err('tracking.link-not-found');
         const carried =
           delivery.courierId === undefined
             ? []
-            : await this.tracking.activeDeliveriesOf(market, delivery.courierId);
+            : await tracking.activeDeliveriesOf(market, delivery.courierId);
         return ok({ delivery, showPosition: mayShowCourierPosition(delivery, carried) });
       },
       { readOnly: true },
@@ -93,9 +107,9 @@ export class ViewTrackingLink {
     let courier;
     let etaSeconds;
     if (showsCourierToCustomer(phaseOf(delivery.status)) && delivery.courierId !== undefined) {
-      courier = await this.positions.lastKnown(market.marketId, delivery.courierId);
+      courier = await positions.lastKnown(market, delivery.courierId);
       if (courier !== undefined && delivery.vehicle !== undefined) {
-        etaSeconds = await this.eta.etaSeconds(
+        etaSeconds = await eta.etaSeconds(
           market,
           courier.point,
           delivery.dropoff,
