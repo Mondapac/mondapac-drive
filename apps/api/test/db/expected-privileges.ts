@@ -169,8 +169,18 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
     'tracking.tracked_deliveries': {
       table: ['DELETE', 'INSERT', 'SELECT'],
-      columnUpdate: ['courier_id', 'ended_at', 'status', 'updated_at', 'vehicle', 'version'],
+      columnUpdate: [
+        'courier_id',
+        'delivery_version',
+        'ended_at',
+        'status',
+        'updated_at',
+        'vehicle',
+        'version',
+      ],
     },
+    // 20261026060000: tracking's inbox for the delivery lifecycle subscribers, append-only.
+    'tracking.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and

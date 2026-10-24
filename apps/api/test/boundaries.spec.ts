@@ -131,6 +131,7 @@ describe('architecture boundaries (ADR-0008 decision 6)', () => {
         'certification-surface-does-not-reach-reader-adapter',
         'contexts-are-built-by-platform',
         'core-does-not-import-verticals',
+        'courier-positions-are-for-dispatch',
         'database-driver-only-in-infrastructure',
         'domain-is-pure',
         'identity-imports-no-module',
@@ -179,6 +180,7 @@ describe('architecture boundaries (ADR-0008 decision 6)', () => {
         'contexts-are-built-by-platform: src/modules/alpha/application/mints-actor-context.ts',
         'contexts-are-built-by-platform: src/modules/alpha/application/uses-context-types.ts',
         'core-does-not-import-verticals: src/platform/uses-vertical.ts',
+        'courier-positions-are-for-dispatch: src/modules/alpha/application/reads-courier-positions.ts',
         'database-driver-only-in-infrastructure: src/platform/uses-database-driver.ts',
         'domain-is-pure: src/modules/alpha/domain/does-io.ts',
         'domain-is-pure: src/modules/alpha/domain/imports-application.ts',
@@ -278,6 +280,8 @@ describe('architecture boundaries (ADR-0008 decision 6)', () => {
       'src/modules/alpha/application/uses-authz-barrel.ts',
       // L3: a module's infrastructure uses the SubjectKeyService port and its labels.
       'src/modules/alpha/infrastructure/encrypts-field.ts',
+      // dispatch ranks candidates by tracking's ungated courier positions (tracking 06b, L2).
+      'src/modules/dispatch/infrastructure/reads-courier-positions.ts',
     ])('accepts the allowed file %s', (file) => {
       expect(cruise.modules.map((module) => module.source)).toContain(file);
       expect(found.filter((violation) => violation.endsWith(`: ${file}`))).toEqual([]);

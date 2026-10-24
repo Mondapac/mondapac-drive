@@ -9,7 +9,7 @@ import {
   DISPATCH_SETTINGS,
 } from '../application/ports';
 import { FleetDirectory } from '../../fleet';
-import { CourierPositions } from '../../tracking';
+import { CourierPositions } from '../../tracking/contracts/courier-positions.contract';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
 import { FleetCourierAvailability } from './fleet-courier-availability';
 import { PrismaDispatchJobRepository } from './prisma-dispatch-job.repository';

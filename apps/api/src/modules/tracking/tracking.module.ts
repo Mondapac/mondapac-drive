@@ -2,6 +2,7 @@ import { Module, type FactoryProvider } from '@nestjs/common';
 import type { Clock } from '@mondapac-drive/shared-kernel';
 import { registerPermissions, USE_CASE_GATE, type UseCaseGate } from '../../platform/authz';
 import { CLOCK } from '../../platform/clock/clock.module';
+import { IdentityModule } from '../identity';
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import {
@@ -30,6 +31,7 @@ import {
 import { ViewTrackingLink } from './application/use-cases/view-tracking-link.use-case';
 import { TRACKING_PERMISSIONS } from './contracts/permissions';
 import { trackingProviders } from './infrastructure/tracking-providers';
+import { AdminSessionCheck } from './presentation/admin-session-check';
 import { purgeTrackingDataJob } from './presentation/jobs/purge-tracking-data.job';
 import { TrackingLinkController } from './presentation/tracking-link.controller';
 import {
@@ -63,10 +65,13 @@ function positionUseCase<U>(
  * sends its own pings, and operators and dispatchers read the live map and trails.
  */
 @Module({
+  // identity's Authenticator: the dispatcher map re-checks its session on every event (L1).
+  imports: [IdentityModule],
   controllers: [TrackingLinkController, CourierTrackingController, DispatcherTrackingController],
   providers: [
     registerPermissions('tracking', TRACKING_PERMISSIONS),
     ...trackingProviders,
+    AdminSessionCheck,
     {
       provide: CourierPositions,
       inject: [LIVE_POSITION_STORE, TRACKING_SETTINGS],
