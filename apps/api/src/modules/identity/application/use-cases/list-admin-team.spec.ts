@@ -32,7 +32,9 @@ import type { IdentityMarketPolicy } from '../ports/identity-market-policy';
 import type { ThrottleKeys } from '../ports/session-secrets';
 import { AssignAdminRole } from './assign-admin-role.use-case';
 import { DisableAdminAccount } from './disable-admin-account.use-case';
+import { DisableCourierAccount } from './disable-courier-account.use-case';
 import { EnableAdminAccount } from './enable-admin-account.use-case';
+import { EnableCourierAccount } from './enable-courier-account.use-case';
 import {
   ListAdminTeam,
   type ActionHint,
@@ -71,44 +73,37 @@ const n12 = (n: number) => String(n).padStart(12, '0');
 const accountId = (n: number) => id<'Account'>(`01990000-0000-7000-8000-${n12(0xa000 + n)}`);
 const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000f001');
 const LEAD_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0aa');
+/** A platform custom role of view keys only: the marketplace's seeded viewer, as Drive seeds none. */
+const VIEWER_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0bb');
 
 const ROOT = accountId(1);
 const ROOT2 = accountId(2);
 const LEAD = accountId(3);
 const VIEWER = accountId(4);
 const SUPPORT = accountId(5);
-const CUSTOMER = accountId(6);
-const SELLER_ACCOUNT = accountId(7);
+const COURIER = accountId(6);
+const MERCHANT_ACCOUNT = accountId(7);
 const OFF = accountId(8);
 const PARTIAL = accountId(9);
 const PARTIAL_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0dd');
 
 /** A platform custom role with protected keys but not the system role (as in 8a-2's spec). */
 const LEAD_KEYS = [
-  'catalog.product.view',
+  'delivery.delivery.cancel',
+  'delivery.delivery.dispatch',
+  'delivery.delivery.view',
   'identity.admin-account.disable',
   'identity.admin-account.invite',
   'identity.admin-account.reset-second-factor',
   'identity.admin-account.view',
-  'identity.customer-account.disable',
-  'identity.customer-account.view',
+  'identity.courier-account.disable',
+  'identity.courier-account.invite',
+  'identity.courier-account.view',
   'identity.platform-role.assign',
   'identity.platform-role.view',
-  'identity.seller-access.view',
-  'identity.seller-account.reset-second-factor',
-  'certification.seller-certificate.view',
-  'certification.type.view',
-  'certification.claim-policy.view',
-  'certification.product-certificate.view',
-  'notifications.support-contact.view',
-  'assistant.settings.view',
-  'ordering.order.view',
-  'payments.connected-account.view',
-  'pricing.price-hold.view',
-  'sellers.seller.view',
-  'shipping.flat-fee.view',
-  'commission-payouts.settlement.view',
 ];
+/** The keys of the custom viewer role: it holds less than every other admin role. */
+const VIEWER_KEYS = ['identity.admin-account.view', 'identity.platform-role.view'];
 
 type AccountAction = keyof AdminTeamAccountRow['actions'];
 type InvitationAction = keyof AdminTeamInvitationRow['actions'];
@@ -149,7 +144,6 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
         kind: seeded.kind,
         seedCode: seeded.seedCode,
         seedVersion: seeded.seedVersion,
-        sellerId: null,
         permissionKeys: seeded.kind === 'system' ? [] : [...seeded.permissionKeys].sort(),
         version: 1,
         createdAt: START,
@@ -164,12 +158,25 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
       kind: 'custom',
       seedCode: null,
       seedVersion: null,
-      sellerId: null,
       name: 'Custom role',
       permissionKeys: LEAD_KEYS,
       version: 1,
       createdAt: START,
     });
+    const viewer: RoleState = {
+      id: VIEWER_ROLE,
+      marketId,
+      scope: 'platform',
+      kind: 'custom',
+      seedCode: null,
+      seedVersion: null,
+      name: 'Viewer',
+      permissionKeys: VIEWER_KEYS,
+      version: 1,
+      createdAt: START,
+    };
+    fakes.seedRole(viewer);
+    roles.set('platform:viewer', viewer);
     const account = (
       n: number,
       idOf: Id<'Account'>,
@@ -181,11 +188,10 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
         marketId,
         population,
         email: { typed: `A${n}@Example.com`, normalized: `a${n}@example.com` },
-        displayName: population === 'customer' ? null : `Account ${n}`,
+        displayName: `Account ${n}`,
         status,
         emailVerifiedAt: START,
-        existingAccountNoticeAt: null,
-        signedUpAt: START,
+          signedUpAt: START,
         createdAt: START,
         version: 1,
         credential: { passwordHash: fakeHashOf('x'), changedAt: START },
@@ -211,10 +217,10 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
     admin(2, ROOT2, roleOf('platform-administrator'));
     admin(3, LEAD, LEAD_ROLE);
     admin(4, VIEWER, roleOf('viewer'));
-    admin(5, SUPPORT, roleOf('operations-support'));
-    account(6, CUSTOMER, 'customer');
-    account(7, SELLER_ACCOUNT, 'seller');
-    admin(8, OFF, roleOf('finance'), 'disabled');
+    admin(5, SUPPORT, roleOf('dispatcher'));
+    account(6, COURIER, 'courier');
+    account(7, MERCHANT_ACCOUNT, 'merchant');
+    admin(8, OFF, roleOf('operator'), 'disabled');
 
     const effectiveKeys = realEffectiveKeys();
     const gate = createUseCaseGate(
@@ -223,7 +229,7 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
         unitOfWork,
         accounts: fakes.accountRepository,
         memberships: fakes.membershipRepository,
-        sellerAccess: fakes.sellerAccessRepository,
+        merchants: fakes.merchantRepository,
         grants: fakes.grantReader,
         effectiveKeys,
       }),
@@ -303,7 +309,7 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
         population: 'admin',
         accountId: account,
         sessionId: SESSION_ID,
-        sellerId: null,
+        merchantId: null,
       }),
       'admin-team-list-0001',
     );
@@ -342,9 +348,7 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
       marketId,
       kind: 'admin',
       email: email.value,
-      displayName: null,
       roleId: roleOf('viewer'),
-      sellerId: null,
       invitedByAccountId: ROOT,
       tokenHash: TOKEN_HASH,
       expiresAt: START.add({ hours: 1 }),
@@ -432,7 +436,7 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
     expect(accountRow(listed, OFF)).toMatchObject({ status: 'disabled' });
     expect(invitationRow(listed, seeded.plain)).toMatchObject({
       email: 'Invitee1@Example.com',
-      role: { roleId: roleOf('viewer'), kind: 'default', seedCode: 'viewer' },
+      role: { roleId: roleOf('viewer'), kind: 'custom', seedCode: null },
       invitedByAccountId: ROOT,
       status: 'pending',
       createdAt: START,
@@ -539,17 +543,17 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
       ok: false,
       error: { code: 'access.denied' },
     });
-    const customer = testCallContext(
+    const courier = testCallContext(
       market,
       testAuthenticatedActor(market, {
-        population: 'customer',
-        accountId: CUSTOMER,
+        population: 'courier',
+        accountId: COURIER,
         sessionId: SESSION_ID,
-        sellerId: null,
+        merchantId: null,
       }),
       'admin-team-list-0002',
     );
-    expect(await list.execute(customer, { limit: 10 })).toMatchObject({ ok: false });
+    expect(await list.execute(courier, { limit: 10 })).toMatchObject({ ok: false });
   });
 
   it('answers member.last-holder from LastHolderPolicy over the holders it reads once', async () => {
@@ -644,7 +648,7 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
 
   /**
    * An admin with some of the team keys only (Sajad on PR #196): the view key, the reset and the
-   * invite keys and `seller-access.view`, in a custom role without the system role. SUPPORT holds
+   * invite keys and `merchant.view`, in a custom role without the system role. SUPPORT holds
    * no `admin-account.view` and so never lists at all (tested above).
    */
   function seedPartial() {
@@ -655,13 +659,12 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
       kind: 'custom',
       seedCode: null,
       seedVersion: null,
-      sellerId: null,
       name: 'Custom role',
       permissionKeys: [
         'identity.admin-account.invite',
         'identity.admin-account.reset-second-factor',
         'identity.admin-account.view',
-        'identity.seller-access.view',
+        'identity.merchant.view',
       ],
       version: 1,
       createdAt: START,
@@ -801,14 +804,14 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
               action === 'changeRole'
                 ? // A role the actor may grant and that differs from the target's, so the
                   // command's answer is the row's (grantability is not a row hint). Both roles
-                  // hold only identity keys that LEAD holds; Catalogue Moderator is not one of
-                  // them since seed v2 (I-1a) adds a catalog key LEAD lacks.
+                  // hold only keys that LEAD holds; Operator is not one of them, as it
+                  // holds `identity.merchant.view`, which LEAD lacks (I-1a).
                   await commands.changeRole.execute(as(actor), {
                     ...input,
                     roleId:
-                      row.role?.roleId === roleOf('operations-support')
-                        ? roleOf('finance')
-                        : roleOf('operations-support'),
+                      row.role?.roleId === roleOf('dispatcher')
+                        ? roleOf('viewer')
+                        : roleOf('dispatcher'),
                   })
                 : await commands[action as Exclude<AccountAction, 'changeRole'>].execute(
                     as(actor),

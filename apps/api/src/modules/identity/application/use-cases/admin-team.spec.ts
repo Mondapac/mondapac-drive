@@ -35,16 +35,16 @@ import type { ThrottleKeys } from '../ports/session-secrets';
 import { inviterMayStillGrant } from '../roles/granting';
 import { AssignAdminRole } from './assign-admin-role.use-case';
 import { DisableAdminAccount } from './disable-admin-account.use-case';
-import { DisableCustomerAccount } from './disable-customer-account.use-case';
+import { DisableCourierAccount } from './disable-courier-account.use-case';
 import { EnableAdminAccount } from './enable-admin-account.use-case';
-import { EnableCustomerAccount } from './enable-customer-account.use-case';
+import { EnableCourierAccount } from './enable-courier-account.use-case';
 import { InviteAdmin } from './invite-admin.use-case';
 import { ResendAdminInvitation } from './resend-admin-invitation.use-case';
 import { ResetOtherAdminSecondFactor } from './reset-other-admin-second-factor.use-case';
 import { RevokeAdminInvitation } from './revoke-admin-invitation.use-case';
 
 // Identity slices 8a-2 and 8b (identity design 3.1, 3.4, 3.6, 5.3 to 5.6; R1, R3, R11; HF8;
-// Hassan I-2): an admin's role change, disabling and enabling admin and customer accounts, the
+// Hassan I-2): an admin's role change, disabling and enabling admin and courier accounts, the
 // admin-initiated second-factor reset, and admin invitations with an inviter. The real gate,
 // registry and checked-in seed; identity's stores as fakes. Both Market fixtures.
 
@@ -67,9 +67,9 @@ const id = <T extends string>(text: string): Id<T> => {
 const n12 = (n: number) => String(n).padStart(12, '0');
 const accountId = (n: number) => id<'Account'>(`01990000-0000-7000-8000-${n12(0xa000 + n)}`);
 const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000f001');
-const SELLER = id<'Seller'>('01990000-0000-7000-8000-00000000b001');
 const LEAD_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0aa');
-const SELLER_CUSTOM_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0bb');
+/** A platform custom role of view keys only: the marketplace's seeded viewer, as Drive seeds none. */
+const VIEWER_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0bb');
 const UNKNOWN_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0cc');
 
 const ROOT = accountId(1);
@@ -77,36 +77,27 @@ const ROOT2 = accountId(2);
 const LEAD = accountId(3);
 const VIEWER = accountId(4);
 const SUPPORT = accountId(5);
-const CUSTOMER = accountId(6);
-const SELLER_ACCOUNT = accountId(7);
+const COURIER = accountId(6);
+const MERCHANT_ACCOUNT = accountId(7);
 const UNKNOWN = accountId(99);
 
 /** A platform custom role with protected keys, as a future role editor could store (5.6). */
 const LEAD_KEYS = [
-  'catalog.product.view',
+  'delivery.delivery.cancel',
+  'delivery.delivery.dispatch',
+  'delivery.delivery.view',
   'identity.admin-account.disable',
   'identity.admin-account.invite',
   'identity.admin-account.reset-second-factor',
   'identity.admin-account.view',
-  'identity.customer-account.disable',
-  'identity.customer-account.view',
+  'identity.courier-account.disable',
+  'identity.courier-account.invite',
+  'identity.courier-account.view',
   'identity.platform-role.assign',
   'identity.platform-role.view',
-  'identity.seller-access.view',
-  'identity.seller-account.reset-second-factor',
-  'certification.seller-certificate.view',
-  'certification.type.view',
-  'certification.claim-policy.view',
-  'certification.product-certificate.view',
-  'notifications.support-contact.view',
-  'assistant.settings.view',
-  'ordering.order.view',
-  'payments.connected-account.view',
-  'pricing.price-hold.view',
-  'sellers.seller.view',
-  'shipping.flat-fee.view',
-  'commission-payouts.settlement.view',
 ];
+/** The keys of the custom viewer role: it holds less than every other admin role. */
+const VIEWER_KEYS = ['identity.admin-account.view', 'identity.platform-role.view'];
 
 describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)', (code) => {
   const market = testMarketContext(code, PLATFORM_TENANT_ID);
@@ -151,7 +142,6 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         kind: seeded.kind,
         seedCode: seeded.seedCode,
         seedVersion: seeded.seedVersion,
-        sellerId: null,
         permissionKeys: seeded.kind === 'system' ? [] : [...seeded.permissionKeys].sort(),
         version: 1,
         createdAt: START,
@@ -166,25 +156,25 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       kind: 'custom',
       seedCode: null,
       seedVersion: null,
-      sellerId: null,
       name: 'Custom role',
       permissionKeys: LEAD_KEYS,
       version: 1,
       createdAt: START,
     });
-    fakes.seedRole({
-      id: SELLER_CUSTOM_ROLE,
+    const viewer: RoleState = {
+      id: VIEWER_ROLE,
       marketId,
-      scope: 'seller',
+      scope: 'platform',
       kind: 'custom',
       seedCode: null,
       seedVersion: null,
-      sellerId: SELLER,
-      name: 'Custom role',
-      permissionKeys: ['identity.team-member.view'],
+      name: 'Viewer',
+      permissionKeys: VIEWER_KEYS,
       version: 1,
       createdAt: START,
-    });
+    };
+    fakes.seedRole(viewer);
+    roles.set('platform:viewer', viewer);
 
     const account = (n: number, idOf: Id<'Account'>, population: AccountState['population']) =>
       fakes.seedAccount({
@@ -192,11 +182,10 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         marketId,
         population,
         email: { typed: `a${n}@example.com`, normalized: `a${n}@example.com` },
-        displayName: population === 'customer' ? null : `Account ${n}`,
+        displayName: `Account ${n}`,
         status: 'active',
         emailVerifiedAt: START,
-        existingAccountNoticeAt: null,
-        signedUpAt: START,
+          signedUpAt: START,
         createdAt: START,
         version: 1,
         credential: { passwordHash: fakeHashOf('x'), changedAt: START },
@@ -217,9 +206,9 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
     admin(2, ROOT2, roleOf('platform-administrator'));
     admin(3, LEAD, LEAD_ROLE);
     admin(4, VIEWER, roleOf('viewer'));
-    admin(5, SUPPORT, roleOf('operations-support'));
-    account(6, CUSTOMER, 'customer');
-    account(7, SELLER_ACCOUNT, 'seller');
+    admin(5, SUPPORT, roleOf('dispatcher'));
+    account(6, COURIER, 'courier');
+    account(7, MERCHANT_ACCOUNT, 'merchant');
 
     const effectiveKeys = realEffectiveKeys();
     const gate = createUseCaseGate(
@@ -228,7 +217,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         unitOfWork,
         accounts: fakes.accountRepository,
         memberships: fakes.membershipRepository,
-        sellerAccess: fakes.sellerAccessRepository,
+        merchants: fakes.merchantRepository,
         grants: fakes.grantReader,
         effectiveKeys,
       }),
@@ -263,8 +252,8 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       assign: new AssignAdminRole(gate, { ...common, permissions }),
       disableAdmin: new DisableAdminAccount(gate, status),
       enableAdmin: new EnableAdminAccount(gate, status),
-      disableCustomer: new DisableCustomerAccount(gate, status),
-      enableCustomer: new EnableCustomerAccount(gate, status),
+      disableCourier: new DisableCourierAccount(gate, status),
+      enableCourier: new EnableCourierAccount(gate, status),
       resetFactor: new ResetOtherAdminSecondFactor(gate, {
         ...status,
         factors: fakes.factorRepository,
@@ -299,7 +288,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         population: 'admin',
         accountId: account,
         sessionId: SESSION_ID,
-        sellerId: null,
+        merchantId: null,
       }),
       'admin-team-0001',
     );
@@ -381,9 +370,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       marketId,
       kind: 'admin',
       email: email.value,
-      displayName: null,
       roleId: roleOf('viewer'),
-      sellerId: null,
       invitedByAccountId: ROOT,
       tokenHash: new Uint8Array(32).fill(7),
       expiresAt: START.add({ hours: 1 }),
@@ -403,14 +390,14 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
 
       const result = await assign.execute(as(ROOT), {
         accountId: VIEWER,
-        roleId: roleOf('operations-support'),
+        roleId: roleOf('dispatcher'),
       });
 
       expect(result).toEqual({
         ok: true,
-        value: { code: 'role.assigned', accountId: VIEWER, roleId: roleOf('operations-support') },
+        value: { code: 'role.assigned', accountId: VIEWER, roleId: roleOf('dispatcher') },
       });
-      expect(roleIdOf(VIEWER)).toBe(roleOf('operations-support'));
+      expect(roleIdOf(VIEWER)).toBe(roleOf('dispatcher'));
       const stored = [...fakes.assignments.values()].find((a) => a.accountId === VIEWER)!;
       expect(stored).toMatchObject({ assignedByAccountId: ROOT, assignedAt: START, version: 2 });
       expect(fakes.events).toEqual([
@@ -419,9 +406,8 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
           payload: {
             accountId: VIEWER,
             scope: 'platform',
-            sellerId: null,
             previousRoleId: roleOf('viewer'),
-            roleId: roleOf('operations-support'),
+            roleId: roleOf('dispatcher'),
           },
         }),
       ]);
@@ -430,7 +416,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
           action: 'identity.account-role.changed',
           targetId: VIEWER,
           before: { roleId: roleOf('viewer') },
-          after: { roleId: roleOf('operations-support'), scope: 'platform', sellerId: null },
+          after: { roleId: roleOf('dispatcher'), scope: 'platform' },
           actor: 'authenticated',
           marketId: code,
         }),
@@ -481,22 +467,22 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       expect(roleIdOf(SUPPORT)).toBe(roleOf('viewer'));
     });
 
-    it('refuses Catalogue Moderator to an admin without catalog.platform-product.edit (seed v2, I-1a)', async () => {
+    it('refuses Operator to an admin without identity.merchant.view (I-1a)', async () => {
       const { assign } = setUp();
-      expect(LEAD_KEYS).not.toContain('catalog.platform-product.edit');
-      expect(roles.get('platform:catalogue-moderator')!.permissionKeys).toContain(
-        'catalog.platform-product.edit',
+      expect(LEAD_KEYS).not.toContain('identity.merchant.view');
+      expect(roles.get('platform:operator')!.permissionKeys).toContain(
+        'identity.merchant.view',
       );
 
       // LEAD holds identity.platform-role.assign and every other key of the role, not this one.
       await expect(
-        assign.execute(as(LEAD), { accountId: SUPPORT, roleId: roleOf('catalogue-moderator') }),
+        assign.execute(as(LEAD), { accountId: SUPPORT, roleId: roleOf('operator') }),
       ).resolves.toEqual({ ok: false, error: { code: 'role.not-grantable' } });
-      expect(roleIdOf(SUPPORT)).toBe(roleOf('operations-support'));
+      expect(roleIdOf(SUPPORT)).toBe(roleOf('dispatcher'));
       expect(fakes.audits).toEqual([]);
       // A holder of the key (the system role) may grant it.
       await expect(
-        assign.execute(as(ROOT), { accountId: SUPPORT, roleId: roleOf('catalogue-moderator') }),
+        assign.execute(as(ROOT), { accountId: SUPPORT, roleId: roleOf('operator') }),
       ).resolves.toMatchObject({ ok: true, value: { code: 'role.assigned' } });
     });
 
@@ -526,15 +512,15 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
     it('answers unknown, as for a missing id, for a non-admin account or a role out of reach (I-2)', async () => {
       const { assign } = setUp();
 
-      for (const target of [UNKNOWN, CUSTOMER, SELLER_ACCOUNT]) {
+      for (const target of [UNKNOWN, COURIER, MERCHANT_ACCOUNT]) {
         await expect(
           assign.execute(as(ROOT), { accountId: target, roleId: roleOf('viewer') }),
         ).resolves.toEqual({ ok: false, error: { code: 'account.unknown' } });
       }
-      // A seller's custom role, a seller default role and a missing role: never an admin's.
+      // The merchant and courier system roles and a missing role: never an admin's.
       for (const roleId of [
-        SELLER_CUSTOM_ROLE,
-        roles.get('seller:store-manager')!.id,
+        roles.get('merchant:merchant')!.id,
+        roles.get('courier:courier')!.id,
         UNKNOWN_ROLE,
       ]) {
         await expect(assign.execute(as(ROOT), { accountId: VIEWER, roleId })).resolves.toEqual({
@@ -654,41 +640,41 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       expect(statusOf(ROOT2)).toBe('active');
     });
 
-    it('disables and enables a customer under identity.customer-account.disable (Ali 14.1-2)', async () => {
-      const { disableCustomer, enableCustomer } = setUp();
-      seedSession(CUSTOMER, 4);
+    it('disables and enables a courier under identity.courier-account.disable (Ali 14.1-2)', async () => {
+      const { disableCourier, enableCourier } = setUp();
+      seedSession(COURIER, 4);
 
-      await expect(disableCustomer.execute(as(SUPPORT), { accountId: CUSTOMER })).resolves.toEqual({
+      await expect(disableCourier.execute(as(SUPPORT), { accountId: COURIER })).resolves.toEqual({
         ok: true,
-        value: { code: 'account.disabled', accountId: CUSTOMER, revokedSessions: 1 },
+        value: { code: 'account.disabled', accountId: COURIER, revokedSessions: 1 },
       });
-      expect(fakes.events[0]!.payload).toEqual({ accountId: CUSTOMER, population: 'customer' });
-      await expect(enableCustomer.execute(as(SUPPORT), { accountId: CUSTOMER })).resolves.toEqual({
+      expect(fakes.events[0]!.payload).toEqual({ accountId: COURIER, population: 'courier' });
+      await expect(enableCourier.execute(as(SUPPORT), { accountId: COURIER })).resolves.toEqual({
         ok: true,
-        value: { code: 'account.enabled', accountId: CUSTOMER, revokedSessions: 0 },
+        value: { code: 'account.enabled', accountId: COURIER, revokedSessions: 0 },
       });
-      await expect(disableCustomer.execute(as(VIEWER), { accountId: CUSTOMER })).resolves.toEqual({
+      await expect(disableCourier.execute(as(VIEWER), { accountId: COURIER })).resolves.toEqual({
         ok: false,
         error: { code: 'access.denied' },
       });
     });
 
-    it('answers account.unknown for an id of another population, a seller account or none', async () => {
-      const { disableAdmin, disableCustomer } = setUp();
+    it('answers account.unknown for an id of another population, a merchant account or none', async () => {
+      const { disableAdmin, disableCourier } = setUp();
 
-      for (const target of [CUSTOMER, SELLER_ACCOUNT, UNKNOWN]) {
+      for (const target of [COURIER, MERCHANT_ACCOUNT, UNKNOWN]) {
         await expect(disableAdmin.execute(as(ROOT), { accountId: target })).resolves.toEqual({
           ok: false,
           error: { code: 'account.unknown' },
         });
       }
-      for (const target of [VIEWER, SELLER_ACCOUNT, UNKNOWN]) {
-        await expect(disableCustomer.execute(as(ROOT), { accountId: target })).resolves.toEqual({
+      for (const target of [VIEWER, MERCHANT_ACCOUNT, UNKNOWN]) {
+        await expect(disableCourier.execute(as(ROOT), { accountId: target })).resolves.toEqual({
           ok: false,
           error: { code: 'account.unknown' },
         });
       }
-      expect(statusOf(SELLER_ACCOUNT)).toBe('active');
+      expect(statusOf(MERCHANT_ACCOUNT)).toBe('active');
       expect(fakes.events).toEqual([]);
     });
   });
@@ -740,7 +726,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         ok: false,
         error: { code: 'second-factor.none' },
       });
-      await expect(resetFactor.execute(as(ROOT), { accountId: CUSTOMER })).resolves.toEqual({
+      await expect(resetFactor.execute(as(ROOT), { accountId: COURIER })).resolves.toEqual({
         ok: false,
         error: { code: 'account.unknown' },
       });
@@ -766,7 +752,6 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       expect(fakes.invitations.get(result.value.invitationId)).toMatchObject({
         kind: 'admin',
         roleId: roleOf('viewer'),
-        sellerId: null,
         invitedByAccountId: ROOT,
         tokenHash: null,
         state: 'pending',
@@ -790,7 +775,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
           invite.execute(as(LEAD), { origin: ORIGIN, email: 'x@example.com', roleId }),
         ).resolves.toEqual({ ok: false, error: { code: 'role.not-grantable' } });
       }
-      for (const roleId of [SELLER_CUSTOM_ROLE, UNKNOWN_ROLE]) {
+      for (const roleId of [roles.get('merchant:merchant')!.id, UNKNOWN_ROLE]) {
         await expect(
           invite.execute(as(ROOT), { origin: ORIGIN, email: 'x@example.com', roleId }),
         ).resolves.toEqual({ ok: false, error: { code: 'role.unknown' } });
@@ -805,14 +790,14 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       ).resolves.toMatchObject({ ok: true });
     });
 
-    it('refuses an invitation to Catalogue Moderator from an admin without catalog.platform-product.edit (seed v2, I-1a)', async () => {
+    it('refuses an invitation to Operator from an admin without identity.merchant.view (I-1a)', async () => {
       const { invite } = setUp();
 
       await expect(
         invite.execute(as(LEAD), {
           origin: ORIGIN,
           email: 'moderator@example.com',
-          roleId: roleOf('catalogue-moderator'),
+          roleId: roleOf('operator'),
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'role.not-grantable' } });
       expect(fakes.invitations.size).toBe(0);
@@ -822,7 +807,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         invite.execute(as(ROOT), {
           origin: ORIGIN,
           email: 'moderator@example.com',
-          roleId: roleOf('catalogue-moderator'),
+          roleId: roleOf('operator'),
         }),
       ).resolves.toMatchObject({ ok: true });
     });
@@ -919,7 +904,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       });
       expect(fakes.invitations.get(invitationId)).toEqual(before);
       expect(fakes.audits).toHaveLength(audits);
-      // The address is counted in the admin population, never the seller one.
+      // The address is counted in the admin population, never the courier one.
       expect([...fakes.throttles.values()].map((row) => row.kind).sort()).toEqual([
         'mail.account',
         'mail.origin',
@@ -1019,7 +1004,6 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       displayName: `Account ${n}`,
       status: 'active',
       emailVerifiedAt: START,
-      existingAccountNoticeAt: null,
       signedUpAt: START,
       createdAt: START,
       version: 1,
@@ -1042,7 +1026,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
     [
       'assign',
       (b) =>
-        b.assign.execute(as(ROOT), { accountId: VIEWER, roleId: roleOf('operations-support') }),
+        b.assign.execute(as(ROOT), { accountId: VIEWER, roleId: roleOf('dispatcher') }),
     ],
     ['disable admin', (b) => b.disableAdmin.execute(as(ROOT), { accountId: VIEWER })],
     [
@@ -1052,12 +1036,12 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         return b.enableAdmin.execute(as(ROOT), { accountId: VIEWER });
       },
     ],
-    ['disable customer', (b) => b.disableCustomer.execute(as(ROOT), { accountId: CUSTOMER })],
+    ['disable courier', (b) => b.disableCourier.execute(as(ROOT), { accountId: COURIER })],
     [
-      'enable customer',
+      'enable courier',
       (b) => {
-        disabled(CUSTOMER);
-        return b.enableCustomer.execute(as(ROOT), { accountId: CUSTOMER });
+        disabled(COURIER);
+        return b.enableCourier.execute(as(ROOT), { accountId: COURIER });
       },
     ],
     [
@@ -1125,7 +1109,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       };
 
       await expect(
-        assign.execute(as(ROOT), { accountId: VIEWER, roleId: roleOf('operations-support') }),
+        assign.execute(as(ROOT), { accountId: VIEWER, roleId: roleOf('dispatcher') }),
       ).resolves.toEqual({ ok: false, error: { code: 'access.denied' } });
     });
 
@@ -1148,11 +1132,11 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
     });
   });
 
-  describe('enable, customer and reset edges (Sajad 6 to 8)', () => {
-    it('enable refuses oneself, a holder of more keys, a seller account and an actor without the key', async () => {
-      const { enableAdmin, enableCustomer } = setUp();
+  describe('enable, courier and reset edges (Sajad 6 to 8)', () => {
+    it('enable refuses oneself, a holder of more keys, a merchant account and an actor without the key', async () => {
+      const { enableAdmin, enableCourier } = setUp();
       disabled(ROOT2);
-      disabled(CUSTOMER);
+      disabled(COURIER);
 
       await expect(enableAdmin.execute(as(ROOT), { accountId: ROOT })).resolves.toEqual({
         ok: false,
@@ -1162,7 +1146,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         ok: false,
         error: { code: 'member.outranks-actor' },
       });
-      await expect(enableAdmin.execute(as(ROOT), { accountId: SELLER_ACCOUNT })).resolves.toEqual({
+      await expect(enableAdmin.execute(as(ROOT), { accountId: MERCHANT_ACCOUNT })).resolves.toEqual({
         ok: false,
         error: { code: 'account.unknown' },
       });
@@ -1170,27 +1154,27 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         ok: false,
         error: { code: 'access.denied' },
       });
-      await expect(enableCustomer.execute(as(VIEWER), { accountId: CUSTOMER })).resolves.toEqual({
+      await expect(enableCourier.execute(as(VIEWER), { accountId: COURIER })).resolves.toEqual({
         ok: false,
         error: { code: 'access.denied' },
       });
       expect(statusOf(ROOT2)).toBe('disabled');
-      expect(statusOf(CUSTOMER)).toBe('disabled');
+      expect(statusOf(COURIER)).toBe('disabled');
     });
 
-    it('disables a customer: every customer session revoked, its challenges void; twice is refused', async () => {
-      const { disableCustomer } = setUp();
-      seedSession(CUSTOMER, 6);
-      seedSession(CUSTOMER, 7);
-      seedChallenge(CUSTOMER, 6);
+    it('disables a courier: every courier session revoked, its challenges void; twice is refused', async () => {
+      const { disableCourier } = setUp();
+      seedSession(COURIER, 6);
+      seedSession(COURIER, 7);
+      seedChallenge(COURIER, 6);
       seedSession(VIEWER, 8);
 
-      await expect(disableCustomer.execute(as(SUPPORT), { accountId: CUSTOMER })).resolves.toEqual({
+      await expect(disableCourier.execute(as(SUPPORT), { accountId: COURIER })).resolves.toEqual({
         ok: true,
-        value: { code: 'account.disabled', accountId: CUSTOMER, revokedSessions: 2 },
+        value: { code: 'account.disabled', accountId: COURIER, revokedSessions: 2 },
       });
       const sessions = [...fakes.sessions.values()].map((s) => s.session);
-      expect(sessions.filter((s) => s.accountId === CUSTOMER).map((s) => s.revokedReason)).toEqual([
+      expect(sessions.filter((s) => s.accountId === COURIER).map((s) => s.revokedReason)).toEqual([
         'account-disabled',
         'account-disabled',
       ]);
@@ -1199,10 +1183,10 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       expect(fakes.audits).toEqual([
         expect.objectContaining({
           action: 'identity.account.disabled',
-          after: { status: 'disabled', population: 'customer' },
+          after: { status: 'disabled', population: 'courier' },
         }),
       ]);
-      await expect(disableCustomer.execute(as(SUPPORT), { accountId: CUSTOMER })).resolves.toEqual({
+      await expect(disableCourier.execute(as(SUPPORT), { accountId: COURIER })).resolves.toEqual({
         ok: false,
         error: { code: 'account.already-disabled' },
       });
@@ -1228,7 +1212,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       },
     );
 
-    it('reset refuses an actor without the key and answers a seller account as unknown', async () => {
+    it('reset refuses an actor without the key and answers a merchant account as unknown', async () => {
       const { resetFactor } = setUp();
       seedFactor(SUPPORT, 11, 'active');
 
@@ -1236,7 +1220,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         ok: false,
         error: { code: 'access.denied' },
       });
-      await expect(resetFactor.execute(as(ROOT), { accountId: SELLER_ACCOUNT })).resolves.toEqual({
+      await expect(resetFactor.execute(as(ROOT), { accountId: MERCHANT_ACCOUNT })).resolves.toEqual({
         ok: false,
         error: { code: 'account.unknown' },
       });
@@ -1274,12 +1258,12 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       const { resend } = setUp();
       const byDisabled = seedInvitation(32, { invitedByAccountId: ROOT2 });
       const byDemoted = seedInvitation(33, { invitedByAccountId: LEAD });
-      const byCustomer = seedInvitation(34, { invitedByAccountId: CUSTOMER });
+      const byCourier = seedInvitation(34, { invitedByAccountId: COURIER });
       const byUnknown = seedInvitation(35, { invitedByAccountId: UNKNOWN });
       disabled(ROOT2);
       demoted(LEAD, roleOf('viewer'));
 
-      for (const invitationId of [byDisabled, byDemoted, byCustomer, byUnknown]) {
+      for (const invitationId of [byDisabled, byDemoted, byCourier, byUnknown]) {
         await expect(resend.execute(as(ROOT), { invitationId, origin: ORIGIN })).resolves.toEqual({
           ok: false,
           error: { code: 'invitation.rejected' },
@@ -1291,9 +1275,9 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
     it("refuses a re-send whose role is gone or not an admin's (R12)", async () => {
       const { resend } = setUp();
       const gone = seedInvitation(36, { roleId: UNKNOWN_ROLE });
-      const sellerRole = seedInvitation(37, { roleId: SELLER_CUSTOM_ROLE });
+      const merchantRole = seedInvitation(37, { roleId: roles.get('merchant:merchant')!.id });
 
-      for (const invitationId of [gone, sellerRole]) {
+      for (const invitationId of [gone, merchantRole]) {
         await expect(resend.execute(as(ROOT), { invitationId, origin: ORIGIN })).resolves.toEqual({
           ok: false,
           error: { code: 'invitation.rejected' },
@@ -1344,7 +1328,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
       const state = fakes.accounts.get(LEAD)!;
       fakes.accounts.set(LEAD, { ...state, emailVerifiedAt: null });
 
-      for (const account of [UNKNOWN, CUSTOMER, SELLER_ACCOUNT, ROOT2, LEAD]) {
+      for (const account of [UNKNOWN, COURIER, MERCHANT_ACCOUNT, ROOT2, LEAD]) {
         await expect(inviterMayStillGrant(inviter, market, account, viewer)).resolves.toEqual({
           ok: false,
           error: 'inviter-inactive',

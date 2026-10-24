@@ -68,9 +68,9 @@ const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000f001');
 const LEAD_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0aa');
 const NARROW_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0bb');
 const MIN_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0cc');
-const SELLER_CUSTOM_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0dd');
+const VIEWER_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0dd');
 const ELSEWHERE_ROLE = id<'Role'>('01990000-0000-7000-8000-00000000c0ee');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-00000000b001');
+const MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-00000000b001');
 
 const ROOT = accountId(1);
 const LEAD = accountId(2);
@@ -79,27 +79,26 @@ const VIEWER = accountId(4);
 const SUPPORT = accountId(5);
 const TARGET = accountId(6);
 const OFF = accountId(7);
-const CUSTOMER = accountId(8);
-const SELLER_ACCOUNT = accountId(9);
+const COURIER = accountId(8);
+const MERCHANT_ACCOUNT = accountId(9);
 
 /** A custom role with protected keys (assign, invite) but not the system role. */
 const LEAD_KEYS = [
-  'catalog.product.view',
+  'delivery.delivery.cancel',
+  'delivery.delivery.dispatch',
+  'delivery.delivery.view',
   'identity.admin-account.disable',
   'identity.admin-account.invite',
   'identity.admin-account.reset-second-factor',
   'identity.admin-account.view',
-  'identity.customer-account.disable',
-  'identity.customer-account.view',
+  'identity.courier-account.disable',
+  'identity.courier-account.invite',
+  'identity.courier-account.view',
   'identity.platform-role.assign',
   'identity.platform-role.view',
-  'identity.seller-access.view',
-  'identity.seller-account.reset-second-factor',
-  'certification.type.view',
-  'certification.claim-policy.view',
-  'pricing.price-hold.view',
-  'sellers.seller.view',
 ];
+/** The keys of the custom viewer role: it holds less than every other admin role. */
+const VIEWER_KEYS = ['identity.admin-account.view', 'identity.platform-role.view'];
 /** Just enough to view, assign and invite: most roles hold a key it lacks. */
 const NARROW_KEYS = [
   'identity.admin-account.invite',
@@ -140,7 +139,6 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     kind: 'custom',
     seedCode: null,
     seedVersion: null,
-    sellerId: null,
     name: 'Custom role',
     permissionKeys: [...permissionKeys].sort(),
     version: 1,
@@ -173,7 +171,6 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
         kind: seeded.kind,
         seedCode: seeded.seedCode,
         seedVersion: seeded.seedVersion,
-        sellerId: null,
         permissionKeys: seeded.kind === 'system' ? [] : [...seeded.permissionKeys].sort(),
         version: 1,
         createdAt: START,
@@ -184,13 +181,10 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     fakes.seedRole(customRole(LEAD_ROLE, LEAD_KEYS));
     fakes.seedRole(customRole(NARROW_ROLE, NARROW_KEYS));
     fakes.seedRole(customRole(MIN_ROLE, ['identity.platform-role.view']));
-    // Never listed: a seller's custom role, and a platform role of the other Market.
-    fakes.seedRole(
-      customRole(SELLER_CUSTOM_ROLE, ['identity.seller-team.view'], {
-        scope: 'seller',
-        sellerId: SELLER_ID,
-      }),
-    );
+    const viewer = customRole(VIEWER_ROLE, VIEWER_KEYS, { name: 'Viewer' });
+    fakes.seedRole(viewer);
+    roles.set('platform:viewer', viewer);
+    // Never listed: a platform role of the other Market.
     fakes.seedRole(
       customRole(ELSEWHERE_ROLE, ['identity.platform-role.view'], {
         marketId: otherCode as AccountState['marketId'],
@@ -207,10 +201,9 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
         marketId,
         population,
         email: { typed: `A${n}@Example.com`, normalized: `a${n}@example.com` },
-        displayName: population === 'customer' ? null : `Account ${n}`,
+        displayName: `Account ${n}`,
         status,
         emailVerifiedAt: START,
-        existingAccountNoticeAt: null,
         signedUpAt: START,
         createdAt: START,
         version: 1,
@@ -237,11 +230,11 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     admin(2, LEAD, LEAD_ROLE);
     admin(3, NARROW, NARROW_ROLE);
     admin(4, VIEWER, roleOf('viewer'));
-    admin(5, SUPPORT, roleOf('operations-support'));
+    admin(5, SUPPORT, roleOf('dispatcher'));
     admin(6, TARGET, MIN_ROLE);
     admin(7, OFF, roleOf('viewer'), 'disabled');
-    account(8, CUSTOMER, 'customer');
-    account(9, SELLER_ACCOUNT, 'seller');
+    account(8, COURIER, 'courier');
+    account(9, MERCHANT_ACCOUNT, 'merchant');
 
     const effectiveKeys = realEffectiveKeys();
     const permissions = realPermissionRegistry();
@@ -251,7 +244,7 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
         unitOfWork,
         accounts: fakes.accountRepository,
         memberships: fakes.membershipRepository,
-        sellerAccess: fakes.sellerAccessRepository,
+        merchants: fakes.merchantRepository,
         grants: fakes.grantReader,
         effectiveKeys,
       }),
@@ -298,14 +291,14 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     };
   }
 
-  const as = (account: Id<'Account'>, population: 'admin' | 'seller' | 'customer' = 'admin') =>
+  const as = (account: Id<'Account'>, population: 'admin' | 'merchant' | 'courier' = 'admin') =>
     testCallContext(
       market,
       testAuthenticatedActor(market, {
         population,
         accountId: account,
         sessionId: SESSION_ID,
-        sellerId: population === 'seller' ? SELLER_ID : null,
+        merchantId: population === 'merchant' ? MERCHANT_ID : null,
       }),
       'platform-roles-0001',
     );
@@ -325,6 +318,7 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
 
     const platform = [...roles.values()].filter((r) => r.scope === 'platform').map((r) => r.id);
     const expected = [...platform, LEAD_ROLE, NARROW_ROLE, MIN_ROLE].sort();
+    expect(platform).toContain(VIEWER_ROLE);
     expect(items.map((item) => item.roleId)).toEqual(expected);
     for (const item of items) expect(Object.keys(item).sort()).toEqual(ENTRY_FIELDS);
     expect(byId(items, roleOf('platform-administrator'))).toMatchObject({
@@ -335,15 +329,15 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
       permissionCount: permissions.keysOf('platform').size,
       grantable: true,
     });
-    expect(byId(items, roleOf('viewer'))).toMatchObject({
-      roleId: roleOf('viewer'),
+    expect(byId(items, roleOf('operator'))).toMatchObject({
+      roleId: roleOf('operator'),
       kind: 'default',
-      seedCode: 'viewer',
-      permissionCount: 17,
+      seedCode: 'operator',
+      permissionCount: 6,
       grantable: true,
     });
-    expect(byId(items, roleOf('viewer')).name).toBeNull();
-    expect(byId(items, roleOf('viewer')).permissionKeys).toHaveLength(17);
+    expect(byId(items, roleOf('operator')).name).toBeNull();
+    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(6);
     expect(byId(items, LEAD_ROLE)).toMatchObject({
       kind: 'custom',
       seedCode: null,
@@ -364,7 +358,7 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
       expect(line).toEqual({
         msg: 'identity.list-platform-roles',
         outcome: 'platform-roles.listed',
-        roles: 10,
+        roles: 7,
         grantable: expect.any(Number) as number,
         marketId: code,
         correlationId: 'platform-roles-0001',
@@ -374,16 +368,19 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     }
   });
 
-  it('never lists a seller-scope role or another Market’s role, and takes no parameter', async () => {
+  it('never lists a merchant or courier role or another Market’s role, and takes no parameter', async () => {
     const { list } = setUp();
 
     const ids = (await catalogue(list, ROOT)).map((item) => item.roleId as string);
 
-    const sellerRoles = [...roles.values()].filter((r) => r.scope === 'seller').map((r) => r.id);
-    for (const absent of [...sellerRoles, SELLER_CUSTOM_ROLE, ELSEWHERE_ROLE]) {
+    const populationRoles = [...roles.values()]
+      .filter((r) => r.scope !== 'platform')
+      .map((r) => r.id);
+    expect(populationRoles).toHaveLength(2);
+    for (const absent of [...populationRoles, ELSEWHERE_ROLE]) {
       expect(ids).not.toContain(absent);
     }
-    for (const input of [{ scope: 'seller' }, { sellerId: SELLER_ID }, { scope: 'platform' }]) {
+    for (const input of [{ scope: 'merchant' }, { merchantId: MERCHANT_ID }, { scope: 'platform' }]) {
       const refused = await list.execute(as(ROOT), input as unknown as ListPlatformRolesInput);
       expect(refused).toEqual({
         ok: false,
@@ -406,23 +403,24 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     // Not the system role (R3); not a role with a protected key without it (R11).
     expect(byId(lead, roleOf('platform-administrator')).grantable).toBe(false);
     expect(byId(lead, LEAD_ROLE).grantable).toBe(false);
-    expect(byId(lead, roleOf('operations-support')).grantable).toBe(true);
-    // A key the actor lacks (R1): onboarding holds approve and suspend.
-    expect(byId(lead, roleOf('onboarding-compliance')).grantable).toBe(false);
+    expect(byId(lead, roleOf('dispatcher')).grantable).toBe(true);
+    // A key the actor lacks (R1): the operator holds identity.merchant.view.
+    expect(byId(lead, roleOf('operator')).grantable).toBe(false);
     // A hint about the role only: the viewer holds no assign or invite key (documented).
     expect(byId(viewer, roleOf('viewer')).grantable).toBe(true);
-    expect(byId(viewer, roleOf('finance')).grantable).toBe(true);
-    expect(byId(viewer, roleOf('operations-support')).grantable).toBe(false);
+    expect(byId(viewer, MIN_ROLE).grantable).toBe(true);
+    expect(byId(viewer, roleOf('operator')).grantable).toBe(false);
+    expect(byId(viewer, roleOf('dispatcher')).grantable).toBe(false);
   });
 
-  it('refuses an admin without identity.platform-role.view, a disabled admin, and the seller and customer populations', async () => {
+  it('refuses an admin without identity.platform-role.view, a disabled admin, and the merchant and courier populations', async () => {
     const { list } = setUp();
 
     for (const [actor, population] of [
       [SUPPORT, 'admin'],
       [OFF, 'admin'],
-      [SELLER_ACCOUNT, 'seller'],
-      [CUSTOMER, 'customer'],
+      [MERCHANT_ACCOUNT, 'merchant'],
+      [COURIER, 'courier'],
     ] as const) {
       const refused = await list.execute(as(actor, population), {});
       expect(refused).toEqual({ ok: false, error: { code: 'access.denied' } });
@@ -489,11 +487,12 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
       expect([...seen].sort()).toEqual(actor === ROOT ? [true] : [false, true]);
     });
 
-    it('a seller role id is out of reach for both commands, as the catalogue never shows it', async () => {
+    it('a merchant or courier role id is out of reach for both commands, as the catalogue never shows it', async () => {
       const { assign, invite } = setUp();
-      const sellerOwner = roles.get('seller:seller-owner')!.id;
+      const merchantRole = roles.get('merchant:merchant')!.id;
+      const courierRole = roles.get('courier:courier')!.id;
 
-      for (const roleId of [sellerOwner, SELLER_CUSTOM_ROLE, ELSEWHERE_ROLE]) {
+      for (const roleId of [merchantRole, courierRole, ELSEWHERE_ROLE]) {
         const assigned = await assign.execute(as(ROOT), { accountId: TARGET, roleId });
         const invited = await invite.execute(as(ROOT), {
           origin: ORIGIN,

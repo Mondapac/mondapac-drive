@@ -120,11 +120,14 @@ describe('MarketConfigIdentityPolicy (identity design 8.5)', () => {
       identity: {
         customRoleLimits?: object;
         apiKeys?: object;
+        sessions: { courier?: object };
         links: { targets: { courier?: object } };
       };
     };
     delete file.identity.customRoleLimits;
     delete file.identity.apiKeys;
+    // A Market without courier pages has no courier sessions either (the schema pairs them).
+    delete file.identity.sessions.courier;
     delete file.identity.links.targets.courier;
     const directory = mkdtempSync(path.join(tmpdir(), 'markets-without-'));
     writeFileSync(path.join(directory, 'ZZ.json'), JSON.stringify(file));
@@ -135,6 +138,7 @@ describe('MarketConfigIdentityPolicy (identity design 8.5)', () => {
     expect(without.customRoleLimit(zz, 'platform')).toBeNull();
     expect(without.apiKeyLifetime(zz)).toBeNull();
     expect(without.target(zz, 'courier', 'sign-in')).toBeNull();
+    expect(without.sessionLifetime(zz, 'courier')).toBeNull();
     expect(without.target(zz, 'admin', 'sign-in')).toBe('https://dispatch.zz.test/anmelden');
   });
 

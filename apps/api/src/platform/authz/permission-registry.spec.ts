@@ -155,9 +155,9 @@ describe('PermissionRegistry', () => {
     it('lists by scope, sorted by key, and every declaration once', () => {
       const registry = sealed();
       expect(registry.list('merchant').map((d) => d.key)).toEqual([
+        'delivery.booking.edit',
         'identity.team-member.invite',
         'identity.team-member.view',
-        'delivery.booking.edit',
       ]);
       expect(registry.list('platform').map((d) => d.key)).toEqual([
         'identity.merchant.approve',

@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { readdirSync } from 'node:fs';
@@ -33,6 +33,11 @@ const DELIVERY = {
   scheduling: { minLeadMinutes: 60, maxDaysAhead: 7, minWindowMinutes: 60 },
 };
 
+/** The identity and origin sections of the ZZ fixture: this spec checks the other sections. */
+const ZZ_FILE = JSON.parse(
+  readFileSync(path.join(TEST_MARKET_CONFIG_DIRS[1], 'ZZ.json'), 'utf8'),
+) as { allowedOrigins: unknown; identity: unknown };
+
 const VALID = {
   code: 'QQ',
   status: 'active',
@@ -45,6 +50,8 @@ const VALID = {
   requestLimits: { anonymousIdentityPerMinute: 20, defaultPerMinute: 300 },
   tax: { defaultRateBps: 1500 },
   delivery: DELIVERY,
+  allowedOrigins: ZZ_FILE.allowedOrigins,
+  identity: ZZ_FILE.identity,
 };
 
 function directoryWith(files: Record<string, unknown>): string {

@@ -130,7 +130,8 @@ describe('UseCase construction refuses what the CI check also refuses (HF4)', ()
     }
     class Malformed extends Undeclared {}
     Object.defineProperty(Undeclared, 'access', {
-      value: { name: 'identity.undeclared', rule: { kind: 'own-resources' } },
+      // An unknown rule kind: no valid declaration.
+      value: { name: 'identity.undeclared', rule: { kind: 'nobody' } },
     });
 
     expect(() => new Undeclared(gate())).toThrow(/declaration/);

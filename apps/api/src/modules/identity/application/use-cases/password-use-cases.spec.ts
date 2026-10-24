@@ -38,13 +38,13 @@ import { RequestPasswordReset } from './request-password-reset.use-case';
 import { ResetPassword } from './reset-password.use-case';
 import { SendLinkMail } from './send-link-mail.use-case';
 import { SendPasswordChangedMail } from './send-password-changed-mail.use-case';
-import { SignInCustomer } from './sign-in-customer.use-case';
+import { SignInCourier } from './sign-in-courier.use-case';
 
 // Identity slice 4, in memory (identity design 3.5, 3.7, 6.2, 6.5, 6.6, 6.8, 9; SEL-05, ACC-04;
 // AC 8, 13, 18, 19, 21, 32): the reset request, the reset mail, the reset with its link, the
 // signed-in change and the "password changed" notice, for both Market fixtures (AU en-AU and the
-// synthetic ZZ ja-JP, each with its own throttles, password rules and sessions) and both
-// populations. The PostgreSQL behaviour, the credential lock against a racing sign-in (Hassan
+// synthetic ZZ en-ZZ, each with its own throttles, password rules and sessions) and both
+// populations that hold a password (couriers, and admins with their code). The PostgreSQL behaviour, the credential lock against a racing sign-in (Hassan
 // slice-2 N1) included, is in test/db/password-reset.db-spec.ts.
 
 const START = Temporal.Instant.from('2026-10-08T10:00:00Z');
@@ -57,9 +57,8 @@ const id = <T extends string>(text: string): Id<T> => {
   if (!parsed.ok) throw new Error('bad id');
   return parsed.value as Id<T>;
 };
-const CUSTOMER_ID = id<'Account'>('01990000-0000-7000-8000-000000000001');
-const SELLER_ACCOUNT_ID = id<'Account'>('01990000-0000-7000-8000-000000000002');
-const SELLER_ID = id<'Seller'>('01990000-0000-7000-8000-0000000000f1');
+const COURIER_ID = id<'Account'>('01990000-0000-7000-8000-000000000001');
+const ADMIN_ID = id<'Account'>('01990000-0000-7000-8000-000000000002');
 const markets = new MarketRegistry(loadMarketConfigs(TEST_MARKET_CONFIG_DIRS, TEST_MARKET_IDS));
 const policy = new MarketConfigIdentityPolicy(markets);
 const composer = new CatalogueMailComposer(markets, loadLocaleCatalogues(TEST_LOCALE_CONFIG_DIRS));
@@ -76,6 +75,9 @@ const sessionTokens = new RandomSessionTokens();
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 /** The token in the fragment of a mailed link. */
 const tokenOf = (text: string): string => /#(ml1_[A-Za-z0-9_-]{43})/.exec(text)![1]!;
+
+type Pop = 'courier' | 'admin';
+const POPS: readonly Pop[] = ['courier', 'admin'];
 
 let deliveries = 0;
 function deliveryOf(subscriber: string): EventDelivery {
@@ -105,22 +107,21 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
   afterEach(() => jest.restoreAllMocks());
 
   const email = (population: Population) =>
-    population === 'customer'
+    population === 'courier'
       ? { typed: 'Me@Example.com', normalized: 'me@example.com' }
-      : { typed: 'Shop@Example.com', normalized: 'shop@example.com' };
+      : { typed: 'Ops@Example.com', normalized: 'ops@example.com' };
   const accountIdOf = (population: Population) =>
-    population === 'customer' ? CUSTOMER_ID : SELLER_ACCOUNT_ID;
+    population === 'courier' ? COURIER_ID : ADMIN_ID;
 
-  function seed(population: 'customer' | 'seller', overrides: Partial<AccountState> = {}) {
+  function seed(population: Pop, overrides: Partial<AccountState> = {}) {
     fakes.seedAccount({
       id: accountIdOf(population),
       marketId: market.marketId,
       population,
       email: email(population),
-      displayName: population === 'customer' ? null : 'Amina Rahman',
+      displayName: 'Amina Rahman',
       status: 'active',
       emailVerifiedAt: START.subtract({ hours: 48 }),
-      existingAccountNoticeAt: null,
       signedUpAt: START.subtract({ hours: 49 }),
       createdAt: START.subtract({ hours: 49 }),
       version: 3,
@@ -130,16 +131,15 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
   }
 
   /** A live session of the account, with its token. */
-  function sessionOf(population: 'customer' | 'seller', n: number, keepSignedIn = false) {
+  function sessionOf(population: Pop, n: number) {
     const issued = sessionTokens.issue();
     const session = openSession({
       id: id<'Session'>(`01990000-0000-7000-8000-00000000a00${n}`),
       marketId: market.marketId,
       accountId: accountIdOf(population),
       population,
-      sellerId: population === 'seller' ? SELLER_ID : null,
-      transport: 'cookie',
-      lifetime: policy.sessionLifetime(market, population, keepSignedIn)!,
+      transport: population === 'admin' ? 'cookie' : 'bearer',
+      lifetime: policy.sessionLifetime(market, population)!,
       now: clock.now(),
     });
     void fakes.sessionRepository.add(market, session, issued.tokenHash);
@@ -204,7 +204,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
         transport: fakes.mailTransport,
         policy,
       }),
-      signIn: new SignInCustomer(gate, {
+      signIn: new SignInCourier(gate, {
         ...common,
         sessions: fakes.sessionRepository,
         records: fakes.recordRepository,
@@ -220,7 +220,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
   const linkRequests = () => eventsOf('identity.one-time-link-requested.v1');
 
   /** Requests a reset and delivers its mail, as the dispatcher would; answers the token. */
-  async function mailedResetToken(u: UseCases, population: 'customer' | 'seller') {
+  async function mailedResetToken(u: UseCases, population: Pop) {
     await expect(
       u.request.execute(anonymous, { population, email: email(population).typed, origin: ORIGIN }),
     ).resolves.toEqual({ ok: true, value: { code: 'password-reset.accepted' } });
@@ -250,7 +250,6 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     expect(ChangePassword.access).toEqual({
       name: 'identity.change-password',
       rule: { kind: 'own-resources' },
-      whenSellerNotApproved: 'allow',
     });
     expect(SendPasswordChangedMail.access).toEqual({
       name: 'identity.send-password-changed-mail',
@@ -259,7 +258,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
   });
 
   describe('RequestPasswordReset (3.7, 6.7, 6.8; AC 13, AC 21)', () => {
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'requests a reset link for a verified, active %s account and answers as for any address',
       async (population) => {
         seed(population);
@@ -289,12 +288,12 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       ['an unverified account', { emailVerifiedAt: null }],
       ['a disabled account', { status: 'disabled' as const }],
     ])('answers the same and requests nothing for %s', async (_case, overrides) => {
-      if (overrides !== null) seed('customer', overrides);
+      if (overrides !== null) seed('courier', overrides);
       const u = useCases();
 
       await expect(
         u.request.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           email: 'Me@Example.com',
           origin: ORIGIN,
         }),
@@ -303,11 +302,11 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('requests nothing for the other population of the same address (AC 3, AC 19)', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
 
       await u.request.execute(anonymous, {
-        population: 'seller',
+        population: 'admin',
         email: 'Me@Example.com',
         origin: ORIGIN,
       });
@@ -316,14 +315,14 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('stops mailing above the mail counter of the address, with the same answer', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
       const limit = policy.mailThrottles(market).account.limit;
 
       for (let i = 0; i <= limit; i += 1) {
         await expect(
           u.request.execute(anonymous, {
-            population: 'customer',
+            population: 'courier',
             email: 'Me@Example.com',
             origin: ORIGIN,
           }),
@@ -334,7 +333,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('stays available while sign-in of the address is blocked (AC 13)', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
       for (let i = 0; i < 30; i += 1) {
         await u.signIn.execute(anonymous, {
@@ -345,7 +344,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       }
 
       await u.request.execute(anonymous, {
-        population: 'customer',
+        population: 'courier',
         email: 'Me@Example.com',
         origin: ORIGIN,
       });
@@ -354,19 +353,19 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('fails closed when the counters are unreachable, and refuses a malformed email', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
       fakes.throttlesDown = true;
 
       await expect(
         u.request.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           email: 'Me@Example.com',
           origin: ORIGIN,
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'access.unavailable' } });
       await expect(
-        u.request.execute(anonymous, { population: 'customer', email: 'nope', origin: ORIGIN }),
+        u.request.execute(anonymous, { population: 'courier', email: 'nope', origin: ORIGIN }),
       ).resolves.toEqual({
         ok: false,
         error: { code: 'validation.failed', fields: [{ path: 'email', code: 'format' }] },
@@ -376,7 +375,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
   });
 
   describe('the reset mail (E8; 3.7, 6.6, 9)', () => {
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'goes to the %s address in the Market locale, with the reset page and 60 minutes',
       async (population) => {
         seed(population);
@@ -391,7 +390,9 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
           `${policy.target(market, population, 'reset-password')}#${token}`,
         );
         if (code === 'AU') {
-          expect(mail.subject).toBe(`Reset the password for your MondaPac ${population} account`);
+          expect(mail.subject).toBe(
+            `Reset the password for your Mondapac Drive ${population} account`,
+          );
           expect(mail.text).toContain('The link works for 1 hour and only once.');
         }
         // Only the hash is stored (6.6).
@@ -402,16 +403,16 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     );
 
     it('is skipped for an account that became unverified meanwhile', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
       await u.request.execute(anonymous, {
-        population: 'customer',
+        population: 'courier',
         email: 'Me@Example.com',
         origin: ORIGIN,
       });
       const event = linkRequests().at(-1)!;
-      fakes.accounts.set(CUSTOMER_ID, {
-        ...fakes.accounts.get(CUSTOMER_ID)!,
+      fakes.accounts.set(COURIER_ID, {
+        ...fakes.accounts.get(COURIER_ID)!,
         emailVerifiedAt: null,
       });
       const payload = event.payload as { linkId: Id; accountId: Id };
@@ -491,13 +492,20 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
     return () => hotp(secret, timeStepAt(clock.now()));
   }
-  const otherAccount = (population: 'customer' | 'seller') =>
-    population === 'customer' ? SELLER_ACCOUNT_ID : CUSTOMER_ID;
+  /** An admin always presents a code (Hassan I2 (b)): its factor, with a secret the test knows. */
+  async function codeFor(population: Pop): Promise<{ code?: string }> {
+    if (population !== 'admin') return {};
+    openChallengesAndFactor(ADMIN_ID, COURIER_ID);
+    fakes.challenges.clear();
+    const codeNow = await knownSecretOf(ADMIN_ID);
+    return { code: codeNow() };
+  }
+  const otherAccount = (population: Pop) => (population === 'courier' ? ADMIN_ID : COURIER_ID);
   const openChallengeOwners = () =>
     [...fakes.challenges.values()].map((e) => e.challenge.accountId);
 
   describe('ResetPassword (3.5, 3.7; AC 8, AC 13, AC 18, AC 19)', () => {
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       "for a %s: voids the account's open challenges and keeps its second factor (HF11; Hassan I2 (a), (d))",
       async (population) => {
         seed(population);
@@ -516,7 +524,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       },
     );
 
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'replaces a %s password, revokes every session, clears the counters and needs a new sign-in',
       async (population) => {
         seed(population);
@@ -584,13 +592,13 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       },
     );
 
-    it('lets the customer sign in with the new password only (AC 8)', async () => {
-      seed('customer');
+    it('lets the courier sign in with the new password only (AC 8)', async () => {
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
+      const token = await mailedResetToken(u, 'courier');
 
       await u.reset.execute(anonymous, {
-        population: 'customer',
+        population: 'courier',
         token,
         password: NEW_PASSWORD,
         client: CLIENT,
@@ -612,7 +620,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       ).resolves.toMatchObject({ ok: true, value: { code: 'signed-in' } });
     });
 
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'refuses a %s link at 60 minutes and changes nothing (SEL-05, ACC-04, AC 8)',
       async (population) => {
         seed(population);
@@ -641,10 +649,10 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     ])(
       'refuses an account %s between the reservation and the closing unit, and changes nothing (Sajad Q2)',
       async (_, change) => {
-        seed('customer');
-        const live = sessionOf('customer', 1);
+        seed('courier');
+        const live = sessionOf('courier', 1);
         const base = useCases();
-        const token = await mailedResetToken(base, 'customer');
+        const token = await mailedResetToken(base, 'courier');
         const linkBefore = [...fakes.links.values()].find((l) => l.purpose === 'reset-password')!;
         // The account changes while the new password is being hashed (after the reservation).
         const reset = new ResetPassword(gate, {
@@ -661,7 +669,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
           outbox: fakes.outbox,
           hasher: {
             hash: async (plain) => {
-              fakes.accounts.set(CUSTOMER_ID, { ...fakes.accounts.get(CUSTOMER_ID)!, ...change });
+              fakes.accounts.set(COURIER_ID, { ...fakes.accounts.get(COURIER_ID)!, ...change });
               return fakes.hasher.hash(plain);
             },
             verify: (plain, stored) => fakes.hasher.verify(plain, stored),
@@ -674,13 +682,13 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
 
         await expect(
           reset.execute(anonymous, {
-            population: 'customer',
+            population: 'courier',
             token,
             password: NEW_PASSWORD,
             client: CLIENT,
           }),
         ).resolves.toEqual({ ok: false, error: { code: 'link.rejected' } });
-        expect(fakes.accounts.get(CUSTOMER_ID)!.credential.passwordHash).toBe(
+        expect(fakes.accounts.get(COURIER_ID)!.credential.passwordHash).toBe(
           fakeHashOf(OLD_PASSWORD),
         );
         const linkAfter = fakes.links.get(linkBefore.id)!;
@@ -693,14 +701,14 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     );
 
     it('refuses a link on the other population, in another Market and after a newer request (AC 19)', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
+      const token = await mailedResetToken(u, 'courier');
       const other = testMarketContext(code === 'AU' ? 'ZZ' : 'AU', PLATFORM_TENANT_ID);
 
       await expect(
         u.reset.execute(anonymous, {
-          population: 'seller',
+          population: 'admin',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -708,20 +716,20 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       ).resolves.toEqual({ ok: false, error: { code: 'link.rejected' } });
       await expect(
         u.reset.execute(testCallContext(other, 'anonymous'), {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'link.rejected' } });
       await u.request.execute(anonymous, {
-        population: 'customer',
+        population: 'courier',
         email: 'Me@Example.com',
         origin: ORIGIN,
       });
       await expect(
         u.reset.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -731,13 +739,13 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('refuses a malformed or unknown token without hashing, counted per origin', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
 
       for (const token of ['nope', `ml1_${'A'.repeat(43)}`]) {
         await expect(
           u.reset.execute(anonymous, {
-            population: 'customer',
+            population: 'courier',
             token,
             password: NEW_PASSWORD,
             client: CLIENT,
@@ -750,21 +758,21 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('refuses a weak new password and leaves the link usable', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
+      const token = await mailedResetToken(u, 'courier');
 
       for (const [password, rule] of [
         ['short', 'length'],
         ['password1234567890', 'common'],
       ] as const) {
         await expect(
-          u.reset.execute(anonymous, { population: 'customer', token, password, client: CLIENT }),
+          u.reset.execute(anonymous, { population: 'courier', token, password, client: CLIENT }),
         ).resolves.toEqual({ ok: false, error: { code: 'password.rejected', rule } });
       }
       await expect(
         u.reset.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -773,14 +781,14 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('answers request.busy when the hash queue is full, and the link stays usable', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
+      const token = await mailedResetToken(u, 'courier');
       fakes.busy = true;
 
       await expect(
         u.reset.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -789,7 +797,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       fakes.busy = false;
       await expect(
         u.reset.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -798,14 +806,14 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('refuses a disabled account and leaves the link unused', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
-      fakes.accounts.set(CUSTOMER_ID, { ...fakes.accounts.get(CUSTOMER_ID)!, status: 'disabled' });
+      const token = await mailedResetToken(u, 'courier');
+      fakes.accounts.set(COURIER_ID, { ...fakes.accounts.get(COURIER_ID)!, status: 'disabled' });
 
       await expect(
         u.reset.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -816,14 +824,14 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('fails closed when the counters are unreachable', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
+      const token = await mailedResetToken(u, 'courier');
       fakes.throttlesDown = true;
 
       await expect(
         u.reset.execute(anonymous, {
-          population: 'customer',
+          population: 'courier',
           token,
           password: NEW_PASSWORD,
           client: CLIENT,
@@ -833,12 +841,12 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('never logs the token or a password', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const token = await mailedResetToken(u, 'customer');
+      const token = await mailedResetToken(u, 'courier');
 
       await u.reset.execute(anonymous, {
-        population: 'customer',
+        population: 'courier',
         token,
         password: NEW_PASSWORD,
         client: CLIENT,
@@ -852,15 +860,15 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
   });
 
   describe('ChangePassword (3.5, 6.2, 6.5; AC 18, AC 32)', () => {
-    const actorOf = (population: 'customer' | 'seller', sessionId: Id<'Session'>) =>
+    const actorOf = (population: Pop, sessionId: Id<'Session'>) =>
       testAuthenticatedActor(market, {
         population,
         accountId: accountIdOf(population),
         sessionId,
-        sellerId: population === 'seller' ? SELLER_ID : null,
+        merchantId: null,
       });
 
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'for a %s: rotates the current session, revokes the others and records the change',
       async (population) => {
         seed(population);
@@ -869,10 +877,12 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
         sessionOf(population, 2);
         sessionOf(population, 3);
         const context = testCallContext(market, actorOf(population, current.session.id));
+        const extra = await codeFor(population);
 
         const result = await u.change.execute(context, {
           currentPassword: OLD_PASSWORD,
           newPassword: NEW_PASSWORD,
+          ...extra,
           client: CLIENT,
         });
 
@@ -895,12 +905,8 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
             payload: { accountId: accountIdOf(population), cause: 'change' },
           }),
         ]);
-        // The cookie: a customer's outlives the browser until the absolute expiry; a seller's
-        // default session is a browser-session cookie (6.1).
-        const lifetime = policy.sessionLifetime(market, population)!.absoluteLifetimeSeconds;
-        expect(result.ok && result.value.cookieMaxAgeSeconds).toBe(
-          population === 'customer' ? lifetime : null,
-        );
+        // An admin's cookie is never persistent, and a courier's token is no cookie (6.1).
+        expect(result.ok && result.value.cookieMaxAgeSeconds).toBeNull();
         // The counters of the attempt are given back.
         expect(
           [...fakes.throttles.values()]
@@ -910,18 +916,20 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       },
     );
 
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'for a %s: cancels a reset link requested before the change (Hassan L2)',
       async (population) => {
         seed(population);
         const u = useCases();
         const token = await mailedResetToken(u, population);
         const current = sessionOf(population, 1);
+        const extra = await codeFor(population);
 
         await expect(
           u.change.execute(testCallContext(market, actorOf(population, current.session.id)), {
             currentPassword: OLD_PASSWORD,
             newPassword: NEW_PASSWORD,
+            ...extra,
             client: CLIENT,
           }),
         ).resolves.toMatchObject({ ok: true });
@@ -939,22 +947,22 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       },
     );
 
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       "for a %s: voids the account's open challenges and keeps its second factor (HF11; Hassan I2 (d))",
       async (population) => {
         seed(population);
         const u = useCases();
         const current = sessionOf(population, 1);
         openChallengesAndFactor(accountIdOf(population), otherAccount(population));
-        // A seller-side member with an active factor presents a code (profile package).
+        // An admin presents a code from its active factor (Hassan I2 (b)).
         const codeNow =
-          population === 'seller' ? await knownSecretOf(accountIdOf(population)) : () => undefined;
+          population === 'admin' ? await knownSecretOf(accountIdOf(population)) : () => undefined;
 
         await expect(
           u.change.execute(testCallContext(market, actorOf(population, current.session.id)), {
             currentPassword: OLD_PASSWORD,
             newPassword: NEW_PASSWORD,
-            ...(population === 'seller' ? { code: codeNow() } : {}),
+            ...(population === 'admin' ? { code: codeNow() } : {}),
             client: CLIENT,
           }),
         ).resolves.toMatchObject({ ok: true });
@@ -964,62 +972,64 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       },
     );
 
-    describe('a seller-side member with an active two-step sign-in (profile package)', () => {
+    describe('an admin, whose change always needs a code from its factor (Hassan I2 (b))', () => {
       const change = (u: UseCases, sessionId: Id<'Session'>, extra: { code?: string } = {}) =>
-        u.change.execute(testCallContext(market, actorOf('seller', sessionId)), {
+        u.change.execute(testCallContext(market, actorOf('admin', sessionId)), {
           currentPassword: OLD_PASSWORD,
           newPassword: NEW_PASSWORD,
           ...extra,
           client: CLIENT,
         });
       const stillOld = () =>
-        expect(fakes.accounts.get(SELLER_ACCOUNT_ID)!.credential.passwordHash).toBe(
+        expect(fakes.accounts.get(ADMIN_ID)!.credential.passwordHash).toBe(
           fakeHashOf(OLD_PASSWORD),
         );
 
-      it('needs a code: without one nothing changes and the sign-in counters are given back', async () => {
-        seed('seller');
+      it('needs a well-formed code: without one nothing is read and nothing changes', async () => {
+        seed('admin');
         const u = useCases();
-        const current = sessionOf('seller', 1);
-        openChallengesAndFactor(SELLER_ACCOUNT_ID, CUSTOMER_ID);
+        const current = sessionOf('admin', 1);
+        openChallengesAndFactor(ADMIN_ID, COURIER_ID);
 
         await expect(change(u, current.session.id)).resolves.toEqual({
           ok: false,
-          error: { code: 'validation.failed', fields: [{ path: 'code', code: 'required' }] },
+          error: { code: 'validation.failed', fields: [{ path: 'code', code: 'format' }] },
         });
         await expect(change(u, current.session.id, { code: 'not a code' })).resolves.toEqual({
           ok: false,
-          error: { code: 'validation.failed', fields: [{ path: 'code', code: 'required' }] },
+          error: { code: 'validation.failed', fields: [{ path: 'code', code: 'format' }] },
         });
+        expect(fakes.throttles.size).toBe(0);
 
         stillOld();
         expect(eventsOf('identity.account-password-changed.v1')).toEqual([]);
         expect(fakes.records).toEqual([]);
       });
 
-      it('is repeated when a factor became active after the call began (no skipped code)', async () => {
-        seed('seller');
+      it('refuses an admin session without an active factor, before any password is compared', async () => {
+        seed('admin');
         const u = useCases();
-        const current = sessionOf('seller', 1);
-        openChallengesAndFactor(SELLER_ACCOUNT_ID, CUSTOMER_ID);
-        // The first read (when the call is admitted) sees no factor; the closing unit sees it.
+        const current = sessionOf('admin', 1);
+        openChallengesAndFactor(ADMIN_ID, COURIER_ID);
+        // The read of the reservation unit sees no factor (3.5 forbids an admin without one).
         jest.spyOn(fakes.factorRepository, 'findByAccount').mockResolvedValueOnce(null);
 
-        await expect(change(u, current.session.id)).resolves.toEqual({
+        await expect(change(u, current.session.id, { code: '123456' })).resolves.toEqual({
           ok: false,
-          error: { code: 'access.unavailable' },
+          error: { code: 'access.denied' },
         });
+        expect(fakes.verified).toBe(0);
 
         stillOld();
         expect(eventsOf('identity.account-password-changed.v1')).toEqual([]);
       });
 
       it('refuses a wrong code, counts it and changes nothing', async () => {
-        seed('seller');
+        seed('admin');
         const u = useCases();
-        const current = sessionOf('seller', 1);
-        openChallengesAndFactor(SELLER_ACCOUNT_ID, CUSTOMER_ID);
-        const codeNow = await knownSecretOf(SELLER_ACCOUNT_ID);
+        const current = sessionOf('admin', 1);
+        openChallengesAndFactor(ADMIN_ID, COURIER_ID);
+        const codeNow = await knownSecretOf(ADMIN_ID);
         const wrong = codeNow() === '000000' ? '000001' : '000000';
 
         await expect(change(u, current.session.id, { code: wrong })).resolves.toEqual({
@@ -1032,39 +1042,44 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       });
 
       it('accepts the right code once and refuses the same code again', async () => {
-        seed('seller');
+        seed('admin');
         const u = useCases();
-        const current = sessionOf('seller', 1);
-        openChallengesAndFactor(SELLER_ACCOUNT_ID, CUSTOMER_ID);
-        const codeNow = await knownSecretOf(SELLER_ACCOUNT_ID);
+        const current = sessionOf('admin', 1);
+        openChallengesAndFactor(ADMIN_ID, COURIER_ID);
+        const codeNow = await knownSecretOf(ADMIN_ID);
         const code = codeNow();
 
         await expect(change(u, current.session.id, { code })).resolves.toMatchObject({ ok: true });
-        expect(fakes.accounts.get(SELLER_ACCOUNT_ID)!.credential.passwordHash).toBe(
+        expect(fakes.accounts.get(ADMIN_ID)!.credential.passwordHash).toBe(
           fakeHashOf(NEW_PASSWORD),
         );
         // The same step was spent: a replayed code is refused, whatever the password.
         await expect(change(u, current.session.id, { code })).resolves.toMatchObject({ ok: false });
       });
 
-      it('asks for no code when the member has no active factor, and ignores one sent anyway', async () => {
-        seed('seller');
+      it('asks a courier for no code, and ignores one sent anyway', async () => {
+        seed('courier');
         const u = useCases();
-        const current = sessionOf('seller', 1);
+        const current = sessionOf('courier', 1);
 
-        await expect(change(u, current.session.id, { code: 'whatever' })).resolves.toMatchObject({
-          ok: true,
-        });
+        await expect(
+          u.change.execute(testCallContext(market, actorOf('courier', current.session.id)), {
+            currentPassword: OLD_PASSWORD,
+            newPassword: NEW_PASSWORD,
+            code: 'whatever',
+            client: CLIENT,
+          }),
+        ).resolves.toMatchObject({ ok: true });
       });
     });
 
     it('records a wrong current password and the change, with session, address and correlation id (Hassan L3)', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const current = sessionOf('customer', 1);
+      const current = sessionOf('courier', 1);
       const context = testCallContext(
         market,
-        actorOf('customer', current.session.id),
+        actorOf('courier', current.session.id),
         'password-change-0001',
       );
 
@@ -1082,8 +1097,8 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       const expected = (outcome: string) =>
         expect.objectContaining({
           marketId: market.marketId,
-          population: 'customer',
-          accountId: CUSTOMER_ID,
+          population: 'courier',
+          accountId: COURIER_ID,
           outcome,
           address: ORIGIN,
           sessionId: current.session.id,
@@ -1095,26 +1110,11 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       ]);
     });
 
-    it('keeps a seller\'s "keep me signed in" cookie persistent, for what is left of it', async () => {
-      seed('seller');
-      const u = useCases();
-      const current = sessionOf('seller', 1, true);
-      clock.advance(Temporal.Duration.from({ hours: 2 }));
-
-      const result = await u.change.execute(
-        testCallContext(market, actorOf('seller', current.session.id)),
-        { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, client: CLIENT },
-      );
-
-      const kept = policy.sessionLifetime(market, 'seller', true)!.absoluteLifetimeSeconds;
-      expect(result.ok && result.value.cookieMaxAgeSeconds).toBe(kept - 2 * 3600);
-    });
-
     it('refuses a wrong current password, counts it, and throttles further guesses', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const current = sessionOf('customer', 1);
-      const context = testCallContext(market, actorOf('customer', current.session.id));
+      const current = sessionOf('courier', 1);
+      const context = testCallContext(market, actorOf('courier', current.session.id));
       const limit = policy.signInThrottles(market).accountOrigin.limit;
 
       for (let i = 0; i < limit; i += 1) {
@@ -1136,21 +1136,22 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       ).resolves.toMatchObject({ ok: false, error: { code: 'request.throttled' } });
       // HF1: a throttled attempt is refused before any hash.
       expect(fakes.verified).toBe(verified);
-      expect(fakes.accounts.get(CUSTOMER_ID)!.credential.passwordHash).toBe(
+      expect(fakes.accounts.get(COURIER_ID)!.credential.passwordHash).toBe(
         fakeHashOf(OLD_PASSWORD),
       );
       expect(fakes.sessions.get(current.session.id)!.session.revokedAt).toBeNull();
     });
 
     it('checks the new password before verifying the current one', async () => {
-      seed('seller');
+      seed('admin');
       const u = useCases();
-      const current = sessionOf('seller', 1);
+      const current = sessionOf('admin', 1);
 
       await expect(
-        u.change.execute(testCallContext(market, actorOf('seller', current.session.id)), {
+        u.change.execute(testCallContext(market, actorOf('admin', current.session.id)), {
           currentPassword: OLD_PASSWORD,
           newPassword: 'Amina Rahman',
+          ...(await codeFor('admin')),
           client: CLIENT,
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'password.rejected', rule: 'length' } });
@@ -1158,31 +1159,31 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('refuses when the current session was revoked meanwhile, and changes nothing', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const current = sessionOf('customer', 1);
+      const current = sessionOf('courier', 1);
       await fakes.sessionRepository.revoke(
         market,
         current.session.id,
-        CUSTOMER_ID,
+        COURIER_ID,
         'sign-out',
         clock.now(),
       );
 
       await expect(
-        u.change.execute(testCallContext(market, actorOf('customer', current.session.id)), {
+        u.change.execute(testCallContext(market, actorOf('courier', current.session.id)), {
           currentPassword: OLD_PASSWORD,
           newPassword: NEW_PASSWORD,
           client: CLIENT,
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'session.invalid' } });
-      expect(fakes.accounts.get(CUSTOMER_ID)!.credential.passwordHash).toBe(
+      expect(fakes.accounts.get(COURIER_ID)!.credential.passwordHash).toBe(
         fakeHashOf(OLD_PASSWORD),
       );
       expect(eventsOf('identity.account-password-changed.v1')).toEqual([]);
     });
 
-    it('refuses the anonymous actor (gate) and an admin until the second factor exists', async () => {
+    it("refuses the anonymous actor (gate), a merchant's API key, and an admin without a code", async () => {
       const u = useCases();
       await expect(
         u.change.execute(anonymous, {
@@ -1191,11 +1192,24 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
           client: CLIENT,
         }),
       ).resolves.toEqual({ ok: false, error: { code: 'access.unauthenticated' } });
+      const merchant = testAuthenticatedActor(market, {
+        population: 'merchant',
+        accountId: COURIER_ID,
+        sessionId: id<'Session'>('01990000-0000-7000-8000-00000000a008'),
+        merchantId: id<'Merchant'>('01990000-0000-7000-8000-0000000000f1'),
+      });
+      await expect(
+        u.change.execute(testCallContext(market, merchant), {
+          currentPassword: OLD_PASSWORD,
+          newPassword: NEW_PASSWORD,
+          client: CLIENT,
+        }),
+      ).resolves.toEqual({ ok: false, error: { code: 'access.denied' } });
       const admin = testAuthenticatedActor(market, {
         population: 'admin',
-        accountId: CUSTOMER_ID,
+        accountId: ADMIN_ID,
         sessionId: id<'Session'>('01990000-0000-7000-8000-00000000a009'),
-        sellerId: null,
+        merchantId: null,
       });
       // An admin's change always carries a code (Hassan I2 (b)): without one it is refused as input.
       await expect(
@@ -1209,7 +1223,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
         error: { code: 'validation.failed', fields: [{ path: 'code', code: 'format' }] },
       });
       // With a code but no active factor, the admin is refused before any password is compared.
-      seed('customer');
+      seed('admin');
       await expect(
         u.change.execute(testCallContext(market, admin), {
           currentPassword: OLD_PASSWORD,
@@ -1221,13 +1235,13 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
     });
 
     it('fails closed when the counters are unreachable', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
-      const current = sessionOf('customer', 1);
+      const current = sessionOf('courier', 1);
       fakes.throttlesDown = true;
 
       await expect(
-        u.change.execute(testCallContext(market, actorOf('customer', current.session.id)), {
+        u.change.execute(testCallContext(market, actorOf('courier', current.session.id)), {
           currentPassword: OLD_PASSWORD,
           newPassword: NEW_PASSWORD,
           client: CLIENT,
@@ -1248,12 +1262,13 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       });
     }
 
-    it.each(['customer', 'seller'] as const)(
+    it.each(POPS)(
       'tells the %s address when, with no link and no token',
       async (population) => {
         seed(population);
         const u = useCases();
         const current = sessionOf(population, 1);
+        const extra = await codeFor(population);
         await u.change.execute(
           testCallContext(
             market,
@@ -1261,10 +1276,10 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
               population,
               accountId: accountIdOf(population),
               sessionId: current.session.id,
-              sellerId: population === 'seller' ? SELLER_ID : null,
+              merchantId: null,
             }),
           ),
-          { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, client: CLIENT },
+          { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, ...extra, client: CLIENT },
         );
 
         await expect(
@@ -1276,7 +1291,7 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
         expect(mail.text).not.toMatch(/https?:|ml1_|\{[a-z]+\}/);
         if (code === 'AU') {
           expect(mail.subject).toBe(
-            `The password for your MondaPac ${population} account was changed`,
+            `The password for your Mondapac Drive ${population} account was changed`,
           );
           expect(mail.text).toContain(
             "If this wasn't you, reset your password from the sign-in page straight away.",
@@ -1285,24 +1300,24 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
           expect(mail.text).toContain('8 October 2026');
           expect(mail.text).toMatch(/8:00:00\s?pm/);
         } else {
-          // 10:00 UTC is 19:00 in Tokyo.
-          expect(mail.text).toContain('2026年10月8日');
-          expect(mail.text).toContain('19:00:00');
+          // 10:00 UTC is 23:00 in Auckland (NZDT), ZZ's zone.
+          expect(mail.text).toContain('2026');
+          expect(mail.text).toMatch(/11:00:00\s?PM/i);
         }
       },
     );
 
     it('skips an account that is gone', async () => {
-      seed('customer');
+      seed('courier');
       const u = useCases();
       const event = {
         type: 'identity.account-password-changed.v1',
-        aggregateId: CUSTOMER_ID,
+        aggregateId: COURIER_ID,
         aggregateVersion: 4,
         occurredAt: START,
-        payload: { accountId: CUSTOMER_ID, cause: 'reset' },
+        payload: { accountId: COURIER_ID, cause: 'reset' },
       } as unknown as PendingEvent;
-      fakes.accounts.delete(CUSTOMER_ID);
+      fakes.accounts.delete(COURIER_ID);
 
       await expect(deliver(u, event)).resolves.toEqual({
         ok: true,

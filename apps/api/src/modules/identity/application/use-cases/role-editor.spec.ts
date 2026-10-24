@@ -29,16 +29,12 @@ import { CheckedInRoleSeed } from '../../infrastructure/seed/checked-in-role-see
 import { AccountAuthorisationCheck } from '../access/account-authorisation-check';
 import type { RoleEditorDependencies } from '../roles/role-editor';
 import { ListPlatformRoles } from './list-platform-roles.use-case';
-import { ListSellerRoles } from './list-seller-roles.use-case';
 import { CreatePlatformRole } from './create-platform-role.use-case';
 import { DeletePlatformRole } from './delete-platform-role.use-case';
 import { EditPlatformRole } from './edit-platform-role.use-case';
-import { CreateSellerRole } from './create-seller-role.use-case';
-import { DeleteSellerRole } from './delete-seller-role.use-case';
-import { EditSellerRole } from './edit-seller-role.use-case';
 
 // Identity slice 10 (identity design 5.3, 5.4 R1 to R3, R5, R7, R9 to R11, 2.3): the role editor
-// of both scopes and its catalogue hints. The real gate, registry and checked-in seed; identity's
+// of the platform scope (Drive's only custom-role scope) and its catalogue hints. The real gate, registry and checked-in seed; identity's
 // stores as fakes. Both Market fixtures. The parity tests run every command for every row and
 // three actors and assert that the catalogue's hint is the command's own answer.
 
@@ -54,8 +50,7 @@ const n12 = (n: number) => String(n).padStart(12, '0');
 const accountId = (n: number) => id<'Account'>(`01990000-0000-7000-8000-${n12(0xa000 + n)}`);
 const roleIdOf = (n: number) => id<'Role'>(`01990000-0000-7000-8000-${n12(0xc800 + n)}`);
 const SESSION_ID = id<'Session'>('01990000-0000-7000-8000-00000000f001');
-const SELLER = id<'Seller'>('01990000-0000-7000-8000-00000000b001');
-const OTHER_SELLER = id<'Seller'>('01990000-0000-7000-8000-00000000b002');
+const MERCHANT_ID = id<'Merchant'>('01990000-0000-7000-8000-00000000b001');
 
 const ROOT = accountId(1);
 const LEAD = accountId(2);
@@ -63,33 +58,30 @@ const NARROW = accountId(3);
 const VIEWER = accountId(4);
 const HOLDER = accountId(5);
 const DISABLED = accountId(6);
-const OWNER = accountId(11);
-const MANAGER = accountId(12);
-const OTHER_OWNER = accountId(13);
+const MERCHANT_ACCOUNT = accountId(11);
+const COURIER = accountId(12);
 
 const LEAD_ROLE = roleIdOf(1);
 const NARROW_ROLE = roleIdOf(2);
 const HIGH_ROLE = roleIdOf(3);
 const HELD_ROLE = roleIdOf(4);
-const SELLER_CUSTOM = roleIdOf(5);
-const OTHER_SELLER_CUSTOM = roleIdOf(6);
 
 /** Created by a Platform Administrator, so they may hold the protected editor keys. */
 const LEAD_KEYS = [
-  'identity.customer-account.view',
+  'identity.courier-account.view',
   'identity.platform-role.create',
   'identity.platform-role.delete',
   'identity.platform-role.edit',
   'identity.platform-role.view',
-  'identity.seller-access.view',
+  'identity.merchant.view',
 ];
 const NARROW_KEYS = [
   'identity.platform-role.create',
   'identity.platform-role.view',
-  'identity.seller-access.view',
+  'identity.merchant.view',
 ];
 /** A role that outranks LEAD: it holds a key LEAD lacks. */
-const HIGH_KEYS = ['identity.customer-account.disable', 'identity.seller-access.view'];
+const HIGH_KEYS = ['identity.courier-account.disable', 'identity.merchant.view'];
 
 const NAME_CANARY = 'Canary Röle 9f3a';
 
@@ -103,16 +95,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
   let limit: number | null;
 
   const platformKeys = realPermissionRegistry().keysOf('platform');
-  const sellerKeys = realPermissionRegistry().keysOf('seller');
   const registry = realPermissionRegistry();
-  const unprotectedSeller = registry
-    .list('seller')
-    .filter((d) => !d.protected)
-    .map((d) => d.key);
-  const protectedSeller = registry
-    .list('seller')
-    .filter((d) => d.protected)
-    .map((d) => d.key);
   const unprotectedPlatform = registry
     .list('platform')
     .filter((d) => !d.protected)
@@ -130,7 +113,6 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
     kind: 'custom',
     seedCode: null,
     seedVersion: null,
-    sellerId: null,
     name: `Role ${roleId.slice(-4)}`,
     permissionKeys: [...keys].sort(),
     version: 1,
@@ -163,7 +145,6 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
         kind: s.kind,
         seedCode: s.seedCode,
         seedVersion: s.seedVersion,
-        sellerId: null,
         permissionKeys: s.kind === 'system' ? [] : [...s.permissionKeys].sort(),
         version: 1,
         createdAt: START,
@@ -174,18 +155,9 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
     fakes.seedRole(custom(LEAD_ROLE, LEAD_KEYS));
     fakes.seedRole(custom(NARROW_ROLE, NARROW_KEYS));
     fakes.seedRole(custom(HIGH_ROLE, HIGH_KEYS));
-    fakes.seedRole(custom(HELD_ROLE, ['identity.seller-access.view']));
+    fakes.seedRole(custom(HELD_ROLE, ['identity.merchant.view']));
     fakes.seedRole(
-      custom(SELLER_CUSTOM, ['identity.team-member.view'], { scope: 'seller', sellerId: SELLER }),
-    );
-    fakes.seedRole(
-      custom(OTHER_SELLER_CUSTOM, ['identity.team-member.view'], {
-        scope: 'seller',
-        sellerId: OTHER_SELLER,
-      }),
-    );
-    fakes.seedRole(
-      custom(roleIdOf(90), ['identity.seller-access.view'], {
+      custom(roleIdOf(90), ['identity.merchant.view'], {
         marketId: otherCode as AccountState['marketId'],
       }),
     );
@@ -203,7 +175,6 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
         displayName: `Account ${n}`,
         status,
         emailVerifiedAt: START,
-        existingAccountNoticeAt: null,
         signedUpAt: START,
         createdAt: START,
         version: 1,
@@ -231,42 +202,32 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
     admin(1, ROOT, roleOf('platform', 'platform-administrator'));
     admin(2, LEAD, LEAD_ROLE);
     admin(3, NARROW, NARROW_ROLE);
-    admin(4, VIEWER, roleOf('platform', 'viewer'));
+    admin(4, VIEWER, roleOf('platform', 'operator'));
     admin(5, HOLDER, HELD_ROLE);
     admin(6, DISABLED, LEAD_ROLE, 'disabled');
-    for (const [sellerId, n] of [
-      [SELLER, 1],
-      [OTHER_SELLER, 2],
-    ] as const) {
-      fakes.seedSellerAccess({
-        sellerId,
-        marketId,
-        origin: 'self',
-        state: 'approved',
-        stateChangedAt: START,
-        reapplyCount: 0,
-        registeredAt: START,
-        version: n,
-        createdAt: START,
-      });
-    }
-    const member = (n: number, idOf: Id<'Account'>, sellerId: Id<'Seller'>, seedCode: string) => {
-      account(n, idOf, 'seller');
-      fakes.seedMembership({
-        id: id<'SellerMembership'>(`01990000-0000-7000-8000-${n12(0xe000 + n)}`),
-        marketId,
-        accountId: idOf,
-        sellerId,
-        state: 'active',
-        removedAt: null,
-        version: 1,
-        createdAt: START,
-      });
-      assign(n, idOf, roleOf('seller', seedCode));
-    };
-    member(11, OWNER, SELLER, 'seller-owner');
-    member(12, MANAGER, SELLER, 'store-manager');
-    member(13, OTHER_OWNER, OTHER_SELLER, 'seller-owner');
+    fakes.seedMerchant({
+      id: MERCHANT_ID,
+      marketId,
+      name: 'Merchant',
+      state: 'active',
+      stateChangedAt: START,
+      version: 1,
+      createdAt: START,
+    });
+    account(11, MERCHANT_ACCOUNT, 'merchant');
+    fakes.seedMembership({
+      id: id<'MerchantMembership'>(`01990000-0000-7000-8000-${n12(0xe000 + 11)}`),
+      marketId,
+      accountId: MERCHANT_ACCOUNT,
+      merchantId: MERCHANT_ID,
+      state: 'active',
+      removedAt: null,
+      version: 1,
+      createdAt: START,
+    });
+    assign(11, MERCHANT_ACCOUNT, roleOf('merchant', 'merchant'));
+    account(12, COURIER, 'courier');
+    assign(12, COURIER, roleOf('courier', 'courier'));
 
     const effectiveKeys = realEffectiveKeys();
     const gate = createUseCaseGate(
@@ -275,7 +236,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
         unitOfWork,
         accounts: fakes.accountRepository,
         memberships: fakes.membershipRepository,
-        sellerAccess: fakes.sellerAccessRepository,
+        merchants: fakes.merchantRepository,
         grants: fakes.grantReader,
         effectiveKeys,
       }),
@@ -299,11 +260,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       createPlatform: new CreatePlatformRole(gate, deps),
       editPlatform: new EditPlatformRole(gate, deps),
       deletePlatform: new DeletePlatformRole(gate, deps),
-      createSeller: new CreateSellerRole(gate, deps),
-      editSeller: new EditSellerRole(gate, deps),
-      deleteSeller: new DeleteSellerRole(gate, deps),
       listPlatform: new ListPlatformRoles(gate, readDeps),
-      listSeller: new ListSellerRoles(gate, readDeps),
     };
   }
 
@@ -314,20 +271,31 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
         population: 'admin',
         accountId: account,
         sessionId: SESSION_ID,
-        sellerId: null,
+        merchantId: null,
       }),
       'role-editor-0001',
     );
-  const asSeller = (account: Id<'Account'>, sellerId: Id<'Seller'> = SELLER) =>
+  const asMerchant = () =>
     testCallContext(
       market,
       testAuthenticatedActor(market, {
-        population: 'seller',
-        accountId: account,
+        population: 'merchant',
+        accountId: MERCHANT_ACCOUNT,
         sessionId: SESSION_ID,
-        sellerId,
+        merchantId: MERCHANT_ID,
       }),
       'role-editor-0002',
+    );
+  const asCourier = () =>
+    testCallContext(
+      market,
+      testAuthenticatedActor(market, {
+        population: 'courier',
+        accountId: COURIER,
+        sessionId: SESSION_ID,
+        merchantId: null,
+      }),
+      'role-editor-0003',
     );
   const stored = (roleId: Id<'Role'>) => fakes.roles.get(roleId);
   const written = () => ({ events: fakes.events.length, audits: fakes.audits.length });
@@ -349,7 +317,6 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       expect(row).toMatchObject({
         scope: 'platform',
         kind: 'custom',
-        sellerId: null,
         name: NAME_CANARY,
         permissionKeys: [...keys].sort(),
         version: 1,
@@ -362,7 +329,6 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
         payload: {
           roleId: result.value.roleId,
           scope: 'platform',
-          sellerId: null,
           addedKeys: [...keys].sort(),
           removedKeys: [],
         },
@@ -399,7 +365,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
 
     it.each([
       ['an unknown key', ['identity.nothing.here'], 'unknown'],
-      ['a seller key in platform scope', ['identity.team-member.view'], 'scope'],
+      ['a merchant key in platform scope', ['delivery.booking.view'], 'scope'],
       [
         'a repeated key',
         ['identity.platform-role.view', 'identity.platform-role.view'],
@@ -438,10 +404,10 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
     it('refuses a key the actor lacks and a protected key without the system role (R1, R11)', async () => {
       const { createPlatform } = setUp();
 
-      // LEAD lacks customer-account.disable (unprotected? no: it holds the editor keys only).
+      // LEAD lacks courier-account.disable (unprotected; it holds the editor keys and views only).
       const lacks = await createPlatform.execute(asAdmin(LEAD), {
         name: 'A',
-        permissionKeys: ['identity.customer-account.disable'],
+        permissionKeys: ['identity.courier-account.disable'],
       });
       // LEAD holds identity.platform-role.create, which is protected: it may not hand it on.
       const protectedKey = await createPlatform.execute(asAdmin(LEAD), {
@@ -450,7 +416,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       });
       const fine = await createPlatform.execute(asAdmin(LEAD), {
         name: 'C',
-        permissionKeys: ['identity.seller-access.view'],
+        permissionKeys: ['identity.merchant.view'],
       });
 
       expect(lacks).toEqual({ ok: false, error: { code: 'role.not-grantable' } });
@@ -511,7 +477,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       const { createPlatform } = setUp();
       const input = { name: 'X', permissionKeys: [] };
 
-      for (const context of [asAdmin(VIEWER), asAdmin(DISABLED), asSeller(OWNER)]) {
+      for (const context of [asAdmin(VIEWER), asAdmin(DISABLED), asMerchant(), asCourier()]) {
         const result = await createPlatform.execute(context, input);
         expect(result).toEqual({ ok: false, error: { code: 'access.denied' } });
       }
@@ -520,7 +486,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
 
     it('refuses an actor demoted after the gate: the unit reads the actor again', async () => {
       const { createPlatform } = setUp();
-      fakes.roles.set(LEAD_ROLE, custom(LEAD_ROLE, ['identity.seller-access.view']));
+      fakes.roles.set(LEAD_ROLE, custom(LEAD_ROLE, ['identity.merchant.view']));
 
       const result = await createPlatform.execute(asAdmin(LEAD), {
         name: 'Late',
@@ -538,20 +504,20 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       const result = await editPlatform.execute(asAdmin(ROOT), {
         roleId: HIGH_ROLE,
         name: NAME_CANARY,
-        permissionKeys: ['identity.seller-access.view', 'identity.admin-account.invite'],
+        permissionKeys: ['identity.merchant.view', 'identity.admin-account.invite'],
       });
 
       expect(result).toEqual({ ok: true, value: { code: 'role.updated', roleId: HIGH_ROLE } });
       expect(stored(HIGH_ROLE)).toMatchObject({
         name: NAME_CANARY,
         version: 2,
-        permissionKeys: ['identity.admin-account.invite', 'identity.seller-access.view'],
+        permissionKeys: ['identity.admin-account.invite', 'identity.merchant.view'],
       });
       expect(fakes.events[0]).toMatchObject({
         type: 'identity.role-updated.v1',
         payload: {
           addedKeys: ['identity.admin-account.invite'],
-          removedKeys: ['identity.customer-account.disable'],
+          removedKeys: ['identity.courier-account.disable'],
         },
       });
       expect(fakes.audits[0]).toMatchObject({
@@ -578,7 +544,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
 
     it('never edits or deletes a system or default role (R3, R10): role.read-only', async () => {
       const { editPlatform, deletePlatform } = setUp();
-      for (const seedCode of ['platform-administrator', 'viewer']) {
+      for (const seedCode of ['platform-administrator', 'operator']) {
         const roleId = roleOf('platform', seedCode);
         const before = JSON.stringify(stored(roleId));
         expect(
@@ -592,9 +558,9 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       }
     });
 
-    it('answers role.unknown for a missing role, a seller role and another Market’s role (R9)', async () => {
+    it('answers role.unknown for a missing role, a merchant role and another Market’s role (R9)', async () => {
       const { editPlatform, deletePlatform } = setUp();
-      for (const roleId of [roleIdOf(99), SELLER_CUSTOM, roleIdOf(90)]) {
+      for (const roleId of [roleIdOf(99), roleOf('merchant', 'merchant'), roleIdOf(90)]) {
         expect(
           await editPlatform.execute(asAdmin(ROOT), { roleId, name: 'X', permissionKeys: [] }),
         ).toEqual({ ok: false, error: { code: 'role.unknown' } });
@@ -610,7 +576,7 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       const outranks = await editPlatform.execute(asAdmin(LEAD), {
         roleId: HIGH_ROLE,
         name: 'X',
-        permissionKeys: ['identity.seller-access.view'],
+        permissionKeys: ['identity.merchant.view'],
       });
       const del = await deletePlatform.execute(asAdmin(LEAD), { roleId: HIGH_ROLE });
       const protectedKey = await editPlatform.execute(asAdmin(LEAD), {
@@ -621,14 +587,14 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       const heldNoMore = await editPlatform.execute(asAdmin(LEAD), {
         roleId: HELD_ROLE,
         name: 'Held',
-        permissionKeys: ['identity.customer-account.view', 'identity.customer-account.disable'],
+        permissionKeys: ['identity.courier-account.view', 'identity.courier-account.disable'],
       });
 
       for (const result of [outranks, del, protectedKey, heldNoMore]) {
         expect(result).toEqual({ ok: false, error: { code: 'role.not-grantable' } });
       }
       expect(stored(HIGH_ROLE)!.version).toBe(1);
-      expect(stored(HELD_ROLE)!.permissionKeys).toEqual(['identity.seller-access.view']);
+      expect(stored(HELD_ROLE)!.permissionKeys).toEqual(['identity.merchant.view']);
     });
 
     it('renames to a free name but not to a taken one; a change of case alone is fine', async () => {
@@ -687,110 +653,9 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
           correlationId: 'role-editor-0001',
         });
         expect(JSON.stringify(lines)).not.toContain('Canary');
-        expect(JSON.stringify(lines)).not.toMatch(/(platform-role|seller-access)\.(view|create)/);
+        expect(JSON.stringify(lines)).not.toMatch(/(platform-role|merchant)\.(view|create)/);
       } finally {
         spy.mockRestore();
-      }
-    });
-  });
-
-  describe('the seller role editor (R6, R9)', () => {
-    it('creates a role for the actor’s own seller from unprotected seller keys only', async () => {
-      const { createSeller } = setUp();
-
-      const result = await createSeller.execute(asSeller(OWNER), {
-        name: 'Packers',
-        permissionKeys: unprotectedSeller.slice(0, 2),
-      });
-      const protectedKey = await createSeller.execute(asSeller(OWNER), {
-        name: 'Greedy',
-        permissionKeys: protectedSeller.slice(0, 1),
-      });
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(stored(result.value.roleId)).toMatchObject({
-        scope: 'seller',
-        sellerId: SELLER,
-        name: 'Packers',
-      });
-      expect(fakes.events[0]).toMatchObject({
-        type: 'identity.role-created.v1',
-        payload: { scope: 'seller', sellerId: SELLER },
-      });
-      // Protected seller keys are not grantable in Phase 2 (5.4), not even by the owner.
-      expect(protectedKey).toEqual({ ok: false, error: { code: 'role.not-grantable' } });
-    });
-
-    it('takes the seller from the session: another seller’s role is unknown, a platform key is invalid', async () => {
-      const { editSeller, deleteSeller, createSeller } = setUp();
-
-      expect(
-        await editSeller.execute(asSeller(OWNER), {
-          roleId: OTHER_SELLER_CUSTOM,
-          name: 'X',
-          permissionKeys: [],
-        }),
-      ).toEqual({ ok: false, error: { code: 'role.unknown' } });
-      expect(await deleteSeller.execute(asSeller(OWNER), { roleId: OTHER_SELLER_CUSTOM })).toEqual({
-        ok: false,
-        error: { code: 'role.unknown' },
-      });
-      // A platform role id is not a seller role.
-      expect(await deleteSeller.execute(asSeller(OWNER), { roleId: HIGH_ROLE })).toEqual({
-        ok: false,
-        error: { code: 'role.unknown' },
-      });
-      expect(
-        await createSeller.execute(asSeller(OWNER), {
-          name: 'Wrong scope',
-          permissionKeys: ['identity.platform-role.view'],
-        }),
-      ).toEqual({
-        ok: false,
-        error: { code: 'validation.failed', fields: [{ path: 'permissionKeys', code: 'scope' }] },
-      });
-      expect(stored(OTHER_SELLER_CUSTOM)!.version).toBe(1);
-    });
-
-    it('edits and deletes the owner’s own custom role; shared seller roles are read-only', async () => {
-      const { editSeller, deleteSeller } = setUp();
-
-      const edited = await editSeller.execute(asSeller(OWNER), {
-        roleId: SELLER_CUSTOM,
-        name: 'Renamed',
-        permissionKeys: unprotectedSeller.slice(0, 1),
-      });
-      const shared = await editSeller.execute(asSeller(OWNER), {
-        roleId: roleOf('seller', 'store-manager'),
-        name: 'X',
-        permissionKeys: [],
-      });
-      const removed = await deleteSeller.execute(asSeller(OWNER), { roleId: SELLER_CUSTOM });
-
-      expect(edited.ok).toBe(true);
-      expect(shared).toEqual({ ok: false, error: { code: 'role.read-only' } });
-      expect(removed).toEqual({ ok: true, value: { code: 'role.deleted', roleId: SELLER_CUSTOM } });
-      expect(fakes.events.at(-1)).toMatchObject({
-        payload: { scope: 'seller', sellerId: SELLER },
-      });
-    });
-
-    it('keeps the seller’s limit per seller, and refuses staff and admins at the gate', async () => {
-      const { createSeller } = setUp();
-      limit = 1;
-      // SELLER already holds one custom role in the fixtures; OTHER_SELLER holds one too.
-      const full = await createSeller.execute(asSeller(OWNER), { name: 'Two', permissionKeys: [] });
-      limit = 2;
-      const room = await createSeller.execute(asSeller(OWNER), { name: 'Two', permissionKeys: [] });
-
-      expect(full).toEqual({ ok: false, error: { code: 'role.limit' } });
-      expect(room.ok).toBe(true);
-      for (const context of [asSeller(MANAGER), asAdmin(ROOT)]) {
-        expect(await createSeller.execute(context, { name: 'N', permissionKeys: [] })).toEqual({
-          ok: false,
-          error: { code: 'access.denied' },
-        });
       }
     });
   });
@@ -816,61 +681,26 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
       expect(admin.permissionKeys).toEqual([...platformKeys].sort());
       expect(result.value.keys.map((k) => k.key)).toEqual([...platformKeys].sort());
       expect(result.value.keys.every((k) => k.grantable)).toBe(true);
-      // The seller scope and other Markets are not reachable.
-      expect(result.value.items.some((i) => i.roleId === SELLER_CUSTOM)).toBe(false);
+      // The merchant and courier scopes and other Markets are not reachable.
+      for (const scope of ['merchant', 'courier']) {
+        const roleId = roleOf(scope, scope);
+        expect(result.value.items.some((i) => i.roleId === roleId)).toBe(false);
+      }
       expect(result.value.items.some((i) => i.roleId === roleIdOf(90))).toBe(false);
     });
 
-    it('lists a seller its shared roles and its own custom roles, never another shop’s', async () => {
-      const { listSeller } = setUp();
-
-      const result = await listSeller.execute(asSeller(OWNER), {});
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      const ids = result.value.items.map((i) => i.roleId);
-      expect(ids).toContain(SELLER_CUSTOM);
-      expect(ids).toContain(roleOf('seller', 'seller-owner'));
-      expect(ids).not.toContain(OTHER_SELLER_CUSTOM);
-      expect(ids).not.toContain(HIGH_ROLE);
-      expect(result.value.keys.map((k) => k.key)).toEqual([...sellerKeys].sort());
-      // Protected seller keys are never grantable in Phase 2.
-      for (const key of result.value.keys) {
-        expect(key.grantable).toBe(!key.protected);
-      }
-      // The manager can view but holds no editor key.
-      const asManager = await listSeller.execute(asSeller(MANAGER), {});
-      expect(
-        asManager.ok && asManager.value.items.every((i) => i.actions.edit.code === 'access.denied'),
-      ).toBe(true);
-      // Neither an admin nor a closed-input violation reads anything.
-      expect(await listSeller.execute(asAdmin(ROOT), {})).toEqual({
-        ok: false,
-        error: { code: 'access.denied' },
-      });
-      expect(
-        await listSeller.execute(asSeller(OWNER), { scope: 'platform' } as never),
-      ).toMatchObject({
-        ok: false,
-        error: { code: 'validation.failed' },
-      });
-    });
-
     it('asks which roles are held only for custom roles, never for the shared ones (Mojtaba)', async () => {
-      const { listPlatform, listSeller } = setUp();
+      const { listPlatform } = setUp();
       const spy = jest.spyOn(fakes.assignmentRepository, 'heldRoles');
 
       await listPlatform.execute(asAdmin(ROOT), {});
-      await listSeller.execute(asSeller(OWNER), {});
 
-      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy).toHaveBeenCalledTimes(1);
       for (const [, ids] of spy.mock.calls) {
         expect(ids.length).toBeGreaterThan(0);
         for (const roleId of ids) expect(stored(roleId)!.kind).toBe('custom');
       }
       const [, platformIds] = spy.mock.calls[0]!;
-      const [, sellerIds] = spy.mock.calls[1]!;
-      expect([...sellerIds]).toEqual([SELLER_CUSTOM]);
       expect([...platformIds].sort()).toEqual(
         [LEAD_ROLE, NARROW_ROLE, HIGH_ROLE, HELD_ROLE].sort(),
       );
@@ -878,9 +708,8 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
     });
 
     it('keeps the read-only units of the catalogue free of a transaction (ADR-0025)', async () => {
-      const { listPlatform, listSeller } = setUp();
+      const { listPlatform } = setUp();
       await listPlatform.execute(asAdmin(ROOT), {});
-      await listSeller.execute(asSeller(OWNER), {});
       expect(units.every((u) => u?.readOnly === true)).toBe(true);
     });
   });
@@ -951,36 +780,6 @@ describe.each(TEST_MARKETS)('role editor in market %s (slice 10)', (code) => {
         if (actor === ROOT) expect(no).toBe(0);
         else expect(no).toBeGreaterThan(0);
         void unprotectedPlatform;
-      }
-    });
-
-    it('the seller catalogue: edit, delete and per-key hints against the seller commands', async () => {
-      for (const actor of [OWNER, MANAGER]) {
-        const { listSeller } = setUp();
-        const listed = await listSeller.execute(asSeller(actor), {});
-        if (!listed.ok) throw new Error('listed');
-        for (const row of listed.value.items) {
-          const state = stored(row.roleId)!;
-          const editAnswer = await setUp().editSeller.execute(asSeller(actor), {
-            roleId: row.roleId,
-            name: state.name ?? 'Parity',
-            permissionKeys: state.kind === 'custom' ? [...state.permissionKeys] : [],
-          });
-          const deleteAnswer = await setUp().deleteSeller.execute(asSeller(actor), {
-            roleId: row.roleId,
-          });
-          expect(row.actions.edit).toEqual(verdictOf(editAnswer as never));
-          expect(row.actions.delete).toEqual(verdictOf(deleteAnswer as never));
-        }
-        for (const key of listed.value.keys) {
-          const answer = await setUp().createSeller.execute(asSeller(actor), {
-            name: 'Probe',
-            permissionKeys: [key.key],
-          });
-          // The manager lacks the create key: the gate answers, and `grantable` still says what
-          // the policy would (it is a hint about the key, not about the permission to create).
-          if (actor === OWNER) expect(answer.ok).toBe(key.grantable);
-        }
       }
     });
   });

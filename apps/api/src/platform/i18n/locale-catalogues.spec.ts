@@ -22,10 +22,10 @@ describe('loadLocaleCatalogues (INTL-11; identity design 9)', () => {
     return path.join(root, dir);
   }
 
-  it('loads the checked-in catalogues: the real en-AU and the synthetic ja-JP', () => {
+  it('loads the checked-in catalogues: the real en-AU and the synthetic en-ZZ', () => {
     const catalogues = loadLocaleCatalogues(TEST_LOCALE_CONFIG_DIRS);
 
-    expect(catalogues.locales()).toEqual(['en-AU', 'ja-JP']);
+    expect(catalogues.locales()).toEqual(['en-AU', 'en-ZZ']);
     expect(catalogues.messages('identity', 'en-AU')).toMatchObject({
       'identity.mail.common.ignore': expect.any(String) as unknown,
     });

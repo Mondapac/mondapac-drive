@@ -87,321 +87,54 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
   it('creates the default roles of 5.6 with their keys, as shared rows (R9), once', async () => {
     await expect(seedRoles().execute(system, {})).resolves.toEqual({
       ok: true,
-      value: { created: 13, upgraded: 0 },
+      value: { created: 5, upgraded: 0 },
     });
 
-    expect(roleOf('platform', 'onboarding-compliance')).toMatchObject({
+    expect(roleOf('platform', 'dispatcher')).toMatchObject({
       kind: 'default',
-      sellerId: null,
-      seedVersion: 7,
+      seedVersion: 1,
       permissionKeys: [
-        'certification.issuer.view',
-        'certification.seller-certificate.review',
-        'certification.seller-certificate.view',
-        'certification.type.view',
-        'identity.seller-access.approve',
-        'identity.seller-access.suspend',
-        'identity.seller-access.view',
-        'identity.seller-account.create',
-        'sellers.business-details.view',
-        'sellers.seller-file.review',
-        'sellers.seller.view',
+        'delivery.delivery.cancel',
+        'delivery.delivery.dispatch',
+        'delivery.delivery.view',
+        'identity.courier-account.disable',
+        'identity.courier-account.invite',
+        'identity.courier-account.view',
       ],
     });
-    expect(roleOf('seller', 'store-manager').permissionKeys).toEqual([
-      'catalog.own-product.edit',
-      'catalog.own-product.view',
-      'certification.own-certificate.manage',
-      'certification.own-certificate.view',
-      'identity.seller-role.view',
-      'identity.team-member.view',
-    ]);
-    expect(roleOf('seller', 'bookkeeper').permissionKeys).toEqual([]);
+    expect(roleOf('merchant', 'merchant')).toMatchObject({ kind: 'system', permissionKeys: [] });
+    expect(roleOf('courier', 'courier')).toMatchObject({ kind: 'system', permissionKeys: [] });
     // One identity.role.seeded per created role, as the system, with its kind and version.
-    expect(fakes.audits).toHaveLength(13);
+    expect(fakes.audits).toHaveLength(5);
     expect(new Set(fakes.audits.map((a) => `${a.action}|${a.actor}|${a.marketId}`))).toEqual(
       new Set([`identity.role.seeded|system|${code}`]),
     );
     expect(
       fakes.audits.filter((a) => (a.after as { kind: string }).kind === 'default'),
-    ).toHaveLength(11);
+    ).toHaveLength(2);
 
     // A second run, and a run in the other Market, never touch these rows.
     await expect(seedRoles().execute(system, {})).resolves.toEqual({
       ok: true,
       value: { created: 0, upgraded: 0 },
     });
-    expect(fakes.audits).toHaveLength(13);
+    expect(fakes.audits).toHaveLength(5);
     await seedRoles().execute(testCallContext(other, 'system', 'seed-roles-0002'), {});
     expect([...fakes.roles.values()].filter((r) => r.marketId === market.marketId)).toHaveLength(
-      13,
+      5,
     );
-  });
-
-  it('upgrades onboarding-compliance from version 1 to 7: adds the sellers and certification keys, one seed-applied row, other roles untouched', async () => {
-    const REVIEW = 'sellers.seller-file.review';
-    const VIEW = 'sellers.seller.view';
-    const DETAILS = 'sellers.business-details.view';
-    const CERT_VIEW = 'certification.seller-certificate.view';
-    const CERT_REVIEW = 'certification.seller-certificate.review';
-    const ISSUER_VIEW = 'certification.issuer.view';
-    const TYPE_VIEW = 'certification.type.view';
-    // The previous build's definition: version 1 without the sellers and certification keys.
-    const v1 = seedWith((role) =>
-      role.seedCode === 'onboarding-compliance'
-        ? {
-            ...role,
-            seedVersion: 1,
-            permissionKeys: role.permissionKeys.filter(
-              (key) =>
-                key !== REVIEW &&
-                key !== VIEW &&
-                key !== DETAILS &&
-                key !== CERT_VIEW &&
-                key !== CERT_REVIEW &&
-                key !== ISSUER_VIEW &&
-                key !== TYPE_VIEW,
-            ),
-          }
-        : role,
-    );
-    await seedRoles(v1).execute(system, {});
-    const before = roleOf('platform', 'onboarding-compliance');
-    expect(before.permissionKeys).not.toContain(REVIEW);
-    const viewerBefore = roleOf('platform', 'viewer');
-    fakes.audits.length = 0;
-
-    await expect(seedRoles().execute(system, {})).resolves.toEqual({
-      ok: true,
-      value: { created: 0, upgraded: 1 },
-    });
-
-    expect(roleOf('platform', 'onboarding-compliance')).toMatchObject({
-      id: before.id,
-      seedVersion: 7,
-      permissionKeys: [
-        ...before.permissionKeys,
-        REVIEW,
-        VIEW,
-        DETAILS,
-        CERT_VIEW,
-        CERT_REVIEW,
-        ISSUER_VIEW,
-        TYPE_VIEW,
-      ].sort(),
-    });
-    expect(roleOf('platform', 'viewer')).toEqual(viewerBefore);
-    expect(fakes.audits).toEqual([
-      {
-        ...RoleSeedApplied.entry(before.id, {
-          before: { seedVersion: 1 },
-          after: {
-            seedVersion: 7,
-            addedKeys: [
-              REVIEW,
-              VIEW,
-              DETAILS,
-              CERT_VIEW,
-              CERT_REVIEW,
-              ISSUER_VIEW,
-              TYPE_VIEW,
-            ].sort(),
-            removedKeys: [],
-          },
-        }),
-        actor: 'system',
-        marketId: code,
-      },
-    ]);
-  });
-
-  it('upgrades viewer from version 1 to 14: adds assistant.settings.view, certification.product-certificate.view, certification.claim-policy.view, certification.type.view, certification.seller-certificate.view, catalog.product.view, sellers.seller.view, pricing.price-hold.view, ordering.order.view, shipping.flat-fee.view, commission-payouts.settlement.view, payments.connected-account.view and notifications.support-contact.view, one seed-applied row, other roles untouched', async () => {
-    const VIEW = 'sellers.seller.view';
-    const HOLDS = 'pricing.price-hold.view';
-    const ORDERS = 'ordering.order.view';
-    const SHIPPING = 'shipping.flat-fee.view';
-    const SETTLEMENT = 'commission-payouts.settlement.view';
-    const PAYMENTS = 'payments.connected-account.view';
-    const CATALOG = 'catalog.product.view';
-    const SUPPORT = 'notifications.support-contact.view';
-    const CERT = 'certification.seller-certificate.view';
-    const TYPES = 'certification.type.view';
-    const POLICIES = 'certification.claim-policy.view';
-    const PRODUCT_CERTS = 'certification.product-certificate.view';
-    const ASSISTANT = 'assistant.settings.view';
-    // The previous build's definition: version 1 without the sellers, pricing and catalog keys.
-    const v1 = seedWith((role) =>
-      role.seedCode === 'viewer'
-        ? {
-            ...role,
-            seedVersion: 1,
-            permissionKeys: role.permissionKeys.filter(
-              (k) =>
-                k !== VIEW &&
-                k !== HOLDS &&
-                k !== CATALOG &&
-                k !== ORDERS &&
-                k !== SHIPPING &&
-                k !== SETTLEMENT &&
-                k !== PAYMENTS &&
-                k !== SUPPORT &&
-                k !== CERT &&
-                k !== TYPES &&
-                k !== POLICIES &&
-                k !== PRODUCT_CERTS &&
-                k !== ASSISTANT,
-            ),
-          }
-        : role,
-    );
-    await seedRoles(v1).execute(system, {});
-    const before = roleOf('platform', 'viewer');
-    expect(before.permissionKeys).not.toContain(VIEW);
-    const complianceBefore = roleOf('platform', 'onboarding-compliance');
-    fakes.audits.length = 0;
-
-    await expect(seedRoles().execute(system, {})).resolves.toEqual({
-      ok: true,
-      value: { created: 0, upgraded: 1 },
-    });
-
-    expect(roleOf('platform', 'viewer')).toMatchObject({
-      id: before.id,
-      seedVersion: 14,
-      permissionKeys: [
-        ...before.permissionKeys,
-        ASSISTANT,
-        CERT,
-        TYPES,
-        POLICIES,
-        PRODUCT_CERTS,
-        CATALOG,
-        HOLDS,
-        VIEW,
-        ORDERS,
-        SHIPPING,
-        SETTLEMENT,
-        PAYMENTS,
-        SUPPORT,
-      ].sort(),
-    });
-    expect(roleOf('platform', 'onboarding-compliance')).toEqual(complianceBefore);
-    expect(fakes.audits).toEqual([
-      {
-        ...RoleSeedApplied.entry(before.id, {
-          before: { seedVersion: 1 },
-          after: {
-            seedVersion: 14,
-            addedKeys: [
-              ASSISTANT,
-              CERT,
-              TYPES,
-              POLICIES,
-              PRODUCT_CERTS,
-              CATALOG,
-              ORDERS,
-              SHIPPING,
-              SETTLEMENT,
-              PAYMENTS,
-              SUPPORT,
-              HOLDS,
-              VIEW,
-            ].sort(),
-            removedKeys: [],
-          },
-        }),
-        actor: 'system',
-        marketId: code,
-      },
-    ]);
-  });
-
-  it('upgrades catalogue-moderator from version 1 to 8: adds the catalog keys, certification.claim-policy.view, certification.product-certificate.view, certification.type.view, pricing.price-hold.view and sellers.seller.view only, one seed-applied row, other roles untouched (I-1a)', async () => {
-    const EDIT = 'catalog.platform-product.edit';
-    // The previous build's definition: version 1 with the identity key only.
-    const v1 = seedWith((role) =>
-      role.seedCode === 'catalogue-moderator'
-        ? { ...role, seedVersion: 1, permissionKeys: ['identity.seller-access.view'] }
-        : role,
-    );
-    await seedRoles(v1).execute(system, {});
-    const before = roleOf('platform', 'catalogue-moderator');
-    expect([before.seedVersion, before.permissionKeys]).toEqual([
-      1,
-      ['identity.seller-access.view'],
-    ]);
-    // Copies, so an in-place change of a stored role would show.
-    const others = [...fakes.roles.values()]
-      .filter((r) => r.marketId === market.marketId && r.id !== before.id)
-      .map((r) => ({ ...r, permissionKeys: [...r.permissionKeys] }));
-    expect(others).toHaveLength(12);
-    fakes.audits.length = 0;
-
-    await expect(seedRoles().execute(system, {})).resolves.toEqual({
-      ok: true,
-      value: { created: 0, upgraded: 1 },
-    });
-
-    expect(roleOf('platform', 'catalogue-moderator')).toMatchObject({
-      id: before.id,
-      seedVersion: 8,
-      permissionKeys: [
-        EDIT,
-        'catalog.product.approve',
-        'catalog.product.view',
-        'certification.claim-policy.view',
-        'certification.product-certificate.view',
-        'certification.type.view',
-        'identity.seller-access.view',
-        'pricing.price-hold.view',
-        'sellers.seller.view',
-      ],
-    });
-    // No other role of this Market gains the key or changes at all.
-    for (const role of others) expect(fakes.roles.get(role.id)).toEqual(role);
-    expect(fakes.audits).toEqual([
-      {
-        ...RoleSeedApplied.entry(before.id, {
-          before: { seedVersion: 1 },
-          after: {
-            seedVersion: 8,
-            addedKeys: [
-              EDIT,
-              'catalog.product.approve',
-              'catalog.product.view',
-              'certification.claim-policy.view',
-              'certification.product-certificate.view',
-              'certification.type.view',
-              'pricing.price-hold.view',
-              'sellers.seller.view',
-            ],
-            removedKeys: [],
-          },
-        }),
-        actor: 'system',
-        marketId: code,
-      },
-    ]);
-    // Applied once.
-    await expect(seedRoles().execute(system, {})).resolves.toEqual({
-      ok: true,
-      value: { created: 0, upgraded: 0 },
-    });
   });
 
   it('upgrades a default role key by key, with one seed-applied row (Ali 2026-10-08)', async () => {
     await seedRoles().execute(system, {});
-    const before = roleOf('seller', 'store-manager');
+    const before = roleOf('platform', 'dispatcher');
     fakes.audits.length = 0;
     const v2 = seedWith((role) =>
-      role.seedCode === 'store-manager'
+      role.seedCode === 'dispatcher'
         ? {
             ...role,
-            seedVersion: 5,
-            permissionKeys: ['identity.team-member.view', 'identity.seller-access.view'].slice(
-              0,
-              1,
-            ),
+            seedVersion: 2,
+            permissionKeys: ['delivery.delivery.view', 'identity.merchant.view'],
           }
         : role,
     );
@@ -411,25 +144,25 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
       value: { created: 0, upgraded: 1 },
     });
 
-    expect(roleOf('seller', 'store-manager')).toMatchObject({
+    expect(roleOf('platform', 'dispatcher')).toMatchObject({
       id: before.id,
-      seedVersion: 5,
+      seedVersion: 2,
       version: before.version + 1,
-      permissionKeys: ['identity.team-member.view'],
+      permissionKeys: ['delivery.delivery.view', 'identity.merchant.view'],
     });
     expect(fakes.audits).toEqual([
       {
         ...RoleSeedApplied.entry(before.id, {
-          before: { seedVersion: 4 },
+          before: { seedVersion: 1 },
           after: {
-            seedVersion: 5,
-            addedKeys: [],
+            seedVersion: 2,
+            addedKeys: ['identity.merchant.view'],
             removedKeys: [
-              'catalog.own-product.edit',
-              'catalog.own-product.view',
-              'certification.own-certificate.manage',
-              'certification.own-certificate.view',
-              'identity.seller-role.view',
+              'delivery.delivery.cancel',
+              'delivery.delivery.dispatch',
+              'identity.courier-account.disable',
+              'identity.courier-account.invite',
+              'identity.courier-account.view',
             ],
           },
         }),
@@ -439,8 +172,8 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     ]);
     expect(logged('identity.seed-roles.upgraded')?.[0]).toMatchObject({
       roleId: before.id,
-      fromSeedVersion: 4,
-      seedVersion: 5,
+      fromSeedVersion: 1,
+      seedVersion: 2,
     });
 
     // Applied once: the next run finds the role current and writes nothing.
@@ -480,7 +213,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
 
   it('never downgrades a role stored at a newer version (an older build running), and warns', async () => {
     await seedRoles(
-      seedWith((role) => (role.seedCode === 'viewer' ? { ...role, seedVersion: 15 } : role)),
+      seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 15 } : role)),
     ).execute(system, {});
     fakes.audits.length = 0;
 
@@ -489,23 +222,23 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
       value: { created: 0, upgraded: 0 },
     });
 
-    expect(roleOf('platform', 'viewer').seedVersion).toBe(15);
+    expect(roleOf('platform', 'operator').seedVersion).toBe(15);
     expect(fakes.audits).toEqual([]);
     expect(logged('identity.seed-roles.stored-newer')?.[0]).toMatchObject({
-      seedCode: 'viewer',
+      seedCode: 'operator',
       storedSeedVersion: 15,
-      seedVersion: 14,
+      seedVersion: 1,
     });
   });
 
   it('never changes a stored role of another kind under the same code', async () => {
     await seedRoles().execute(system, {});
-    const stored = roleOf('seller', 'bookkeeper');
-    fakes.roles.set(stored.id, { ...stored, kind: 'system' });
+    const stored = roleOf('platform', 'operator');
+    fakes.roles.set(stored.id, { ...stored, kind: 'system', permissionKeys: [] });
     fakes.audits.length = 0;
 
     await seedRoles(
-      seedWith((role) => (role.seedCode === 'bookkeeper' ? { ...role, seedVersion: 2 } : role)),
+      seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 2 } : role)),
     ).execute(system, {});
 
     expect(fakes.roles.get(stored.id)!.seedVersion).toBe(1);
@@ -516,41 +249,30 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
   it.each<[string, (role: SeededRole) => SeededRole, string]>([
     [
       'an unknown key',
-      (r) => (r.seedCode === 'finance' ? { ...r, permissionKeys: ['identity.ledger.view'] } : r),
+      (r) => (r.seedCode === 'operator' ? { ...r, permissionKeys: ['identity.ledger.view'] } : r),
       'unknown-key',
     ],
     [
-      'a key of the other scope',
-      (r) =>
-        r.seedCode === 'finance' ? { ...r, permissionKeys: ['identity.team-member.view'] } : r,
+      'a key of another scope',
+      (r) => (r.seedCode === 'operator' ? { ...r, permissionKeys: ['delivery.booking.view'] } : r),
       'wrong-scope',
     ],
     [
       'a protected key (R11)',
       (r) =>
-        r.seedCode === 'store-manager'
-          ? { ...r, permissionKeys: ['identity.team-member.invite'] }
-          : r,
-      'protected-key',
-    ],
-    [
-      'a protected key of another module',
-      (r) =>
-        r.seedCode === 'store-manager'
-          ? { ...r, permissionKeys: ['sellers.business-identity.edit'] }
-          : r,
+        r.seedCode === 'dispatcher' ? { ...r, permissionKeys: ['identity.merchant.create'] } : r,
       'protected-key',
     ],
     [
       'a key on a system role (R3)',
       (r) =>
-        r.seedCode === 'seller-owner' ? { ...r, permissionKeys: ['identity.team-member.view'] } : r,
+        r.seedCode === 'courier' ? { ...r, permissionKeys: ['delivery.assignment.view'] } : r,
       'system-keys',
     ],
     [
       'more keys than one seed-applied row can list',
       (r) =>
-        r.seedCode === 'viewer'
+        r.seedCode === 'operator'
           ? {
               ...r,
               permissionKeys: Array.from(
@@ -564,7 +286,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     [
       'keys one byte over the budget of one seed-applied list',
       (r) =>
-        r.seedCode === 'viewer'
+        r.seedCode === 'operator'
           ? { ...r, permissionKeys: keysCosting(SEED_KEYS_BUDGET_BYTES + 1, 'over') }
           : r,
       'keys-too-large',
@@ -590,7 +312,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
 
     await expect(
       seedRoles(
-        seedWith((role) => (role.seedCode === 'finance' ? { ...role, seedVersion: 4 } : role)),
+        seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 4 } : role)),
         { roles: racing },
       ).execute(system, {}),
     ).resolves.toEqual({ ok: true, value: { created: 0, upgraded: 0 } });
@@ -601,10 +323,10 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
   it('a refused audit row fails that role only: the run goes on and ends as seed.incomplete (PA W5; Mohammad 3)', async () => {
     await seedRoles().execute(system, {});
     fakes.audits.length = 0;
-    const finance = roleOf('platform', 'finance');
+    const operator = roleOf('platform', 'operator');
     const refusing: AuditWriter = {
       record: (context, entry) =>
-        entry.targetId === finance.id
+        entry.targetId === operator.id
           ? Promise.reject(new Error('audit refused'))
           : fakes.audit.record(context, entry),
     };
@@ -612,7 +334,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     await expect(
       seedRoles(
         seedWith((role) =>
-          role.seedCode === 'finance' || role.seedCode === 'operations-support'
+          role.seedCode === 'operator' || role.seedCode === 'dispatcher'
             ? { ...role, seedVersion: 4 }
             : role,
         ),
@@ -620,15 +342,15 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
       ).execute(system, {}),
     ).resolves.toEqual({ ok: false, error: { code: 'seed.incomplete', failed: 1 } });
     // The other upgrade still applied, with its row; the failure is logged by code, no message.
-    expect(roleOf('platform', 'operations-support').seedVersion).toBe(4);
+    expect(roleOf('platform', 'dispatcher').seedVersion).toBe(4);
     expect(fakes.audits.map((a) => [a.action, a.targetId])).toEqual([
-      ['identity.role.seed-applied', roleOf('platform', 'operations-support').id],
+      ['identity.role.seed-applied', roleOf('platform', 'dispatcher').id],
     ]);
     expect(logged('identity.seed-roles.role-failed')?.[0]).toEqual({
       msg: 'identity.seed-roles.role-failed',
       errorName: 'Error',
       scope: 'platform',
-      seedCode: 'finance',
+      seedCode: 'operator',
       marketId: market.marketId,
       correlationId: system.correlationId,
     });
@@ -639,7 +361,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     });
   });
 
-  it('one role that fails never keeps seller-owner from a new Market (Mohammad 3)', async () => {
+  it('one role that fails never keeps the courier role from a new Market (Mohammad 3)', async () => {
     const failing: RoleRepository = {
       ...fakes.roleRepository,
       addSeeded: (m, role) =>
@@ -652,7 +374,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
       ok: false,
       error: { code: 'seed.incomplete', failed: 1 },
     });
-    expect(roleOf('seller', 'seller-owner')).toMatchObject({ kind: 'system', seedVersion: 1 });
+    expect(roleOf('courier', 'courier')).toMatchObject({ kind: 'system', seedVersion: 1 });
     expect([...fakes.roles.values()].filter((r) => r.marketId === market.marketId)).toHaveLength(
       new CheckedInRoleSeed().roles().length - 1,
     );
