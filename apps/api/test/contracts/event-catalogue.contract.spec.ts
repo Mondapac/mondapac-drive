@@ -78,16 +78,24 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     expect(worker.get(SubscriptionRegistry).names()).toEqual(api.get(SubscriptionRegistry).names());
   });
 
-  it("registers identity's mail subscriptions and seals the registry (P 6.4)", () => {
+  it("registers identity's mail and dispatch's delivery subscriptions and seals the registry (P 6.4)", () => {
     const subscriptions = graphs.get('worker')!.get(SubscriptionRegistry);
 
     expect(subscriptions.names()).toEqual([
+      'dispatch.cancel-job',
+      'dispatch.follow-delivery-status',
+      'dispatch.open-job',
       'identity.invitation-mail',
       'identity.link-mail',
       'identity.other-sessions-signed-out-mail',
       'identity.password-changed-mail',
       'identity.second-factor-mail',
     ]);
+    expect(subscriptions.subscribersOf('delivery.booked.v1')).toEqual(['dispatch.open-job']);
+    expect(subscriptions.subscribersOf('delivery.status-changed.v1')).toEqual([
+      'dispatch.follow-delivery-status',
+    ]);
+    expect(subscriptions.subscribersOf('delivery.cancelled.v1')).toEqual(['dispatch.cancel-job']);
     expect(subscriptions.subscribersOf('identity.invitation-issued.v1')).toEqual([
       'identity.invitation-mail',
     ]);

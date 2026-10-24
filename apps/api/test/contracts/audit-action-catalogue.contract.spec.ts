@@ -44,9 +44,10 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
  * The Nest modules that bind their own audit writer and register their actions. A module joins
  * this list only with the audited actions its approved design names: fleet (work package 05)
  * with its operator decisions on couriers and documents; identity with its access-management
- * actions (accounts, roles, sessions, merchants and API keys).
+ * actions (accounts, roles, sessions, merchants and API keys); dispatch (handoff 22) with a
+ * dispatcher's assignments and restarts.
  */
-const AUDITING_MODULES: readonly string[] = ['FleetModule', 'IdentityModule'];
+const AUDITING_MODULES: readonly string[] = ['DispatchModule', 'FleetModule', 'IdentityModule'];
 const SRC = path.join(__dirname, '../../src');
 
 const foldersOf = (dir: string) =>
@@ -366,6 +367,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     await moduleRef.close();
 
     expect(binders.sort()).toEqual([
+      ['DispatchModule', 'dispatch'],
       ['FleetModule', 'fleet'],
       ['IdentityModule', 'identity'],
     ]);
@@ -389,6 +391,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     await moduleRef.close();
 
     expect(found.map((entry) => [entry.module, entry.kind]).sort()).toEqual([
+      ['DispatchModule', 'actions'],
+      ['DispatchModule', 'writer'],
       ['FleetModule', 'actions'],
       ['FleetModule', 'writer'],
       ['IdentityModule', 'actions'],
@@ -471,6 +475,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
 
     expect(offenders).toEqual([]);
     expect(calls.sort()).toEqual([
+      `${path.join('modules', 'dispatch', 'dispatch.module.ts')}: auditWriterFor('dispatch')`,
+      `${path.join('modules', 'dispatch', 'dispatch.module.ts')}: registerAuditActions('dispatch')`,
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: auditWriterFor('fleet')`,
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: registerAuditActions('fleet')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: auditWriterFor('identity')`,

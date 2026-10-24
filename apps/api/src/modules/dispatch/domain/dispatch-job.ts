@@ -1,4 +1,10 @@
-import { Temporal, type Id, type MarketId, type PendingEvent } from '@mondapac-drive/shared-kernel';
+import {
+  Temporal,
+  type GeoPoint,
+  type Id,
+  type MarketId,
+  type PendingEvent,
+} from '@mondapac-drive/shared-kernel';
 import type { VehicleType } from './courier';
 import type { DispatchSettings } from './dispatch-settings';
 import { DispatchDomainError } from './errors';
@@ -45,11 +51,26 @@ export interface Assignment {
   readonly at: Temporal.Instant;
 }
 
+/**
+ * What a courier's offer shows besides the requirements: both addresses, the drop-off point and
+ * the trip distance. Personal data, so the job holds it only while it may still send offers:
+ * it is dropped once a courier has the delivery or it is cancelled, and read again from the
+ * delivery when offering restarts.
+ */
+export interface OfferStops {
+  readonly pickupAddress: string;
+  readonly dropoffAddress: string;
+  readonly dropoff: GeoPoint;
+  readonly tripDistanceMetres: number;
+}
+
 export interface DispatchJob {
   readonly id: Id<'DispatchJob'>;
   readonly marketId: MarketId;
   readonly deliveryId: Id<'Delivery'>;
   readonly requirements: DispatchRequirements;
+  /** Absent once a courier has the delivery or it was cancelled. */
+  readonly stops?: OfferStops;
   readonly status: JobStatus;
   /** When offering starts: at once for on-demand, the window minus the Market's lead time. */
   readonly opensAt: Temporal.Instant;
@@ -61,6 +82,11 @@ export interface DispatchJob {
   readonly assignment?: Assignment;
   /** Couriers never offered this delivery again: they dropped it. */
   readonly excludedCourierIds: readonly Id<'Courier'>[];
+  /**
+   * The delivery's aggregate version of the last delivery event dispatch followed. Events come
+   * at least once and in no order: one at or below it is stale and changes nothing.
+   */
+  readonly deliveryVersion: number;
   readonly createdAt: Temporal.Instant;
   /** Optimistic-concurrency version, bumped on every change. */
   readonly version: number;
@@ -77,8 +103,11 @@ export interface NewDispatchJob {
   readonly marketId: MarketId;
   readonly deliveryId: Id<'Delivery'>;
   readonly requirements: DispatchRequirements;
+  readonly stops: OfferStops;
   /** The start of a scheduled delivery's window; absent for on-demand. */
   readonly windowStart?: Temporal.Instant;
+  /** The delivery's aggregate version the job was opened from (its booking event). */
+  readonly deliveryVersion: number;
 }
 
 /** Opens the dispatch job of a delivery. Offering starts at once, or the lead time before the window. */
@@ -97,12 +126,14 @@ export function openDispatchJob(
     marketId: input.marketId,
     deliveryId: input.deliveryId,
     requirements: input.requirements,
+    stops: input.stops,
     status: opensAt === now ? 'OFFERING' : 'WAITING',
     opensAt,
     round: 0,
     nextActionAt: opensAt,
     offers: [],
     excludedCourierIds: [],
+    deliveryVersion: input.deliveryVersion,
     createdAt: now,
     version: 1,
   };
@@ -128,7 +159,7 @@ export function couriersNotToOffer(job: DispatchJob): ReadonlySet<string> {
 /** What the sweep found on a job: the change so far, and whether a new wave is due. */
 export interface Swept extends JobChange {
   readonly changed: boolean;
-  /** True when the job just left WAITING: the delivery must be told dispatch has opened. */
+  /** True when the job just left WAITING. */
   readonly opened: boolean;
   readonly waveDue: boolean;
 }
@@ -263,15 +294,40 @@ export function sendWave(
   };
 }
 
-/** A courier accepts or declines their pending offer, before it expires. */
+/** The offer of this id made to this courier, or undefined: another courier's offer is unknown. */
+export function offerOf(
+  job: DispatchJob,
+  offerId: Id<'DispatchOffer'>,
+  courierId: Id<'Courier'>,
+): Offer | undefined {
+  return job.offers.find((o) => o.id === offerId && o.courierId === courierId);
+}
+
+/** The courier's pending offer on the job that has not expired at `now`, or undefined. */
+export function openOfferOf(
+  job: DispatchJob,
+  courierId: Id<'Courier'>,
+  now: Temporal.Instant,
+): Offer | undefined {
+  if (job.status !== 'OFFERING') return undefined;
+  return job.offers.find(
+    (o) => o.courierId === courierId && o.status === 'PENDING' && !isDue(o.expiresAt, now),
+  );
+}
+
+/**
+ * A courier accepts or declines the pending offer `offerId` made to them, before it expires.
+ * An offer made to another courier is refused as if it did not exist.
+ */
 export function answerOffer(
   job: DispatchJob,
+  offerId: Id<'DispatchOffer'>,
   courierId: Id<'Courier'>,
   answer: 'accept' | 'decline',
   now: Temporal.Instant,
 ): JobChange {
-  const offer = job.offers.find((o) => o.courierId === courierId && o.status === 'PENDING');
-  if (job.status !== 'OFFERING' || offer === undefined) {
+  const offer = offerOf(job, offerId, courierId);
+  if (job.status !== 'OFFERING' || offer?.status !== 'PENDING') {
     throw new DispatchDomainError('offer.not-pending', 'This courier has no open offer on the job');
   }
   if (isDue(offer.expiresAt, now)) {
@@ -298,7 +354,7 @@ export function answerOffer(
   });
   const assignment: Assignment = { courierId, vehicle: offer.vehicle, method: 'offer', at: now };
   events.push(assignedEvent(job, assignment, version, undefined));
-  const rest = settled(job);
+  const rest = closed(job);
   return { job: { ...rest, status: 'ASSIGNED', offers, assignment, version }, events };
 }
 
@@ -322,15 +378,16 @@ export function assignManually(
   const { offers, events } = withdrawPending(job, now);
   const assignment: Assignment = { courierId, vehicle, method: 'manual', at: now };
   events.push(assignedEvent(job, assignment, version, job.assignment?.courierId));
-  const rest = settled(job);
+  const rest = closed(job);
   return { job: { ...rest, status: 'ASSIGNED', offers, assignment, version }, events };
 }
 
 /**
  * The assigned courier dropped the delivery: offering starts again at once, with fresh rounds,
- * and that courier is never offered it again.
+ * and that courier is never offered it again. The offers show `stops`, read again from the
+ * delivery.
  */
-export function redispatch(job: DispatchJob, now: Temporal.Instant): JobChange {
+export function redispatch(job: DispatchJob, stops: OfferStops, now: Temporal.Instant): JobChange {
   if (job.status !== 'ASSIGNED' || job.assignment === undefined) {
     throw new DispatchDomainError(
       'dispatch.not-assigned',
@@ -341,6 +398,7 @@ export function redispatch(job: DispatchJob, now: Temporal.Instant): JobChange {
   return {
     job: {
       ...rest,
+      stops,
       status: 'OFFERING',
       round: 0,
       nextActionAt: now,
@@ -351,11 +409,73 @@ export function redispatch(job: DispatchJob, now: Temporal.Instant): JobChange {
   };
 }
 
+/**
+ * A dispatcher tries again after every round went unanswered: offering restarts at once with
+ * fresh rounds. Couriers who declined or dropped the delivery are still skipped.
+ */
+export function restartOffering(job: DispatchJob, now: Temporal.Instant): JobChange {
+  if (job.status !== 'EXHAUSTED') {
+    throw new DispatchDomainError(
+      'dispatch.not-exhausted',
+      'Only a job whose rounds all went unanswered is offered again',
+    );
+  }
+  return {
+    job: { ...job, status: 'OFFERING', round: 0, nextActionAt: now, version: job.version + 1 },
+    events: [],
+  };
+}
+
+/**
+ * The delivery says a courier has it, assigned outside dispatch (a dispatcher on the delivery's
+ * own route): offers still out are withdrawn and the job records the courier. The delivery is
+ * the source of this fact, so no `dispatch.courier-assigned` is published for it.
+ */
+export function recordAssignment(
+  job: DispatchJob,
+  courierId: Id<'Courier'>,
+  now: Temporal.Instant,
+): JobChange {
+  if (job.status === 'CANCELLED' || job.assignment?.courierId === courierId) {
+    return { job, events: [] };
+  }
+  const { offers, events } = withdrawPending(job, now);
+  const vehicle = job.assignment?.vehicle ?? job.requirements.minimumVehicle;
+  const assignment: Assignment = { courierId, vehicle, method: 'manual', at: now };
+  const rest = closed(job);
+  return {
+    job: { ...rest, status: 'ASSIGNED', offers, assignment, version: job.version + 1 },
+    events,
+  };
+}
+
+/**
+ * A dispatcher opened a scheduled delivery for dispatch before its time: the job opens on the
+ * next sweep. Any other job is left as it is.
+ */
+export function openEarly(job: DispatchJob, now: Temporal.Instant): JobChange {
+  if (job.status !== 'WAITING' || isDue(job.opensAt, now)) return { job, events: [] };
+  return { job: { ...job, opensAt: now, nextActionAt: now, version: job.version + 1 }, events: [] };
+}
+
+/** The job after following delivery event `version`: a change bumps the job's own version. */
+export function followedDeliveryVersion(
+  before: DispatchJob,
+  after: DispatchJob,
+  version: number,
+): DispatchJob {
+  return {
+    ...after,
+    deliveryVersion: version,
+    version: after.version === before.version ? before.version + 1 : after.version,
+  };
+}
+
 /** The delivery was cancelled: offers out are withdrawn and the job stops. */
 export function cancelJob(job: DispatchJob, now: Temporal.Instant): JobChange {
   if (job.status === 'CANCELLED') return { job, events: [] };
   const { offers, events } = withdrawPending(job, now);
-  const rest = settled(job);
+  const rest = closed(job);
   return { job: { ...rest, status: 'CANCELLED', offers, version: job.version + 1 }, events };
 }
 
@@ -363,6 +483,13 @@ export function cancelJob(job: DispatchJob, now: Temporal.Instant): JobChange {
 function settled(job: DispatchJob): Omit<DispatchJob, 'nextActionAt'> {
   const { nextActionAt, ...rest } = job;
   void nextActionAt;
+  return rest;
+}
+
+/** The job done with offering for good: no next action, and no addresses kept. */
+function closed(job: DispatchJob): Omit<DispatchJob, 'nextActionAt' | 'stops'> {
+  const { stops, ...rest } = settled(job);
+  void stops;
   return rest;
 }
 

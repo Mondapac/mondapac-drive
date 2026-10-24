@@ -26,7 +26,7 @@ export const PLATFORM_ROLES_SEED: readonly SeededRole[] = [
     scope: 'platform',
     kind: 'default',
     seedCode: 'operator',
-    seedVersion: 2,
+    seedVersion: 3,
     nameKey: 'identity.role.operator',
     permissionKeys: [
       'identity.admin-account.view',
@@ -36,15 +36,16 @@ export const PLATFORM_ROLES_SEED: readonly SeededRole[] = [
       'delivery.delivery.view',
       'delivery.delivery.cancel',
       'tracking.map.view',
+      'dispatch.job.view',
     ],
   },
   {
     // Runs the fleet: onboards and disables couriers, opens dispatch, assigns and unassigns
-    // couriers, watches them on the live map, and cancels.
+    // couriers, watches them on the live map and the offers of each job, and cancels.
     scope: 'platform',
     kind: 'default',
     seedCode: 'dispatcher',
-    seedVersion: 2,
+    seedVersion: 3,
     nameKey: 'identity.role.dispatcher',
     permissionKeys: [
       'identity.courier-account.view',
@@ -54,6 +55,8 @@ export const PLATFORM_ROLES_SEED: readonly SeededRole[] = [
       'delivery.delivery.dispatch',
       'delivery.delivery.cancel',
       'tracking.map.view',
+      'dispatch.job.view',
+      'dispatch.job.assign',
     ],
   },
 ];

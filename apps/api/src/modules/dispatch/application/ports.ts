@@ -6,7 +6,7 @@ import type {
   MarketId,
   Temporal,
 } from '@mondapac-drive/shared-kernel';
-import type { VehicleType } from '../domain/courier';
+import type { Temperature, VehicleType } from '../domain/courier';
 import type { DispatchJob } from '../domain/dispatch-job';
 import type { DispatchSettings } from '../domain/dispatch-settings';
 import type { AvailableCourier, DispatchRequirements, NearbyCourier } from '../domain/matching';
@@ -27,6 +27,13 @@ export interface DispatchJobRepository {
     now: Temporal.Instant,
     limit: number,
   ): Promise<Id<'DispatchJob'>[]>;
+  /** The job holding the offer of this id, or undefined. */
+  findByOffer(
+    market: MarketContext,
+    offerId: Id<'DispatchOffer'>,
+  ): Promise<DispatchJob | undefined>;
+  /** The jobs where this courier holds a pending offer (the offer may have expired since). */
+  findWithPendingOfferFor(market: MarketContext, courierId: Id<'Courier'>): Promise<DispatchJob[]>;
   /** Inserts a new job (version 1). Answers false, and writes nothing, when the delivery has one. */
   insert(market: MarketContext, job: DispatchJob): Promise<boolean>;
   /**
@@ -64,21 +71,50 @@ export interface CourierProximity {
 }
 export const COURIER_PROXIMITY = Symbol('CourierProximity');
 
+/** A stop of a delivery as dispatch reads it: no contact name or phone. */
+export interface DeliveryStop {
+  readonly address: string;
+  readonly postcode: string;
+  readonly point: GeoPoint;
+}
+
+/** What dispatch needs to know about a delivery to offer it (delivery's `DeliveryDispatchView`). */
+export interface DeliveryForDispatch {
+  readonly status: string;
+  readonly serviceAreaCode: string;
+  readonly pickup: DeliveryStop;
+  readonly dropoff: DeliveryStop;
+  /** The quoted trip distance. */
+  readonly distanceMetres: number;
+  readonly weightGrams: number;
+  readonly volumeLitres: number;
+  readonly temperature: Temperature;
+  /** The vehicle the delivery was quoted for. */
+  readonly vehicle: VehicleType;
+  readonly window?: { readonly start: Temporal.Instant; readonly end: Temporal.Instant };
+}
+
 /**
- * What dispatch tells the delivery module, after its own unit committed: a scheduled
- * delivery opened for dispatch, and a courier has it. Until work package 2 exports delivery's
- * use cases, the binding records nothing; `dispatch.courier-assigned` in the outbox is the fact.
+ * Delivery's read for dispatch, for the system actor only (event subscribers): `undefined` for a
+ * delivery the Market does not have.
  */
-export interface DeliveryLink {
-  dispatchOpened(context: CallContext, deliveryId: Id<'Delivery'>): Promise<void>;
-  courierAssigned(
+export interface DeliveryFacts {
+  forDispatch(
     context: CallContext,
     deliveryId: Id<'Delivery'>,
-    courierId: Id<'Courier'>,
-    vehicle: VehicleType,
-  ): Promise<void>;
+  ): Promise<DeliveryForDispatch | undefined>;
 }
-export const DELIVERY_LINK = Symbol('DeliveryLink');
+export const DELIVERY_FACTS = Symbol('DeliveryFacts');
+
+/** Courier accounts as identity knows them. */
+export interface CourierAccounts {
+  /**
+   * Whether the id names an active courier account of the Market, asked as the calling actor;
+   * `undefined` when the actor may not ask (its role does not hold the courier view).
+   */
+  isActive(context: CallContext, accountId: string): Promise<boolean | undefined>;
+}
+export const COURIER_ACCOUNTS = Symbol('CourierAccounts');
 
 /** The dispatch settings of the Markets this deployment hosts. */
 export interface DispatchSettingsProvider {

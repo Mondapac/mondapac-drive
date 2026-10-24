@@ -23,12 +23,10 @@ import { rankCandidates, type RankedCandidate } from '../domain/matching';
 import {
   COURIER_AVAILABILITY,
   COURIER_PROXIMITY,
-  DELIVERY_LINK,
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
   type CourierAvailability,
   type CourierProximity,
-  type DeliveryLink,
   type DispatchJobRepository,
   type DispatchSettingsProvider,
 } from './ports';
@@ -39,7 +37,9 @@ export type Advanced = 'unchanged' | 'advanced' | 'stale';
 /**
  * Moves one job forward in time: opens it, expires offers, sends the next wave or exhausts it
  * (domain `sweep` and `sendWave`). Candidates are read before the unit opens, since they come
- * from other modules; the unit reloads the job and applies the change to what it finds.
+ * from other modules; the unit reloads the job and applies the change to what it finds. Run by
+ * the system actor only (the sweep and the event subscribers): fleet and tracking are asked as
+ * the system.
  */
 @Injectable()
 export class JobAdvancer {
@@ -48,7 +48,6 @@ export class JobAdvancer {
     @Inject(DISPATCH_SETTINGS) private readonly settings: DispatchSettingsProvider,
     @Inject(COURIER_AVAILABILITY) private readonly availability: CourierAvailability,
     @Inject(COURIER_PROXIMITY) private readonly proximity: CourierProximity,
-    @Inject(DELIVERY_LINK) private readonly delivery: DeliveryLink,
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriter,
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
@@ -73,7 +72,6 @@ export class JobAdvancer {
       ? await this.candidatesFor(context, preview.job, settings)
       : undefined;
 
-    let opened = false;
     try {
       const saved = await this.unitOfWork.run(market, async () => {
         const job = await this.jobs.findById(market, jobId);
@@ -94,10 +92,8 @@ export class JobAdvancer {
         if (change.job.version === job.version) return ok(false);
         await this.jobs.update(market, change.job);
         if (change.events.length > 0) await this.outbox.append(context, change.events);
-        opened = swept.opened;
         return ok(true);
       });
-      if (opened) await this.delivery.dispatchOpened(context, before.deliveryId);
       return saved.ok && saved.value ? 'advanced' : 'unchanged';
     } catch (error) {
       if (error instanceof StaleAggregateError) return 'stale';

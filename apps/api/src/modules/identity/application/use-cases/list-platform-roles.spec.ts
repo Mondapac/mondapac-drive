@@ -87,6 +87,8 @@ const LEAD_KEYS = [
   'delivery.delivery.cancel',
   'delivery.delivery.dispatch',
   'delivery.delivery.view',
+  'dispatch.job.assign',
+  'dispatch.job.view',
   'identity.admin-account.disable',
   'identity.admin-account.invite',
   'identity.admin-account.reset-second-factor',
@@ -334,11 +336,11 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
       roleId: roleOf('operator'),
       kind: 'default',
       seedCode: 'operator',
-      permissionCount: 7,
+      permissionCount: 8,
       grantable: true,
     });
     expect(byId(items, roleOf('operator')).name).toBeNull();
-    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(7);
+    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(8);
     expect(byId(items, LEAD_ROLE)).toMatchObject({
       kind: 'custom',
       seedCode: null,

@@ -2,19 +2,22 @@ import type { Provider } from '@nestjs/common';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
 import {
+  COURIER_ACCOUNTS,
   COURIER_AVAILABILITY,
   COURIER_PROXIMITY,
-  DELIVERY_LINK,
+  DELIVERY_FACTS,
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
 } from '../application/ports';
 import { FleetDirectory } from '../../fleet';
+import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
 import { CourierPositions } from '../../tracking';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
+import { PendingDeliveryFacts } from './delivery-dispatch-facts';
 import { FleetCourierAvailability } from './fleet-courier-availability';
+import { IdentityCourierAccounts } from './identity-courier-accounts';
 import { PrismaDispatchJobRepository } from './prisma-dispatch-job.repository';
 import { TrackingCourierProximity } from './tracking-courier-proximity';
-import { UnlinkedDelivery } from './unlinked-delivery';
 
 /** The implementations of the dispatch ports. Only infrastructure/ reaches the persistence internals. */
 export const dispatchProviders: Provider[] = [
@@ -39,5 +42,10 @@ export const dispatchProviders: Provider[] = [
     inject: [CourierPositions],
     useFactory: (positions: CourierPositions) => new TrackingCourierProximity(positions),
   },
-  { provide: DELIVERY_LINK, useValue: new UnlinkedDelivery() },
+  {
+    provide: COURIER_ACCOUNTS,
+    inject: [IDENTITY_FACADE],
+    useFactory: (identity: IdentityFacade) => new IdentityCourierAccounts(identity),
+  },
+  { provide: DELIVERY_FACTS, useValue: new PendingDeliveryFacts() },
 ];

@@ -1,42 +1,73 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
+  err,
   ok,
   type CallContext,
   type Clock,
   type Id,
   type Result,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { OUTBOX_WRITER, type OutboxWriter } from '../../../../platform/events/outbox-writer';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import type { EventDelivery } from '../../../../platform/events/event-delivery';
+import type { OutboxWriter } from '../../../../platform/events/outbox-writer';
+import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import { cancelJob } from '../../domain/dispatch-job';
-import { refusingBrokenRules, type DispatchFailure } from '../failure';
-import { DISPATCH_JOB_REPOSITORY, type DispatchJobRepository } from '../ports';
+import { isSystem } from '../callers';
+import { accessDenied, refusingBrokenRules, type DispatchFailure } from '../failure';
+import type { DispatchJobRepository } from '../ports';
 
-/** The delivery was cancelled (system): offers still out are withdrawn and the job stops. */
-@Injectable()
-export class CancelDispatchJob {
+export interface CancelDispatchJobInput {
+  /** The cancellation event's delivery: handled once per event and subscriber. */
+  readonly delivery: EventDelivery;
+  readonly deliveryId: Id<'Delivery'>;
+}
+
+export interface CancelDispatchJobDependencies {
+  readonly jobs: DispatchJobRepository;
+  readonly outbox: OutboxWriter;
+  readonly unitOfWork: UnitOfWork;
+  readonly clock: Clock;
+}
+
+/**
+ * The delivery was cancelled (`delivery.cancelled` subscriber): offers still out are withdrawn,
+ * the job stops and forgets the addresses. A cancellation is final, so it applies whatever
+ * delivery events arrive after it. Rule `system`.
+ */
+export class CancelDispatchJob extends UseCase<
+  CancelDispatchJobInput,
+  { readonly cancelled: boolean },
+  DispatchFailure
+> {
+  static override readonly access: AccessDeclaration = {
+    name: 'dispatch.cancel-dispatch-job',
+    rule: { kind: 'system' },
+  };
+
   constructor(
-    @Inject(DISPATCH_JOB_REPOSITORY) private readonly jobs: DispatchJobRepository,
-    @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriter,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-  ) {}
+    gate: UseCaseGate,
+    private readonly deps: CancelDispatchJobDependencies,
+  ) {
+    super(gate);
+  }
 
-  run(
+  protected async handle(
     context: CallContext,
-    deliveryId: Id<'Delivery'>,
+    input: CancelDispatchJobInput,
   ): Promise<Result<{ readonly cancelled: boolean }, DispatchFailure>> {
+    if (!isSystem(context)) return err(accessDenied());
+    const { jobs, outbox, unitOfWork, clock } = this.deps;
     const { market } = context;
-    return this.unitOfWork.run(market, () =>
+    const done = await unitOfWork.runOnce(market, input.delivery, () =>
       refusingBrokenRules<{ readonly cancelled: boolean }>(async () => {
-        const job = await this.jobs.findByDelivery(market, deliveryId);
+        const job = await jobs.findByDelivery(market, input.deliveryId);
         if (job === undefined || job.status === 'CANCELLED') return ok({ cancelled: false });
-        const change = cancelJob(job, this.clock.now());
-        await this.jobs.update(market, change.job);
-        if (change.events.length > 0) await this.outbox.append(context, change.events);
+        const change = cancelJob(job, clock.now());
+        await jobs.update(market, change.job);
+        if (change.events.length > 0) await outbox.append(context, change.events);
         return ok({ cancelled: true });
       }),
     );
+    if (!done.ok) return done;
+    return ok(done.value.handled ? done.value.value : { cancelled: false });
   }
 }

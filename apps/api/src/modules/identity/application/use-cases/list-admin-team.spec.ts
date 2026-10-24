@@ -90,6 +90,8 @@ const LEAD_KEYS = [
   'delivery.delivery.cancel',
   'delivery.delivery.dispatch',
   'delivery.delivery.view',
+  'dispatch.job.assign',
+  'dispatch.job.view',
   'identity.admin-account.disable',
   'identity.admin-account.invite',
   'identity.admin-account.reset-second-factor',
