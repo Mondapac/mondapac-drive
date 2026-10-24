@@ -42,6 +42,20 @@ describe('map configuration', () => {
     expect(() => parseMapConfig({ PANEL_MAP_ZOOM: '30' })).toThrow(/PANEL_MAP_ZOOM/);
   });
 
+  it('refuses an origin that would add a CSP directive or a wildcard', () => {
+    for (const bad of [
+      'https://a;script-src*',
+      'https://*.example.com',
+      'https://u:p@tiles.example.com',
+    ]) {
+      expect(() => parseMapConfig({ PANEL_MAP_STYLE_URL: bad }), bad).toThrow(/plain https host/);
+      expect(
+        () => parseMapConfig({ PANEL_MAP_STYLE_URL: style, PANEL_MAP_ORIGINS: bad }),
+        bad,
+      ).toThrow(/plain https host/);
+    }
+  });
+
   it('refuses a malformed center', () => {
     expect(() => parseMapCenters('au:1,2')).toThrow();
     expect(() => parseMapCenters('AU:91,2')).toThrow();

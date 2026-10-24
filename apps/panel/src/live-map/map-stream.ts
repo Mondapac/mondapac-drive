@@ -1,6 +1,7 @@
 // The live map's channel: the API's `couriers` events through the panel relay, reconnected with
 // backoff. An EventSource cannot read an HTTP status, so after a failure the stream asks the
-// session route once: a signed-out admin is sent to sign in instead of retrying for ever.
+// same URL once with fetch: a signed-out admin (401) is sent to sign in instead of retrying for
+// ever, and a 429 (more than three open maps) waits as long as the API asks.
 
 import type { GeoPoint } from '../ops/types.ts';
 import type { NearbyCourier } from './model.ts';
@@ -24,11 +25,14 @@ export interface MapStreamOptions {
   readonly onCouriers: (couriers: readonly NearbyCourier[]) => void;
   readonly onState: (state: StreamState) => void;
   readonly open?: (url: string) => EventSourceLike;
-  /** False when the session is gone (401); true otherwise, also when the check itself fails. */
-  readonly signedIn?: () => Promise<boolean>;
+  /** What the stream URL answers now; any failure of the check itself is a plain retry. */
+  readonly check?: (url: string) => Promise<StreamCheck>;
   readonly setTimer?: (run: () => void, ms: number) => unknown;
   readonly clearTimer?: (timer: unknown) => void;
 }
+
+export type StreamCheck =
+  { readonly kind: 'signed-out' } | { readonly kind: 'retry'; readonly notBeforeMs?: number };
 
 /** First retry after one second, doubling up to thirty. */
 export const BACKOFF_MS = { first: 1000, max: 30_000 } as const;
@@ -47,16 +51,36 @@ export function streamUrl(query: StreamQuery): string {
   return `/api/tracking/admin/map/stream?${params.toString()}`;
 }
 
-async function sessionAlive(): Promise<boolean> {
+/**
+ * Asks the stream URL once and reads only the status: an open stream is cancelled at once, so it
+ * frees its slot; a refusal is a small JSON body.
+ */
+export async function checkStream(url: string): Promise<StreamCheck> {
+  const abort = new AbortController();
   try {
-    const response = await fetch('/api/identity/admin/session', {
-      headers: { accept: 'application/json' },
+    const response = await fetch(url, {
+      headers: { accept: 'text/event-stream' },
       credentials: 'same-origin',
       cache: 'no-store',
+      signal: abort.signal,
     });
-    return response.status !== 401;
+    if (response.status === 401) return { kind: 'signed-out' };
+    if (response.status === 429) {
+      const body = (await response.json().catch((): unknown => null)) as {
+        details?: { retryAfterSeconds?: unknown };
+      } | null;
+      const seconds = Number(
+        response.headers.get('retry-after') ?? body?.details?.retryAfterSeconds,
+      );
+      return Number.isFinite(seconds) && seconds > 0
+        ? { kind: 'retry', notBeforeMs: Math.min(seconds, 300) * 1000 }
+        : { kind: 'retry' };
+    }
+    return { kind: 'retry' };
   } catch {
-    return true;
+    return { kind: 'retry' };
+  } finally {
+    abort.abort();
   }
 }
 
@@ -81,7 +105,7 @@ export class MapStream {
   constructor(options: MapStreamOptions) {
     this.#options = {
       open: (url) => new EventSource(url, { withCredentials: true }),
-      signedIn: sessionAlive,
+      check: checkStream,
       setTimer: (run, ms) => setTimeout(run, ms),
       clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
       ...options,
@@ -135,14 +159,16 @@ export class MapStream {
 
   async #retry(generation: number): Promise<void> {
     this.#options.onState('reconnecting');
-    if (!(await this.#options.signedIn())) {
-      if (generation !== this.#generation) return;
+    const query = this.#query;
+    const check: StreamCheck =
+      query === null ? { kind: 'retry' } : await this.#options.check(streamUrl(query));
+    if (generation !== this.#generation) return;
+    if (check.kind === 'signed-out') {
       this.stop();
       this.#options.onState('signed-out');
       return;
     }
-    if (generation !== this.#generation) return;
-    const delay = backoffDelay(this.#attempt);
+    const delay = Math.max(backoffDelay(this.#attempt), check.notBeforeMs ?? 0);
     this.#attempt += 1;
     this.#timer = this.#options.setTimer(() => {
       this.#timer = null;

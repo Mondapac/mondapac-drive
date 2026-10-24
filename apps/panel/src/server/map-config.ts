@@ -19,6 +19,7 @@ export interface MapConfig {
 }
 
 const MARKET_ID = /^[A-Z]{2}$/;
+const HOST_NAME = /^[a-z0-9-]+(\.[a-z0-9-]+)+$|^localhost$/;
 
 function parseOrigin(raw: string, name: string): string {
   let url: URL;
@@ -28,6 +29,11 @@ function parseOrigin(raw: string, name: string): string {
     throw new Error(`${name}: '${raw}' is not a URL`);
   }
   if (url.protocol !== 'https:') throw new Error(`${name}: '${url.origin}' must use https`);
+  // The origin goes into the CSP: a host the URL parser lets through with `;` or `*` in it would
+  // add a directive or a wildcard (security review of the live map, L1).
+  if (url.username !== '' || url.password !== '' || !HOST_NAME.test(url.hostname)) {
+    throw new Error(`${name}: '${raw}' must be a plain https host name`);
+  }
   return url.origin;
 }
 

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   backoffDelay,
+  checkStream,
   MapStream,
   streamUrl,
   type EventSourceLike,
+  type StreamCheck,
   type StreamState,
 } from './map-stream.ts';
 
@@ -26,7 +28,7 @@ class FakeSource implements EventSourceLike {
   }
 }
 
-function harness(signedIn = true) {
+function harness(check: StreamCheck = { kind: 'retry' }) {
   const sources: FakeSource[] = [];
   const timers: { run: () => void; ms: number }[] = [];
   const states: StreamState[] = [];
@@ -39,7 +41,7 @@ function harness(signedIn = true) {
       sources.push(source);
       return source;
     },
-    signedIn: () => Promise.resolve(signedIn),
+    check: () => Promise.resolve(check),
     setTimer: (run, ms) => {
       timers.push({ run, ms });
       return timers.length;
@@ -105,12 +107,20 @@ describe('map stream', () => {
   });
 
   it('stops and reports a signed-out admin instead of retrying', async () => {
-    const { stream, sources, timers, states } = harness(false);
+    const { stream, sources, timers, states } = harness({ kind: 'signed-out' });
     stream.start(query);
     sources[0]?.fail();
     await flush();
     expect(timers).toEqual([]);
     expect(states.at(-1)).toBe('signed-out');
+  });
+
+  it('waits as long as the API asks after a 429, more than the backoff', async () => {
+    const { stream, sources, timers } = harness({ kind: 'retry', notBeforeMs: 60_000 });
+    stream.start(query);
+    sources[0]?.fail();
+    await flush();
+    expect(timers.map((timer) => timer.ms)).toEqual([60_000]);
   });
 
   it('closes the old stream before opening one for a new circle, and ignores its late events', () => {
@@ -121,5 +131,45 @@ describe('map stream', () => {
     sources[0]?.emit('couriers', '{"couriers":[]}');
     expect(onCouriers).not.toHaveBeenCalled();
     expect(sources[1]?.url).toContain('radiusM=2000');
+  });
+});
+
+describe('stream check after a failure', () => {
+  const url = '/api/tracking/admin/map/stream?lat=1&lng=2&radiusM=1000&limit=50';
+  const answer = (response: Response) => {
+    const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(response));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+
+  it('reads a 401 as signed out', async () => {
+    answer(new Response(null, { status: 401 }));
+    expect(await checkStream(url)).toEqual({ kind: 'signed-out' });
+  });
+
+  it('reads the wait of a 429 from its body, capped at five minutes', async () => {
+    const body = (seconds: number) =>
+      JSON.stringify({
+        code: 'tracking.too-many-streams',
+        details: { retryAfterSeconds: seconds },
+      });
+    answer(new Response(body(60), { status: 429 }));
+    expect(await checkStream(url)).toEqual({ kind: 'retry', notBeforeMs: 60_000 });
+    answer(new Response(body(9999), { status: 429 }));
+    expect(await checkStream(url)).toEqual({ kind: 'retry', notBeforeMs: 300_000 });
+  });
+
+  it('cancels an answer that opened a stream, so the slot is freed', async () => {
+    const fetchMock = answer(
+      new Response('', { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    );
+    expect(await checkStream(url)).toEqual({ kind: 'retry' });
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it('retries when the check itself fails', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('offline')));
+    expect(await checkStream(url)).toEqual({ kind: 'retry' });
+    vi.unstubAllGlobals();
   });
 });
