@@ -13,7 +13,12 @@ import {
   showsCourierToCustomer,
   type TrackedDelivery,
 } from '../../domain/tracked-delivery';
-import { checkLinkOpen, customerView, type CustomerView } from '../../domain/tracking-link';
+import {
+  checkLinkOpen,
+  customerView,
+  mayShowCourierPosition,
+  type CustomerView,
+} from '../../domain/tracking-link';
 import { failure, type TrackingFailure } from '../failure';
 
 /** The refusals of every tracking use case, for the entry points that map them. */
@@ -66,18 +71,23 @@ export class ViewTrackingLink {
     if (hash === undefined) return refused('tracking.link-not-found');
     const found = await this.unitOfWork.run(
       market,
-      async (): Promise<Result<TrackedDelivery, string>> => {
+      async (): Promise<Result<{ delivery: TrackedDelivery; showPosition: boolean }, string>> => {
         const link = await this.tracking.findLink(market, hash);
         if (link === undefined) return err('tracking.link-not-found');
         const open = checkLinkOpen(link, this.clock.now());
         if (!open.ok) return err(open.error.code);
         const delivery = await this.tracking.findDelivery(market, link.deliveryId);
-        return delivery === undefined ? err('tracking.link-not-found') : ok(delivery);
+        if (delivery === undefined) return err('tracking.link-not-found');
+        const carried =
+          delivery.courierId === undefined
+            ? []
+            : await this.tracking.activeDeliveriesOf(market, delivery.courierId);
+        return ok({ delivery, showPosition: mayShowCourierPosition(delivery, carried) });
       },
       { readOnly: true },
     );
     if (!found.ok) return refused(found.error);
-    const delivery = found.value;
+    const { delivery, showPosition } = found.value;
 
     // The courier's position and the ETA are read only while the customer may see them.
     let courier;
@@ -93,7 +103,7 @@ export class ViewTrackingLink {
         );
       }
     }
-    const view = customerView(delivery, courier, etaSeconds);
+    const view = customerView(delivery, courier, etaSeconds, showPosition);
     return view.ok ? ok(view.value) : refused(view.error.code);
   }
 }

@@ -14,7 +14,10 @@ export interface Breadcrumb {
 export interface PurgeCutoffs {
   /** Breadcrumbs recorded before this instant. */
   readonly breadcrumbsBefore: Temporal.Instant;
-  /** Tracked deliveries that ended before this instant (their trail is gone by then). */
+  /**
+   * Tracked deliveries that ended before this instant (their trail is gone by then), and those
+   * that never ended but were last reported before it (a delivery stuck in a status).
+   */
   readonly deliveriesEndedBefore: Temporal.Instant;
   /** Tracking links that expired before this instant. */
   readonly linksExpiredBefore: Temporal.Instant;

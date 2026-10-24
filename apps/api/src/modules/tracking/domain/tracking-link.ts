@@ -69,10 +69,28 @@ export function checkLinkOpen(
   return ok(link);
 }
 
+/**
+ * Whether the customer may see the courier's position: not while the courier also carries
+ * another delivery past pickup, since the courier may then be at that other customer's door
+ * (security review of tracking, M3). The ETA is still shown.
+ */
+export function mayShowCourierPosition(
+  delivery: TrackedDelivery,
+  courierDeliveries: readonly TrackedDelivery[],
+): boolean {
+  return !courierDeliveries.some(
+    (other) =>
+      other.deliveryId !== delivery.deliveryId &&
+      other.endedAt === undefined &&
+      showsCourierToCustomer(phaseOf(other.status)),
+  );
+}
+
 export function customerView(
   delivery: TrackedDelivery,
   courier: LivePosition | undefined,
   etaSeconds: number | undefined,
+  showPosition = true,
 ): Result<CustomerView, LinkRefusal> {
   const phase: TrackingPhase = phaseOf(delivery.status);
   if (phase === 'ended' || delivery.endedAt !== undefined) return err({ code: 'tracking.ended' });
@@ -84,7 +102,7 @@ export function customerView(
   return ok({
     phase: phase as 'on_the_way' | 'arriving',
     ...(shown && etaSeconds !== undefined ? { etaSeconds } : {}),
-    ...(shown
+    ...(shown && showPosition
       ? {
           courier: {
             lat: roundCoordinate(courier.point.lat),

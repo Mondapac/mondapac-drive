@@ -4,7 +4,12 @@ import { TEST_MARKET_IDS } from '../../../../test/support/test-config';
 import { purgeCutoffs } from './breadcrumb';
 import type { LivePosition } from './live-position';
 import { startTracking, type TrackedStatus } from './tracked-delivery';
-import { checkLinkOpen, customerView, issueTrackingLink } from './tracking-link';
+import {
+  checkLinkOpen,
+  customerView,
+  issueTrackingLink,
+  mayShowCourierPosition,
+} from './tracking-link';
 
 const now = Temporal.Instant.from('2026-11-02T00:00:00Z');
 const deliveryId = '0195f000-0000-7000-8000-000000000001' as Id<'Delivery'>;
@@ -92,4 +97,18 @@ describe('customer view', () => {
       });
     },
   );
+
+  it("hides the courier's position while they also carry another delivery past pickup", () => {
+    const mine = delivery('PICKED_UP');
+    const otherId = '0195f000-0000-7000-8000-000000000002' as Id<'Delivery'>;
+    const another = { ...delivery('AT_DROPOFF'), deliveryId: otherId };
+    const notYetPicked = { ...delivery('ASSIGNED'), deliveryId: otherId };
+    expect(mayShowCourierPosition(mine, [mine])).toBe(true);
+    expect(mayShowCourierPosition(mine, [mine, notYetPicked])).toBe(true);
+    expect(mayShowCourierPosition(mine, [mine, another])).toBe(false);
+    expect(customerView(mine, courier, 600, false)).toEqual({
+      ok: true,
+      value: { phase: 'on_the_way', etaSeconds: 600 },
+    });
+  });
 });

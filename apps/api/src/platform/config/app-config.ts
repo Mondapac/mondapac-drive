@@ -166,7 +166,8 @@ export function loadAppConfig(env: Record<string, string | undefined>): AppConfi
   if (
     parsed.success &&
     parsed.data.NODE_ENV === 'production' &&
-    parsed.data.REDIS_URL?.startsWith('redis://') === true
+    parsed.data.REDIS_URL !== undefined &&
+    new URL(parsed.data.REDIS_URL).protocol !== 'rediss:'
   ) {
     issues.push('REDIS_URL: must be a rediss:// (TLS) URL in production');
   }

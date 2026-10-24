@@ -167,6 +167,46 @@ describe.each(TEST_MARKETS)('tracking use cases in market %s', (code) => {
     });
   });
 
+  it('hides the courier from a customer while another customer is being served', async () => {
+    const s = setup();
+    const secondId = '0195f000-0000-7000-8000-000000000002' as Id<'Delivery'>;
+    await s.track.perform(market, {
+      deliveryId,
+      status: 'PICKED_UP',
+      courierId: 'c-1',
+      vehicle,
+      pickup,
+      dropoff,
+    });
+    await s.track.perform(market, {
+      deliveryId: secondId,
+      status: 'AT_DROPOFF',
+      courierId: 'c-1',
+      vehicle,
+      pickup,
+      dropoff,
+    });
+    const link = await s.issue.perform(market, deliveryId);
+    if (!link.ok) throw new Error(link.error.code);
+    await ping(s, 'c-1', -27.47);
+    const view = await s.view.perform(market, link.value.token);
+    expect(view).toMatchObject({ ok: true, value: { phase: 'on_the_way' } });
+    expect(view.ok && 'courier' in view.value).toBe(false);
+
+    await s.track.perform(market, {
+      deliveryId: secondId,
+      status: 'DELIVERED',
+      courierId: 'c-1',
+      vehicle,
+      pickup,
+      dropoff,
+    });
+    expect(await s.view.perform(market, link.value.token)).toMatchObject({
+      ok: true,
+      value: { courier: { lat: -27.47 } },
+    });
+  });
+
   it('closes the link and the trail once the delivery is delivered', async () => {
     const s = setup();
     await s.track.perform(market, {
@@ -251,5 +291,13 @@ describe.each(TEST_MARKETS)('tracking use cases in market %s', (code) => {
     s.clock.advance(Temporal.Duration.from({ hours: 1 }));
     expect(await s.purge.perform(market)).toMatchObject({ breadcrumbs: 1 });
     expect(await s.repository.trailOf(market, deliveryId, 10)).toHaveLength(1);
+  });
+
+  it('purges a delivery stuck in a status once it has not been reported for the retention', async () => {
+    const s = setup();
+    await s.track.perform(market, { deliveryId, status: 'DISPATCHING', pickup, dropoff });
+    s.clock.advance(Temporal.Duration.from({ hours: settings.breadcrumbRetentionDays * 24 + 1 }));
+    expect(await s.purge.perform(market)).toMatchObject({ deliveries: 1 });
+    expect(await s.repository.findDelivery(market, deliveryId)).toBeUndefined();
   });
 });

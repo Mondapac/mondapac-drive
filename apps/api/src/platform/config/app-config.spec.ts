@@ -43,6 +43,9 @@ describe('loadAppConfig', () => {
     } catch (error) {
       expect(String(error)).not.toContain('pw1');
     }
+    expect(() => loadAppConfig({ ...plain, REDIS_URL: 'REDIS://:pw1@cache:6379' })).toThrow(
+      /REDIS_URL: must be a rediss:\/\/ \(TLS\) URL/,
+    );
     expect(loadAppConfig({ ...plain, REDIS_URL: 'rediss://:pw1@cache:6379' }).redisUrl).toBe(
       'rediss://:pw1@cache:6379',
     );

@@ -215,10 +215,14 @@ export class PrismaTrackingRepository implements TrackingRepository {
             })
           ).count;
 
+    const retention = toDate(cutoffs.deliveriesEndedBefore);
     const ended = await tx.trackingDelivery.findMany({
-      where: { ...scope, endedAt: { lt: toDate(cutoffs.deliveriesEndedBefore) } },
+      where: {
+        ...scope,
+        OR: [{ endedAt: { lt: retention } }, { endedAt: null, updatedAt: { lt: retention } }],
+      },
       select: { deliveryId: true },
-      orderBy: { endedAt: 'asc' },
+      orderBy: { updatedAt: 'asc' },
       take: batch,
     });
     const deliveries =

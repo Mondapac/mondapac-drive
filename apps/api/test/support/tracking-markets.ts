@@ -115,8 +115,7 @@ export class InMemoryTrackingRepository implements TrackingRepository {
     for (const [k, d] of this.deliveries) {
       if (
         k.startsWith(`${market.marketId}:`) &&
-        d.endedAt &&
-        before(d.endedAt, cutoffs.deliveriesEndedBefore)
+        before(d.endedAt ?? d.updatedAt, cutoffs.deliveriesEndedBefore)
       ) {
         this.deliveries.delete(k);
         deliveries += 1;
