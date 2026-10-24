@@ -1,5 +1,6 @@
 import { err, ok } from '@mondapac-drive/shared-kernel';
 import type { CallContext, Clock, Id, MarketContext, Result } from '@mondapac-drive/shared-kernel';
+import type { OutboxWriter } from '../../../platform/events/outbox-writer';
 import type { UnitOfWork } from '../../../platform/unit-of-work/unit-of-work';
 import {
   applyDeliveryEvent,
@@ -7,6 +8,7 @@ import {
   type DeliveryState,
 } from '../domain/delivery';
 import type { DeliveryEventType } from '../domain/delivery-status';
+import { changeEvents } from '../domain/events/delivery-events';
 import { refusingBrokenRules, type DeliveryFailure } from './failure';
 import type { DeliveryRepository, MarketSettingsProvider } from './ports';
 
@@ -16,6 +18,8 @@ export interface DeliveryAccessDependencies {
   readonly markets: MarketSettingsProvider;
   readonly unitOfWork: UnitOfWork;
   readonly clock: Clock;
+  /** The delivery module's own outbox: every change writes its events in the same unit. */
+  readonly outbox: OutboxWriter;
 }
 
 /** Who may see or change a delivery: a test on the stored delivery, by the caller's actor. */
@@ -72,13 +76,29 @@ export function readDelivery(
 }
 
 /**
+ * Saves `next` over `delivery` and writes the events of the change into the delivery outbox,
+ * inside the caller's open read-write unit: the state and its events commit together or not at
+ * all.
+ */
+export async function saveChange(
+  deps: Pick<DeliveryAccessDependencies, 'deliveries' | 'outbox'>,
+  context: CallContext,
+  delivery: DeliveryState,
+  next: DeliveryState,
+  causedBy?: Id,
+): Promise<void> {
+  await deps.deliveries.update(context.market, next, delivery.version);
+  await deps.outbox.append(context, changeEvents(delivery, next), causedBy);
+}
+
+/**
  * Records an event on one delivery in one unit: the delivery read, refused as not found outside
  * `scope`, the event type refused unless it is one of `types` (the caller's population's own
- * events), then the domain's transition and the save at the version read.
+ * events), then the domain's transition, the save at the version read and its outbox event.
  */
 export function recordEvent(
   deps: DeliveryAccessDependencies,
-  market: MarketContext,
+  context: CallContext,
   id: Id<'Delivery'>,
   event: DeliveryEventInput,
   scope: DeliveryScope,
@@ -89,13 +109,14 @@ export function recordEvent(
       err({ code: 'delivery.event-not-allowed', message: `You cannot record ${event.type}` }),
     );
   }
+  const { market } = context;
   const settings = deps.markets.get(market.marketId);
   return deps.unitOfWork.run(market, () =>
     refusingBrokenRules(async () => {
       const delivery = await deps.deliveries.findById(market, id);
       if (delivery === undefined || !scope(delivery)) return err(notFound(id));
       const next = applyDeliveryEvent(delivery, event, deps.clock.now(), settings);
-      await deps.deliveries.update(market, next);
+      await saveChange(deps, context, delivery, next);
       return ok(next);
     }),
   );

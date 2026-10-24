@@ -3,6 +3,10 @@ import { IdentityModule } from '../identity';
 import type { Clock, IdGenerator } from '@mondapac-drive/shared-kernel';
 import { registerPermissions, USE_CASE_GATE, type UseCaseGate } from '../../platform/authz';
 import { CLOCK } from '../../platform/clock/clock.module';
+import { registerEvents } from '../../platform/events/event-catalogue';
+import { registerSubscriptionsFrom } from '../../platform/events/event-subscriptions';
+import { OUTBOX_WRITER, type OutboxWriter } from '../../platform/events/outbox-writer';
+import { PersistenceModule } from '../../platform/persistence/persistence.module';
 import { ID_GENERATOR } from '../../platform/ids/ids.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import type { DeliveryAccessDependencies } from './application/deliveries';
@@ -30,15 +34,25 @@ import {
   ReportAssignmentEvent,
   ViewAssignment,
 } from './application/use-cases/courier-deliveries.use-case';
+import {
+  RecordDispatchAssignment,
+  RecordDispatchExhausted,
+} from './application/use-cases/dispatch-link.use-case';
 import { CancelBooking, ViewBooking } from './application/use-cases/merchant-deliveries.use-case';
 import { QuoteDelivery } from './application/use-cases/quote-delivery.use-case';
+import {
+  DeliveryDispatchView,
+  DeliveryRecipients,
+} from './application/use-cases/system-reads.use-case';
 import { DELIVERY_PERMISSIONS } from './contracts/permissions';
+import { DELIVERY_EVENTS } from './domain/events/delivery-events';
 import { deliveryProviders } from './infrastructure/delivery-providers';
 import {
   AdminDeliveryController,
   CourierDeliveryController,
   MerchantDeliveryController,
 } from './presentation/delivery.controller';
+import { dispatchSubscriptions } from './presentation/subscribers/dispatch.subscriptions';
 
 const pricingProvider: FactoryProvider<DeliveryPricing> = {
   provide: DeliveryPricing,
@@ -57,14 +71,22 @@ function deliveryUseCase<U>(
 ): FactoryProvider<U> {
   return {
     provide: type,
-    inject: [USE_CASE_GATE, DELIVERY_REPOSITORY, MARKET_SETTINGS, UNIT_OF_WORK, CLOCK],
+    inject: [
+      USE_CASE_GATE,
+      DELIVERY_REPOSITORY,
+      MARKET_SETTINGS,
+      UNIT_OF_WORK,
+      CLOCK,
+      OUTBOX_WRITER,
+    ],
     useFactory: (
       gate: UseCaseGate,
       deliveries: DeliveryRepository,
       markets: MarketSettingsProvider,
       unitOfWork: UnitOfWork,
       clock: Clock,
-    ) => new type(gate, { deliveries, markets, unitOfWork, clock }),
+      outbox: OutboxWriter,
+    ) => new type(gate, { deliveries, markets, unitOfWork, clock, outbox }),
   };
 }
 
@@ -73,7 +95,10 @@ function deliveryUseCase<U>(
  * and proof of delivery. Deliveries are stored in PostgreSQL through the platform's unit of work.
  * Every entry goes through a use case behind the UseCaseGate: merchants (API keys) quote, book,
  * read and cancel their own deliveries; couriers read and report on their own assignments;
- * operators and dispatchers read, dispatch and cancel any delivery of the Market.
+ * operators and dispatchers read, dispatch and cancel any delivery of the Market. Every change
+ * writes its `delivery.*` event into the delivery outbox in the same unit; dispatch's assignments
+ * and exhausted jobs come back through the subscriptions; dispatch and notifications read a
+ * delivery through the `system` reads exported below.
  */
 @Module({
   imports: [IdentityModule],
@@ -97,6 +122,7 @@ function deliveryUseCase<U>(
         UNIT_OF_WORK,
         ID_GENERATOR,
         CLOCK,
+        OUTBOX_WRITER,
       ],
       useFactory: (
         gate: UseCaseGate,
@@ -105,7 +131,8 @@ function deliveryUseCase<U>(
         unitOfWork: UnitOfWork,
         ids: IdGenerator,
         clock: Clock,
-      ) => new BookDelivery(gate, { pricing, deliveries, unitOfWork, ids, clock }),
+        outbox: OutboxWriter,
+      ) => new BookDelivery(gate, { pricing, deliveries, unitOfWork, ids, clock, outbox }),
     },
     deliveryUseCase(ViewBooking),
     deliveryUseCase(CancelBooking),
@@ -121,6 +148,7 @@ function deliveryUseCase<U>(
         MARKET_SETTINGS,
         UNIT_OF_WORK,
         CLOCK,
+        OUTBOX_WRITER,
         COURIER_ACCOUNTS,
       ],
       useFactory: (
@@ -129,10 +157,24 @@ function deliveryUseCase<U>(
         markets: MarketSettingsProvider,
         unitOfWork: UnitOfWork,
         clock: Clock,
+        outbox: OutboxWriter,
         couriers: CourierAccounts,
-      ) => new DispatchDelivery(gate, { deliveries, markets, unitOfWork, clock, couriers }),
+      ) => new DispatchDelivery(gate, { deliveries, markets, unitOfWork, clock, outbox, couriers }),
     },
     deliveryUseCase(CancelDelivery),
+    deliveryUseCase(RecordDispatchAssignment),
+    deliveryUseCase(RecordDispatchExhausted),
+    deliveryUseCase(DeliveryDispatchView),
+    deliveryUseCase(DeliveryRecipients),
+    PersistenceModule.outboxWriterFor('delivery'),
+    registerEvents('delivery', DELIVERY_EVENTS),
+    registerSubscriptionsFrom(
+      'delivery',
+      [RecordDispatchAssignment, RecordDispatchExhausted],
+      (assignment: RecordDispatchAssignment, exhausted: RecordDispatchExhausted) =>
+        dispatchSubscriptions(assignment, exhausted),
+    ),
   ],
+  exports: [DeliveryDispatchView, DeliveryRecipients],
 })
 export class DeliveryModule {}
