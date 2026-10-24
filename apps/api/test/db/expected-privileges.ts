@@ -41,7 +41,10 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     delivery: ['USAGE'],
     dispatch: ['USAGE'],
     notifications: ['USAGE'],
+    payouts: ['USAGE'],
     platform: ['USAGE'],
+    tracking: ['USAGE'],
+    fleet: ['USAGE'],
   },
   tables: {
     'platform.audit_log': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
@@ -102,6 +105,14 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'dispatch.offers': { table: ['INSERT', 'SELECT'], columnUpdate: ['answered_at', 'status'] },
     'dispatch.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'dispatch.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The tracking module (20261025060000): only the status, courier and end of a tracked
+    // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
+    'tracking.tracked_deliveries': {
+      table: ['DELETE', 'INSERT', 'SELECT'],
+      columnUpdate: ['courier_id', 'ended_at', 'status', 'updated_at', 'vehicle', 'version'],
+    },
+    'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and
     // the status and secret version of a subscription change.
     'notifications.webhook_subscriptions': {
@@ -132,6 +143,42 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
         'status',
       ],
     },
+    // The fleet module (20261025050000): no row is deleted; a courier changes its standing, shift
+    // and the terms an operator confirms, a vehicle its active flag, a document its review and
+    // the expiry the operator confirmed; the outbox envelope is immutable.
+    'fleet.couriers': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['cold_chain_capable', 'employment_type', 'shift', 'status', 'version'],
+    },
+    'fleet.vehicles': { table: ['INSERT', 'SELECT'], columnUpdate: ['active'] },
+    'fleet.documents': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
+    },
+    'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    // The payouts module (20261025100000): the ledger, delivery records, runs and handled
+    // provider events are append-only; a line changes only its transfer state, an account only
+    // whether it can be paid out.
+    'payouts.ledger_entries': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.courier_deliveries': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.payout_runs': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.payout_lines': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'last_error_code',
+        'reversed_amount',
+        'status',
+        'transfer_id',
+        'updated_at',
+        'version',
+      ],
+    },
+    'payouts.payout_accounts': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['payouts_enabled', 'updated_at'],
+    },
+    'payouts.provider_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

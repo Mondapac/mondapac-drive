@@ -43,12 +43,27 @@ function contentLengthOf(headers: SerializedRequest['headers']): number | undefi
   return Number(value);
 }
 
+/**
+ * Path segments that are credentials themselves (security review of tracking, M1): each is
+ * logged as its route parameter, never its value.
+ */
+const CREDENTIAL_SEGMENTS: readonly [RegExp, string][] = [
+  [/^\/tracking\/links\/[^/]+/, '/tracking/links/:token'],
+];
+
+function redactPath(path: string): string {
+  for (const [pattern, replacement] of CREDENTIAL_SEGMENTS) {
+    if (pattern.test(path)) return path.replace(pattern, replacement);
+  }
+  return path;
+}
+
 function serializeRequest(req: SerializedRequest): LoggedRequest {
   const contentLength = contentLengthOf(req.headers);
   return {
     method: req.method,
     // Path only: query strings can carry tokens (password reset, verification).
-    url: req.url.split('?', 1)[0]!,
+    url: redactPath(req.url.split('?', 1)[0]!),
     ...(contentLength === undefined ? {} : { contentLength }),
   };
 }

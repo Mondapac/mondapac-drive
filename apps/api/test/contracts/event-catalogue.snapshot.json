@@ -64,5 +64,28 @@
       "deliveryId": "id",
       "courierId": "id"
     }
+  },
+  {
+    "type": "fleet.courier-suspended.v1",
+    "aggregateType": "courier",
+    "fields": {
+      "courierId": "id",
+      "wasOnline": "boolean"
+    }
+  },
+  {
+    "type": "fleet.courier-went-offline.v1",
+    "aggregateType": "courier",
+    "fields": {
+      "courierId": "id",
+      "cause": "enumOf(courier|offboarded)"
+    }
+  },
+  {
+    "type": "fleet.courier-went-online.v1",
+    "aggregateType": "courier",
+    "fields": {
+      "courierId": "id"
+    }
   }
 ]

@@ -111,5 +111,94 @@
         "failed": "ZZ failed {reference}"
       }
     }
+  },
+  "fleet": {
+    "documents": [
+      {
+        "type": "business_number",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driving_permit",
+        "vehicleTypes": ["motorbike", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_inspection",
+        "vehicleTypes": ["van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "cold_chain_training",
+        "coldChainOnly": true,
+        "perVehicle": false,
+        "expires": true
+      }
+    ]
+  },
+  "payouts": {
+    "earnings": {
+      "vehicles": {
+        "motorbike": {
+          "perDelivery": 400,
+          "perKm": 80
+        },
+        "van": {
+          "perDelivery": 1500,
+          "perKm": 150
+        }
+      },
+      "coldChainBonus": {
+        "ambient": 0,
+        "chilled": 120,
+        "frozen": 200
+      },
+      "waiting": {
+        "freeMinutes": 3,
+        "perMinute": 20,
+        "maxPaidMinutes": 20
+      }
+    },
+    "schedule": {
+      "cadence": "daily",
+      "weekday": 1,
+      "time": "23:30"
+    },
+    "minimumPayout": 0,
+    "tax": {
+      "rateBps": 1500,
+      "onTips": true,
+      "businessIdRequired": false
+    },
+    "provider": {
+      "accountCountry": "JP",
+      "onboardingReturnUrl": "https://drive.example.test/zz/payouts/return",
+      "onboardingRefreshUrl": "https://drive.example.test/zz/payouts/refresh"
+    }
+  },
+  "tracking": {
+    "ping": {
+      "maxAgeSeconds": 60,
+      "maxFutureSkewSeconds": 10,
+      "minIntervalSeconds": 5,
+      "maxAccuracyMetres": 200,
+      "maxSpeedKmh": 120
+    },
+    "livePositionTtlSeconds": 120,
+    "breadcrumbRetentionDays": 7,
+    "trackingLinkTtlHours": 6,
+    "streamIntervalSeconds": 3,
+    "nearestCouriers": {
+      "maxRadiusMetres": 8000,
+      "maxResults": 20
+    },
+    "etaRefreshSeconds": 30
   }
 }

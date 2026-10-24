@@ -28,7 +28,103 @@ describe('loadAppConfig', () => {
       objectStoreDir: null,
       clientAddressTrust: null,
       redisUrl: null,
+      paymentProvider: null,
     });
+  });
+
+  describe('the payment provider of courier payouts', () => {
+    const KEY = 'sk_test_0123456789abcdef';
+    const HOOK = 'whsec_0123456789abcdef';
+
+    it('is off when both variables are unset or empty', () => {
+      expect(loadAppConfig({ HOSTED_MARKETS: 'AU' }).paymentProvider).toBeNull();
+      expect(
+        loadAppConfig({ HOSTED_MARKETS: 'AU', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRETS: ' ' })
+          .paymentProvider,
+      ).toBeNull();
+    });
+
+    it('parses the key and every webhook secret, and prints neither', () => {
+      const provider = loadAppConfig({
+        HOSTED_MARKETS: 'AU',
+        STRIPE_SECRET_KEY: KEY,
+        STRIPE_WEBHOOK_SECRETS: `${HOOK}, whsec_fedcba9876543210`,
+      }).paymentProvider;
+
+      expect(provider?.secretKey.reveal()).toBe(KEY);
+      expect(provider?.webhookSecrets).toHaveLength(2);
+      expect(JSON.stringify(provider)).not.toContain('0123456789');
+      expect(String(provider?.secretKey)).toBe('[secret]');
+    });
+
+    it.each([
+      ['a key without webhook secrets', { STRIPE_SECRET_KEY: KEY }],
+      ['webhook secrets without a key', { STRIPE_WEBHOOK_SECRETS: HOOK }],
+      [
+        'a malformed key',
+        { STRIPE_SECRET_KEY: 'pk_test_0123456789abcdef', STRIPE_WEBHOOK_SECRETS: HOOK },
+      ],
+      [
+        'a live key outside production',
+        { STRIPE_SECRET_KEY: 'sk_live_0123456789abcdef', STRIPE_WEBHOOK_SECRETS: HOOK },
+      ],
+    ])('refuses to start on %s, without echoing a value', (_label, env) => {
+      let error: unknown;
+      try {
+        loadAppConfig({ HOSTED_MARKETS: 'AU', ...env });
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(InvalidConfigError);
+      expect(String(error)).not.toContain('0123456789');
+    });
+
+    it('accepts a live key in production', () => {
+      const provider = loadAppConfig({
+        HOSTED_MARKETS: 'AU',
+        NODE_ENV: 'production',
+        STRIPE_SECRET_KEY: 'sk_live_0123456789abcdef',
+        STRIPE_WEBHOOK_SECRETS: HOOK,
+      }).paymentProvider;
+      expect(provider).not.toBeNull();
+    });
+  });
+
+  it('requires TLS to Redis in production, and never prints the URL', () => {
+    const plain = {
+      HOSTED_MARKETS: 'AU',
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://:pw1@cache:6379',
+    };
+    expect(() => loadAppConfig(plain)).toThrow(/REDIS_URL: must be a rediss:\/\/ \(TLS\) URL/);
+    try {
+      loadAppConfig(plain);
+    } catch (error) {
+      expect(String(error)).not.toContain('pw1');
+    }
+    expect(() => loadAppConfig({ ...plain, REDIS_URL: 'REDIS://:pw1@cache:6379' })).toThrow(
+      /REDIS_URL: must be a rediss:\/\/ \(TLS\) URL/,
+    );
+    expect(loadAppConfig({ ...plain, REDIS_URL: 'rediss://:pw1@cache:6379' }).redisUrl).toBe(
+      'rediss://:pw1@cache:6379',
+    );
+    expect(loadAppConfig({ ...plain, NODE_ENV: 'development' }).redisUrl).toBe(
+      'redis://:pw1@cache:6379',
+    );
+  });
+
+  it('takes Redis from REDIS_URL and refuses another scheme without echoing it', () => {
+    expect(
+      loadAppConfig({ HOSTED_MARKETS: 'AU', REDIS_URL: 'redis://localhost:6380' }).redisUrl,
+    ).toBe('redis://localhost:6380');
+    expect(() =>
+      loadAppConfig({ HOSTED_MARKETS: 'AU', REDIS_URL: 'http://user:s3cret@cache:6379' }),
+    ).toThrow(/REDIS_URL: must be a redis:\/\/ or rediss:\/\/ URL/);
+    try {
+      loadAppConfig({ HOSTED_MARKETS: 'AU', REDIS_URL: 'http://user:s3cret@cache:6379' });
+    } catch (error) {
+      expect(String(error)).not.toContain('s3cret');
+    }
   });
 
   describe('the BFF client address (ADR-0037)', () => {
