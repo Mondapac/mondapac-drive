@@ -23,6 +23,7 @@ it('signs in with email and password and keeps the session', async () => {
 it('says when the credentials are wrong and clears the password', async () => {
   const harness = await createHarness();
   await harness.storage.clear();
+  const signOut = jest.spyOn(harness.api, 'signOut');
   await renderWith(harness, <SignInScreen />);
 
   await fireEvent.changeText(screen.getByLabelText(EMAIL), 'courier@example.test');
@@ -32,4 +33,7 @@ it('says when the credentials are wrong and clears the password', async () => {
   await screen.findByText('The email or password is not right.');
   expect(screen.getByLabelText(PASSWORD).props.value).toBe('');
   expect(harness.stored()).toBeNull();
+  // A refused sign-in is not a rejected session: nothing to sign out of.
+  expect(signOut).not.toHaveBeenCalled();
+  expect(harness.tracking.stop).not.toHaveBeenCalled();
 });
