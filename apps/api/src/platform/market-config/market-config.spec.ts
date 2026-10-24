@@ -77,6 +77,23 @@ const FLEET = {
   ],
 };
 
+/** A complete `payouts` section (its own rules: payouts-config.spec.ts). */
+const PAYOUTS = {
+  earnings: {
+    vehicles: { car: { perDelivery: 700, perKm: 100 } },
+    coldChainBonus: { ambient: 0, chilled: 100, frozen: 200 },
+    waiting: { freeMinutes: 5, perMinute: 20, maxPaidMinutes: 30 },
+  },
+  schedule: { cadence: 'weekly', weekday: 1, time: '03:00' },
+  minimumPayout: 1000,
+  tax: { rateBps: 1500, onTips: false, businessIdRequired: false },
+  provider: {
+    accountCountry: 'NZ',
+    onboardingReturnUrl: 'https://drive.example.test/return',
+    onboardingRefreshUrl: 'https://drive.example.test/refresh',
+  },
+};
+
 const VALID = {
   code: 'QQ',
   status: 'active',
@@ -92,6 +109,7 @@ const VALID = {
   tracking: TRACKING,
   notifications: NOTIFICATIONS,
   fleet: FLEET,
+  payouts: PAYOUTS,
 };
 
 function directoryWith(files: Record<string, unknown>): string {

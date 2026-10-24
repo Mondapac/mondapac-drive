@@ -3,6 +3,13 @@
 import { DeliveryModule } from './delivery';
 import { NotificationsModule } from './notifications';
 import { FleetModule } from './fleet';
+import { PayoutsModule } from './payouts';
 import { TrackingModule } from './tracking';
 
-export const CORE_MODULES = [DeliveryModule, NotificationsModule, FleetModule, TrackingModule];
+export const CORE_MODULES = [
+  DeliveryModule,
+  NotificationsModule,
+  FleetModule,
+  PayoutsModule,
+  TrackingModule,
+];

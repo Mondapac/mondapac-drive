@@ -40,6 +40,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     extensions: [],
     delivery: ['USAGE'],
     notifications: ['USAGE'],
+    payouts: ['USAGE'],
     platform: ['USAGE'],
     tracking: ['USAGE'],
     fleet: ['USAGE'],
@@ -135,6 +136,29 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
     },
     'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    // The payouts module (20261025100000): the ledger, delivery records, runs and handled
+    // provider events are append-only; a line changes only its transfer state, an account only
+    // whether it can be paid out.
+    'payouts.ledger_entries': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.courier_deliveries': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.payout_runs': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    'payouts.payout_lines': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'last_error_code',
+        'reversed_amount',
+        'status',
+        'transfer_id',
+        'updated_at',
+        'version',
+      ],
+    },
+    'payouts.payout_accounts': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['payouts_enabled', 'updated_at'],
+    },
+    'payouts.provider_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

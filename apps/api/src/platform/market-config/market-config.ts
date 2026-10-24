@@ -5,6 +5,7 @@ import type { MarketId } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
 import { routingConfigSchema } from '../routing/routing-config';
 import { notificationsSchema } from './notifications-section';
+import { payoutsSchema } from './payouts-config';
 
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
 const TIME_ZONES = new Set(Intl.supportedValuesOf('timeZone'));
@@ -172,6 +173,8 @@ const marketSchema = z
     tracking: trackingSchema,
     notifications: notificationsSchema,
     fleet: fleetSchema,
+    /** Courier earnings and payouts (payouts-config.ts). */
+    payouts: payoutsSchema,
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',

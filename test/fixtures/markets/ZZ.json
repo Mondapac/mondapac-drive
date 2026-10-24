@@ -135,6 +135,46 @@
       }
     ]
   },
+  "payouts": {
+    "earnings": {
+      "vehicles": {
+        "motorbike": {
+          "perDelivery": 400,
+          "perKm": 80
+        },
+        "van": {
+          "perDelivery": 1500,
+          "perKm": 150
+        }
+      },
+      "coldChainBonus": {
+        "ambient": 0,
+        "chilled": 120,
+        "frozen": 200
+      },
+      "waiting": {
+        "freeMinutes": 3,
+        "perMinute": 20,
+        "maxPaidMinutes": 20
+      }
+    },
+    "schedule": {
+      "cadence": "daily",
+      "weekday": 1,
+      "time": "23:30"
+    },
+    "minimumPayout": 0,
+    "tax": {
+      "rateBps": 1500,
+      "onTips": true,
+      "businessIdRequired": false
+    },
+    "provider": {
+      "accountCountry": "JP",
+      "onboardingReturnUrl": "https://drive.example.test/zz/payouts/return",
+      "onboardingRefreshUrl": "https://drive.example.test/zz/payouts/refresh"
+    }
+  },
   "tracking": {
     "ping": {
       "maxAgeSeconds": 60,
