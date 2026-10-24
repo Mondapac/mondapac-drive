@@ -79,6 +79,19 @@ describe('dispatch API (database integration)', () => {
     }
   }
 
+  /**
+   * Handles events until `settled` holds. Other spec files run their own relay and dispatcher on
+   * the same database at the same time, and may hold a claim on one of this spec's events while
+   * this one already finds nothing to do.
+   */
+  async function handleUntil(settled: () => Promise<boolean>): Promise<void> {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await handleAll();
+      if (await settled()) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
   describe.each(TEST_MARKETS)('in market %s', (code) => {
     const market = marketOf(code);
     let dispatcher: AdminActor;
@@ -316,13 +329,23 @@ describe('dispatch API (database integration)', () => {
           mode: 'on_demand',
         });
         expect(created.status).toBe(201);
-        await handleAll();
-        return (created.body as { id: string }).id;
+        const { id } = created.body as { id: string };
+        await handleUntil(async () => (await jobRow(id)) !== undefined);
+        return id;
       }
+
+      const deliveryStatus = async (deliveryId: string) => {
+        const { rows } = await sql.query<{ status: string }>(
+          'SELECT status FROM delivery.deliveries WHERE market_id = $1 AND id = $2',
+          [code, deliveryId],
+        );
+        return rows[0]?.status;
+      };
+      const jobStatus = async (deliveryId: string) => (await jobRow(deliveryId))?.status;
 
       // Read from the table, not the route: the routes are covered above, and the rate limit
       // of one test client would otherwise be reached in the second Market.
-      const jobOf = async (deliveryId: string) => {
+      const jobRow = async (deliveryId: string) => {
         const { rows } = await sql.query<{
           status: string;
           assigned_courier_id: string | null;
@@ -333,8 +356,12 @@ describe('dispatch API (database integration)', () => {
              FROM dispatch.jobs WHERE market_id = $1 AND delivery_id = $2`,
           [code, deliveryId],
         );
-        expect(rows).toHaveLength(1);
-        return rows[0]!;
+        return rows[0];
+      };
+      const jobOf = async (deliveryId: string) => {
+        const row = await jobRow(deliveryId);
+        expect(row).toBeDefined();
+        return row!;
       };
 
       it('opens a job from the booking, keeps the delivery in step, and stops on a cancel', async () => {
@@ -352,7 +379,7 @@ describe('dispatch API (database integration)', () => {
           { courierId: courier.accountId, vehicle: 'van' },
         );
         expect(assigned.status).toBe(200);
-        await handleAll();
+        await handleUntil(async () => (await deliveryStatus(deliveryId)) === 'ASSIGNED');
         const { rows: delivered } = await sql.query<{ status: string; courier_id: string }>(
           'SELECT status, courier_id FROM delivery.deliveries WHERE market_id = $1 AND id = $2',
           [code, deliveryId],
@@ -367,7 +394,7 @@ describe('dispatch API (database integration)', () => {
           { type: 'courier_unassigned', reason: 'courier unwell' },
         );
         expect(unassigned.status).toBe(200);
-        await handleAll();
+        await handleUntil(async () => (await jobRow(deliveryId))?.assigned_courier_id === null);
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'OFFERING',
           assigned_courier_id: null,
@@ -381,7 +408,7 @@ describe('dispatch API (database integration)', () => {
           { reason: 'order refunded' },
         );
         expect(cancelled.status).toBe(200);
-        await handleAll();
+        await handleUntil(async () => (await jobStatus(deliveryId)) === 'CANCELLED');
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'CANCELLED',
           dropoff_address: null,
@@ -397,7 +424,7 @@ describe('dispatch API (database integration)', () => {
             vehicle: 'van',
           });
         expect((await assign(courier)).status).toBe(200);
-        await handleAll();
+        await handleUntil(async () => (await deliveryStatus(deliveryId)) === 'ASSIGNED');
 
         for (const type of ['arrived_at_pickup', 'picked_up']) {
           const reported = await post(
@@ -408,7 +435,7 @@ describe('dispatch API (database integration)', () => {
           );
           expect(reported.status).toBe(200);
         }
-        await handleAll();
+        await handleUntil(async () => (await jobStatus(deliveryId)) === 'COLLECTED');
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'COLLECTED',
           assigned_courier_id: courier.accountId,

@@ -12,7 +12,7 @@ import {
 import { DeliveryDispatchView } from '../../delivery';
 import { FleetDirectory } from '../../fleet';
 import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
-import { CourierPositions } from '../../tracking';
+import { CourierPositions } from '../../tracking/contracts/courier-positions.contract';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
 import { DeliveryDispatchFacts } from './delivery-dispatch-facts';
 import { FleetCourierAvailability } from './fleet-courier-availability';

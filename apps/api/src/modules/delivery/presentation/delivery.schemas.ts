@@ -81,9 +81,14 @@ export const createDeliveryBody = z.strictObject({
   ...shared,
 });
 
+/**
+ * The proof the courier offers: the PIN the recipient reads out (the server compares it), or the
+ * `photoRef` of a proof photo uploaded for this delivery. Any digit string of 1 to 12 is let
+ * through, so a PIN of the wrong length counts as a wrong attempt rather than a 400.
+ */
 const proof = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('pin'), pinMatched: z.literal(true) }),
-  z.strictObject({ kind: z.literal('photo'), photoRef: plainText(z.string().min(1).max(300)) }),
+  z.strictObject({ kind: z.literal('pin'), pin: z.string().regex(/^[0-9]{1,12}$/) }),
+  z.strictObject({ kind: z.literal('photo'), photoRef: z.uuid() }),
 ]);
 
 const reason = plainText(z.string().max(500));

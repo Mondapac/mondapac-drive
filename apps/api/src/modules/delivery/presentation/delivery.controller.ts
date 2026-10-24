@@ -8,7 +8,11 @@ import {
   Post,
   Query,
   Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   parseId,
@@ -40,6 +44,10 @@ import {
 } from '../application/use-cases/courier-deliveries.use-case';
 import { CancelBooking, ViewBooking } from '../application/use-cases/merchant-deliveries.use-case';
 import {
+  MAX_PROOF_PHOTO_BYTES,
+  UploadProofPhoto,
+} from '../application/use-cases/upload-proof-photo.use-case';
+import {
   QuoteDelivery,
   type DeliveryFailure,
 } from '../application/use-cases/quote-delivery.use-case';
@@ -53,6 +61,7 @@ import {
   dispatchBody,
   quoteBody,
 } from './delivery.schemas';
+import { BearerSessionRequiredGuard } from './bearer-session-required.guard';
 
 /** The status of each refusal; any other code is a broken domain rule (422). */
 const STATUS: Readonly<Record<string, number>> = Object.freeze({
@@ -61,6 +70,12 @@ const STATUS: Readonly<Record<string, number>> = Object.freeze({
   'delivery.event-not-allowed': 403,
   'quote.price-changed': 409,
   'address.geocoding-unavailable': 503,
+  'delivery.pin-wrong': 422,
+  'delivery.pin-locked': 423,
+  'proof-photo.too-large': 413,
+  'proof-photo.unsupported-type': 415,
+  'proof-photo.limit-reached': 409,
+  'proof-photo.storage-unavailable': 503,
   ...ACCESS_DENIED_STATUS,
 });
 
@@ -271,6 +286,7 @@ export class CourierDeliveryController {
   constructor(
     private readonly viewAssignment: ViewAssignment,
     private readonly reportEvent: ReportAssignmentEvent,
+    private readonly uploadProofPhoto: UploadProofPhoto,
   ) {}
 
   @Get('deliveries/:id')
@@ -295,6 +311,39 @@ export class CourierDeliveryController {
     const report = parsed(() => courierReportBody.parse(body));
     return presentForCourier(
       answer(await this.reportEvent.execute(context, { deliveryId, report })),
+    );
+  }
+
+  @Post('deliveries/:id/proof-photos')
+  @HttpCode(201)
+  @ReadsSession()
+  // Guards run before interceptors: no byte is buffered without a signed-in courier. The body
+  // stops at one file part named `photo` of at most MAX_PROOF_PHOTO_BYTES (413 beyond).
+  @UseGuards(BearerSessionRequiredGuard)
+  @UseInterceptors(
+    // No storage option: multer keeps the part in memory (its default without a destination).
+    FileInterceptor('photo', {
+      limits: { fileSize: MAX_PROOF_PHOTO_BYTES, files: 1, fields: 0, parts: 1 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Upload a proof-of-delivery photo',
+    description:
+      'Multipart, one JPEG or PNG part named `photo` (at most 5 MB), while the parcel is with ' +
+      'the courier. Answers `{ photoRef }`, which `delivered` takes as ' +
+      "`proof: { kind: 'photo', photoRef }`.",
+  })
+  async proofPhoto(
+    @Call() context: CallContext,
+    @Param('id') id: string,
+    @UploadedFile() photo: { readonly buffer?: Buffer } | undefined,
+  ) {
+    const deliveryId = deliveryIdOf(id);
+    if (photo?.buffer === undefined) {
+      throw fail(400, 'validation.failed', { fields: [{ path: 'photo', code: 'required' }] });
+    }
+    return answer(
+      await this.uploadProofPhoto.execute(context, { deliveryId, bytes: photo.buffer }),
     );
   }
 }

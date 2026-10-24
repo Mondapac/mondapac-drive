@@ -39,10 +39,13 @@ model DeliveryDelivery {
   courierId         String?                                @map("courier_id") @db.VarChar(64)
   /// 'dispatch-exhausted' or 'cold-chain-breach' (CHECK); not part of the version.
   exception         String?                                @db.VarChar(24)
+  /// Wrong recipient PINs tried; not part of the version. The PIN itself is stored nowhere.
+  wrongPins         Int                                    @default(0) @map("wrong_pins")
   createdAt         DateTime                               @map("created_at") @db.Timestamptz(6)
   version           Int
 
-  events DeliveryEvent[]
+  events      DeliveryEvent[]
+  proofPhotos DeliveryProofPhoto[]
 
   @@unique([marketId, id])
   @@unique([marketId, merchantId, externalReference])
@@ -117,5 +120,27 @@ model DeliveryInbox {
 
   @@id([eventId, handler])
   @@map("inbox")
+  @@schema("delivery")
+}
+
+/// A photo the courier took as proof of delivery. The bytes are in private object storage under
+/// storage_key, which is built by the server and never returned; the photo's id is the photoRef.
+model DeliveryProofPhoto {
+  id         String   @id @db.Uuid
+  marketId   String   @map("market_id") @db.VarChar(8)
+  tenantId   String   @map("tenant_id")
+  deliveryId String   @map("delivery_id") @db.Uuid
+  courierId  String   @map("courier_id") @db.VarChar(64)
+  /// 'image/jpeg' or 'image/png' (CHECK), sniffed from the bytes.
+  mediaType  String   @map("media_type") @db.VarChar(16)
+  sizeBytes  Int      @map("size_bytes")
+  storageKey String   @map("storage_key") @db.VarChar(300)
+  createdAt  DateTime @map("created_at") @db.Timestamptz(6)
+
+  delivery DeliveryDelivery @relation(fields: [marketId, deliveryId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([marketId, id])
+  @@index([marketId, deliveryId])
+  @@map("proof_photos")
   @@schema("delivery")
 }
