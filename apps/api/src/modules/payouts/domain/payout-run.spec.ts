@@ -245,7 +245,7 @@ describe('a payout line, held or settled', () => {
     );
     expect(() =>
       lineHeldBeforeTransfer(lineTransferred(pending(), 'tr_1', later), 'payouts-disabled', later),
-    ).toThrow(expect.objectContaining({ code: 'payouts.line-state' }));
+    ).toThrow(expect.objectContaining({ code: 'payouts.line-state' }) as Error);
   });
 
   it('settles an unresolved line as transferred, or as failed when the provider holds none', () => {
@@ -259,7 +259,7 @@ describe('a payout line, held or settled', () => {
       expect.objectContaining({ status: 'failed', lastErrorCode: SETTLED_NOT_TRANSFERRED }),
     );
     expect(() => lineSettled(pending(), { found: false }, later)).toThrow(
-      expect.objectContaining({ code: 'payouts.line-state' }),
+      expect.objectContaining({ code: 'payouts.line-state' }) as Error,
     );
   });
 });

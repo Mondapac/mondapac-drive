@@ -154,7 +154,7 @@ export class RunPayouts extends UseCase<Record<string, never>, PayoutTick, Payou
       const sent = payable
         ? await gateway.createTransfer({
             amount: transferAmountOf(line),
-            destination: line.destination!,
+            destination: line.destination,
             idempotencyKey: `payout-line-${line.id}`,
             metadata: { marketId: market.marketId, payoutLineId: line.id, runId: line.runId },
           })
