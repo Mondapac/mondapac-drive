@@ -76,7 +76,8 @@ export const offer = z.object({
   pickup: offerStop,
   dropoff: offerStop,
   distanceMetres: z.number().int().nonnegative(),
-  earnings: money,
+  /** Absent until dispatch quotes the courier's pay (payouts rate card). */
+  earnings: money.optional(),
   temperature: z.enum(TEMPERATURES),
 });
 export type Offer = z.infer<typeof offer>;
@@ -129,7 +130,8 @@ export const signInInput = z.object({
 });
 export type SignInInput = z.infer<typeof signInInput>;
 
-export const pinInput = z.string().regex(/^[0-9]{4,6}$/);
+/** The PIN length is the Market's (4 in AU, 6 in ZZ); the server checks it, the app takes 4 to 8. */
+export const pinInput = z.string().regex(/^[0-9]{4,8}$/);
 
 /** The same range the delivery API accepts (presentation/delivery.schemas.ts). */
 export const temperatureReading = z.number().min(-40).max(60);

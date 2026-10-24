@@ -80,24 +80,28 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 
 ## Backend contract
 
-On main: identity's courier sign-in and sign-out (`POST /identity/courier/sign-in` with email and
-password, `POST /identity/courier/sign-out`; bearer token), the courier delivery routes
-(`GET /delivery/courier/deliveries/:id`, `POST …/:id/events`) and tracking's
-`POST /tracking/courier/pings` (`{ pings: [...] }`, at most 20; the courier is the session's, so
-no ping carries a courier id). The other paths in `src/api/http-client.ts` are proposals for
-the packages that own them and change there:
+- Identity: `POST /identity/courier/sign-in` (email and password) and `…/sign-out`; bearer token.
+- Delivery: `GET /delivery/courier/deliveries/:id` and `POST …/:id/events`. `delivered` takes
+  `proof: { kind: 'pin', pin }` (the server checks it; its length is the Market's, the app takes
+  4 to 8 digits) or `{ kind: 'photo', photoRef }` from `POST …/:id/proof-photos` (multipart part
+  `photo`, JPEG, at most 5 MB, `201 { photoRef }`). A wrong PIN answers 422
+  `delivery.pin-wrong`; 423 `delivery.pin-locked` closes PIN entry and the app switches to the
+  photo.
+- Tracking: `POST /tracking/courier/pings` (`{ pings: [...] }`, at most 20; the courier is the
+  session's, so no ping carries a courier id).
+- Dispatch: `GET /dispatch/courier/offers/current`, `POST …/:id/accept` (`{ deliveryId }`) and
+  `…/:id/decline` (204). The offer has no pay until payouts quotes it; the card then hides it.
 
-| Port                           | Owner       | Proposed route                                       |
-| ------------------------------ | ----------- | ---------------------------------------------------- |
-| Market settings, status, shift | fleet 05    | `GET /fleet/courier/me…`, `PUT …/me/shift`           |
-| Current offer, accept, decline | dispatch 07 | `/dispatch/courier/offers/current`, `…/:id/accept`   |
-| Proof photo upload             | delivery    | `POST /delivery/courier/deliveries/:id/proof-photos` |
-| Earnings summary               | payouts 10  | `GET /payouts/courier/me/summary`                    |
+- Fleet: `GET /fleet/courier/me` (`{ shift, activeDeliveryId, … }`; 404 `fleet.courier.not-found`
+  before an operator sets up the profile), `PUT …/me/shift { state }` (409
+  `fleet.shift.transition-not-allowed` mid-delivery, 422 `fleet.courier.*` when the courier may
+  not work) and `GET …/me/settings` (the Market's courier settings). Fleet reports
+  `activeDeliveryId: null` for now, so the app keeps the delivery it accepted in the secure
+  store (with the session) and returns to it after a restart, until the job ends or answers 404.
+- Payouts: `GET /payouts/courier/me/summary` (`{ today, week, deliveriesToday }` in the
+  Market's time zone, the week from Monday).
 
-Two changes the delivery API needs for the courier: the `delivered` event takes
-`proof: { kind: 'pin', pin }` and the server checks the PIN (today the body carries
-`pinMatched: true`, which a client could assert), and a proof-photo upload route that returns
-the `photoRef`. Offers are polled every 5 s while online until dispatch pushes them. A stop
-without a point (not geocoded) is navigated to by its address.
+Offers are polled every 5 s while online until dispatch pushes them. A stop without a point
+(not geocoded) is navigated to by its address.
 
 Store builds (EAS: identifiers, icons, signing, push) are a later package.

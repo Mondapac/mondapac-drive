@@ -40,9 +40,11 @@ export function OfferCard({ offer, settings, clock, busy, onAccept, onDecline, o
   return (
     <View style={styles.card} accessibilityLabel={t('offer.title')}>
       <Text style={styles.title}>{t('offer.title')}</Text>
-      <Text style={styles.pay}>
-        {t('offer.pay', { amount: formatMoney(offer.earnings, settings.locale) })}
-      </Text>
+      {offer.earnings && (
+        <Text style={styles.pay}>
+          {t('offer.pay', { amount: formatMoney(offer.earnings, settings.locale) })}
+        </Text>
+      )}
       <Text style={styles.line}>
         {t('offer.distance', {
           distance: formatDistance(offer.distanceMetres, settings.distanceUnit, settings.locale),

@@ -132,6 +132,38 @@ describe('HTTP adapter', () => {
     });
   });
 
+  it('uploads a proof photo as the multipart part `photo` and reads the 201 reference', async () => {
+    const { api, fetch } = setup({ status: 201, body: { photoRef: 'f1b0c7e2-photo' } });
+    const result = await api.uploadProofPhoto('d-1', {
+      uri: 'file:///compressed.jpg',
+      mimeType: 'image/jpeg',
+    });
+    expect(result).toEqual({ photoRef: 'f1b0c7e2-photo' });
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe(`https://api.example.test${ROUTES.proofPhotos('d-1')}`);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeInstanceOf(FormData);
+    // The boundary is fetch's to set: no JSON content type on a multipart body.
+    expect(init.headers).not.toHaveProperty('content-type');
+  });
+
+  it("reads dispatch's current offer, which has no pay until payouts quotes it", async () => {
+    const offer = {
+      id: 'o-1',
+      deliveryId: 'd-1',
+      expiresAt: '2026-10-24T09:00:30Z',
+      pickup: { address: 'a', point: { lat: 1, lng: 2 } },
+      dropoff: { address: 'b', point: { lat: 1, lng: 2 } },
+      distanceMetres: 2300,
+      temperature: 'chilled',
+    };
+    const { api, fetch } = setup({ body: { offer } });
+    expect(await api.currentOffer()).toEqual(offer);
+    expect(fetch.mock.calls[0]![0]).toBe(
+      'https://api.example.test/dispatch/courier/offers/current',
+    );
+  });
+
   it('joins the failure reason and the details into the reason text', async () => {
     const { api, fetch } = setup({ body: { ...job, status: 'DELIVERY_FAILED' } });
     await api.recordEvent('d-1', { type: 'delivery_failed', reason: 'refused', details: ' rude ' });
@@ -171,5 +203,86 @@ describe('HTTP adapter', () => {
     const { api, fetch } = setup({ body: job });
     await expect(api.job('..')).rejects.toEqual(new ApiError(400, 'id.invalid'));
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('the accepted delivery while fleet reports none', () => {
+  function memory(initial: string | null = null) {
+    let stored = initial;
+    return {
+      current: () => stored,
+      remember: jest.fn((id: string) => {
+        stored = id;
+        return Promise.resolve();
+      }),
+      forget: jest.fn(() => {
+        stored = null;
+        return Promise.resolve();
+      }),
+    };
+  }
+
+  function respond(...bodies: { status?: number; body?: unknown }[]) {
+    const fetch = jest.fn<Promise<Response>, [string, RequestInit]>();
+    for (const { status, body } of bodies) {
+      fetch.mockResolvedValueOnce(
+        new Response(body === undefined ? '' : JSON.stringify(body), { status: status ?? 200 }),
+      );
+    }
+    return fetch;
+  }
+
+  function api(fetch: ReturnType<typeof respond>, activeJob: ReturnType<typeof memory>) {
+    return createHttpCourierApi({
+      baseUrl: 'https://api.example.test',
+      session: { current: () => session },
+      marketId: 'ZZ',
+      fetch,
+      activeJob,
+    });
+  }
+
+  it('remembers the accepted delivery and reports it as the active one', async () => {
+    const activeJob = memory();
+    const fetch = respond(
+      { body: { deliveryId: 'd-1' } },
+      { body: { shift: 'on_delivery', activeDeliveryId: null } },
+    );
+    const courier = api(fetch, activeJob);
+    await courier.acceptOffer('o-1');
+    expect(activeJob.remember).toHaveBeenCalledWith('d-1');
+    await expect(courier.status()).resolves.toEqual({
+      shift: 'on_delivery',
+      activeDeliveryId: 'd-1',
+    });
+  });
+
+  it("takes the server's active delivery over the remembered one", async () => {
+    const fetch = respond({ body: { shift: 'on_delivery', activeDeliveryId: 'd-2' } });
+    await expect(api(fetch, memory('d-1')).status()).resolves.toMatchObject({
+      activeDeliveryId: 'd-2',
+    });
+  });
+
+  it('forgets the delivery once it is finished or no longer the courier’s', async () => {
+    const finished = memory('d-1');
+    await api(respond({ body: { ...job, status: 'DELIVERED' } }), finished).job('d-1');
+    expect(finished.forget).toHaveBeenCalled();
+
+    const taken = memory('d-1');
+    await expect(
+      api(respond({ status: 404, body: { code: 'delivery.not-found' } }), taken).job('d-1'),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(taken.forget).toHaveBeenCalled();
+
+    const malformed = memory('../x');
+    await expect(api(respond(), malformed).job('../x')).rejects.toMatchObject({
+      code: 'id.invalid',
+    });
+    expect(malformed.forget).toHaveBeenCalled();
+
+    const ongoing = memory('d-1');
+    await api(respond({ body: job }), ongoing).job('d-1');
+    expect(ongoing.forget).not.toHaveBeenCalled();
   });
 });

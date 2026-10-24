@@ -59,6 +59,17 @@ export interface CourierApi {
   earnings(): Promise<EarningsSummary>;
 }
 
+/**
+ * The delivery the courier accepted, kept on the device: fleet does not report the active
+ * delivery yet (`activeDeliveryId` is null), so the app remembers it to return to the job after
+ * a restart. The server's answer wins once it has one.
+ */
+export interface ActiveJobMemory {
+  current(): string | null;
+  remember(deliveryId: string): Promise<void>;
+  forget(): Promise<void>;
+}
+
 /** The session the adapters attach to every call (bearer token and `x-market-id`). */
 export interface SessionSource {
   current(): CourierSession | null;
