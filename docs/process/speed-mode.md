@@ -28,6 +28,7 @@ Drive starts with the lessons instead of repeating them.
    one merged meanwhile. A merged migration is never edited.
 9. UI is built from the existing `packages/ui` components and tokens copied from the
    marketplace; new components go in code first.
-10. At most four parallel build tracks, and at most one decision card a day for the owner.
+10. At most ten parallel build tracks (owner decision 2026-10-24; the marketplace uses four), and
+    at most one decision card a day for the owner.
 11. Reuse before building: copy what the marketplace already has (platform runtime, identity,
     panel UI) and adapt it, instead of designing from scratch.
