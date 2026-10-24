@@ -1,15 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   err,
   ok,
+  type CallContext,
   type Clock,
   type IdGenerator,
-  type MarketContext,
   type Result,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import type { AuditWriter } from '../../../../platform/audit/audit-writer';
+import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { WEBHOOK_MANAGE } from '../../contracts/permissions';
+import { WebhookSubscribedAudit } from '../../domain/audit';
 import { isWebhookEventType, type WebhookEventType } from '../../domain/delivery-change';
 import {
   createSubscription,
@@ -17,65 +18,85 @@ import {
   type WebhookSubscription,
 } from '../../domain/webhook-subscription';
 import { parseWebhookUrl } from '../../domain/webhook-url';
+import { ACCESS_DENIED, merchantOf } from '../callers';
 import { refusingBrokenRules, type NotificationsFailure } from '../failure';
-import {
-  WEBHOOK_SIGNER,
-  WEBHOOK_SUBSCRIPTIONS,
-  type WebhookSigner,
-  type WebhookSubscriptionRepository,
-} from '../ports';
+import type { WebhookSigner, WebhookSubscriptionRepository } from '../ports';
 
 export interface SubscribeInput {
-  readonly merchantId: string;
   readonly url: string;
   readonly eventTypes: readonly string[];
 }
 
-/** A subscription and its signing secret: the only answer that ever shows the secret. */
+/** A subscription and its signing secret: the only answers that ever show the secret. */
 export interface SubscriptionWithSecret {
   readonly subscription: WebhookSubscription;
   readonly secret: string;
 }
 
-const MERCHANT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
+export interface SubscriptionDependencies {
+  readonly subscriptions: WebhookSubscriptionRepository;
+  readonly signer: WebhookSigner;
+  readonly audit: AuditWriter;
+  readonly unitOfWork: UnitOfWork;
+  readonly ids: IdGenerator;
+  readonly clock: Clock;
+}
+
+/** The event types of a request, each one known; anything else is refused. */
+export function eventTypesOf(
+  raw: readonly string[],
+): Result<WebhookEventType[], NotificationsFailure> {
+  const eventTypes: WebhookEventType[] = [];
+  for (const type of raw) {
+    if (!isWebhookEventType(type)) {
+      return err({
+        code: 'webhook-subscription.unknown-event-type',
+        message: 'Unknown event type',
+      });
+    }
+    eventTypes.push(type);
+  }
+  return ok(eventTypes);
+}
 
 /**
- * A merchant subscribes an HTTPS endpoint to delivery events and receives its signing secret,
- * once. The merchant comes from the caller's authenticated context once identity (WP2) gates
- * this use case; until then no route reaches it.
+ * The merchant of the API key subscribes an HTTPS endpoint to delivery events and receives its
+ * signing secret, once. Rule `permissions [notifications.webhook.manage]`. The URL passes the
+ * SSRF guard here (public HTTPS host, no credentials, no private literal) and again at every
+ * send (the resolved address). Audited, without the URL.
  */
-@Injectable()
-export class SubscribeToWebhooks {
-  constructor(
-    @Inject(WEBHOOK_SUBSCRIPTIONS) private readonly subscriptions: WebhookSubscriptionRepository,
-    @Inject(WEBHOOK_SIGNER) private readonly signer: WebhookSigner,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
-    @Inject(CLOCK) private readonly clock: Clock,
-  ) {}
+export class SubscribeToWebhooks extends UseCase<
+  SubscribeInput,
+  SubscriptionWithSecret,
+  NotificationsFailure
+> {
+  static override readonly access: AccessDeclaration = {
+    name: 'notifications.subscribe-to-webhooks',
+    rule: { kind: 'permissions', allOf: [WEBHOOK_MANAGE.key] },
+  };
 
-  async run(
-    market: MarketContext,
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: SubscriptionDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected async handle(
+    context: CallContext,
     input: SubscribeInput,
   ): Promise<Result<SubscriptionWithSecret, NotificationsFailure>> {
-    if (!MERCHANT_ID.test(input.merchantId)) {
-      return err({ code: 'webhook-subscription.merchant-invalid', message: 'Invalid merchant id' });
-    }
+    const merchantId = merchantOf(context);
+    if (merchantId === null) return err(ACCESS_DENIED);
+    const { market } = context;
+    const { subscriptions, signer, audit, unitOfWork, ids, clock } = this.deps;
     const url = parseWebhookUrl(input.url);
     if (!url.ok) return err({ code: url.error, message: 'The webhook URL is not allowed' });
-    const eventTypes: WebhookEventType[] = [];
-    for (const type of input.eventTypes) {
-      if (!isWebhookEventType(type)) {
-        return err({
-          code: 'webhook-subscription.unknown-event-type',
-          message: 'Unknown event type',
-        });
-      }
-      eventTypes.push(type);
-    }
-    const subscription = await this.unitOfWork.run(market, () =>
+    const eventTypes = eventTypesOf(input.eventTypes);
+    if (!eventTypes.ok) return eventTypes;
+    const subscription = await unitOfWork.run(market, () =>
       refusingBrokenRules(async () => {
-        const active = await this.subscriptions.activeOf(market, input.merchantId);
+        const active = await subscriptions.activeOf(market, merchantId);
         if (active.length >= MAX_SUBSCRIPTIONS_PER_MERCHANT) {
           return err({
             code: 'webhook-subscription.limit',
@@ -83,21 +104,27 @@ export class SubscribeToWebhooks {
           });
         }
         const created = createSubscription({
-          id: this.ids.next<'WebhookSubscription'>(),
+          id: ids.next<'WebhookSubscription'>(),
           marketId: market.marketId,
-          merchantId: input.merchantId,
+          merchantId,
           url: url.value,
-          eventTypes,
-          createdAt: this.clock.now(),
+          eventTypes: eventTypes.value,
+          createdAt: clock.now(),
         });
-        await this.subscriptions.insert(market, created);
+        await subscriptions.insert(market, created);
+        await audit.record(
+          context,
+          WebhookSubscribedAudit.entry(created.id as never, {
+            after: { eventTypes: [...created.eventTypes], secretVersion: created.secretVersion },
+          }),
+        );
         return ok(created);
       }),
     );
     return subscription.ok
       ? ok({
           subscription: subscription.value,
-          secret: this.signer.secretFor(subscription.value.id, subscription.value.secretVersion),
+          secret: signer.secretFor(subscription.value.id, subscription.value.secretVersion),
         })
       : subscription;
   }

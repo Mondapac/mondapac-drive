@@ -13,6 +13,13 @@ export const adminNav: NavConfig = {
       anyOf: ['delivery.delivery.view'],
     },
     {
+      id: 'live-map',
+      icon: 'map-pin',
+      labelKey: 'nav.live-map',
+      href: '/live-map',
+      anyOf: ['tracking.map.view'],
+    },
+    {
       id: 'couriers',
       icon: 'users',
       labelKey: 'nav.couriers',

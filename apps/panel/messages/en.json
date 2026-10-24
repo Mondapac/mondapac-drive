@@ -31,7 +31,8 @@
     "team": "Roles & permissions",
     "deliveries": "Deliveries",
     "couriers": "Couriers",
-    "merchants": "Merchants"
+    "merchants": "Merchants",
+    "live-map": "Live map"
   },
   "home": {
     "title": "Home",
@@ -886,5 +887,56 @@
     "close": "Close",
     "cancel": "Cancel",
     "reload": "Reload"
+  },
+  "live-map": {
+    "title": "Live map",
+    "intro": "Couriers' live positions, the deliveries on their way and the exceptions to act on. Positions refresh every few seconds.",
+    "map-label": "Map of couriers and deliveries",
+    "no-base-map": "The base map is not set up for this panel, so couriers and deliveries are listed without it.",
+    "no-center": "The live map is not set up for this Market yet.",
+    "load-failed": "That could not be loaded. Try again.",
+    "distance": "{km} km",
+    "show-on-map": "Show on map",
+    "open-dispatch": "Open dispatch panel",
+    "stream": {
+      "connecting": "Connecting",
+      "live": "Live",
+      "reconnecting": "Reconnecting",
+      "ended": "Stopped",
+      "signed-out": "Signed out",
+      "ended-help": "The live feed stopped, perhaps because your access changed. Reload the page to try again."
+    },
+    "couriers": {
+      "title": "Couriers in view ({count})",
+      "empty": "No courier in this area has sent a position recently.",
+      "updated": "Updated {time}"
+    },
+    "deliveries": {
+      "title": "Deliveries on the way ({count})",
+      "empty": "No delivery is waiting or on its way."
+    },
+    "exceptions": {
+      "title": "Exceptions ({count})",
+      "empty": "No exceptions right now."
+    },
+    "exception": {
+      "dispatch-exhausted": "No courier accepted",
+      "cold-chain-breach": "Cold chain breach",
+      "failed": "Delivery failed"
+    },
+    "selected": {
+      "title": "Delivery {reference}",
+      "no-courier": "No courier yet.",
+      "courier": "Courier: {name}",
+      "show-trail": "Show trail",
+      "trail-empty": "No trail recorded yet.",
+      "trail-points": "{count, plural, one {# point} other {# points}} recorded; the trail shows on the base map.",
+      "nearest": "Nearest couriers to pickup",
+      "nearest-empty": "No courier with a fresh position nearby."
+    },
+    "no-access": {
+      "title": "You don't have access to the live map",
+      "body": "Your role doesn't include it."
+    }
   }
 }

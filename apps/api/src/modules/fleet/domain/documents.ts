@@ -83,3 +83,15 @@ export function requirementMet(
       isDocumentValid(document, now),
   );
 }
+
+/** Whether the courier holds a valid document of `type` of their own (not of a vehicle) at `now`. */
+export function holdsValidDocument(
+  documents: readonly CourierDocument[],
+  type: string,
+  now: Temporal.Instant,
+): boolean {
+  return documents.some(
+    (document) =>
+      document.type === type && document.vehicleId === undefined && isDocumentValid(document, now),
+  );
+}

@@ -66,8 +66,9 @@ describe('issue API key (copy once)', () => {
       expect(region.textContent).not.toContain(KEY);
     }
 
-    fireEvent.click(screen.getByRole('button', { name: "I've stored it" }));
-    expect(screen.queryByTestId('issued-key')).toBeNull();
+    // The key dialog opens after the answer renders; find it rather than race it on a busy runner.
+    fireEvent.click(await screen.findByRole('button', { name: "I've stored it" }));
+    await waitFor(() => expect(screen.queryByTestId('issued-key')).toBeNull());
     expect(document.body.textContent).not.toContain(KEY);
   });
 

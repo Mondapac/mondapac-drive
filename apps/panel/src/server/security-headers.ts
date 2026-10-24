@@ -2,16 +2,26 @@
 // frame-ancestors none, nosniff, a strict referrer policy, COOP, a restrictive Permissions-Policy
 // and, in production, HSTS. Pure so it is tested without a server.
 
-export function contentSecurityPolicy(nonce: string, development: boolean): string {
+/**
+ * `mapOrigins` are the live map's tile origins (PANEL_MAP_STYLE_URL): MapLibre fetches tiles,
+ * glyphs and sprites from them and decodes images into blobs; its worker is the panel's own file.
+ */
+export function contentSecurityPolicy(
+  nonce: string,
+  development: boolean,
+  mapOrigins: readonly string[] = [],
+): string {
+  const map = mapOrigins.length === 0 ? '' : ` ${mapOrigins.join(' ')}`;
   const directives = [
     "default-src 'self'",
     // Next's dev runtime needs eval; production does not.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ''}`,
     // Tailwind output is a linked stylesheet; React inline style attributes need this.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    `img-src 'self' data:${map === '' ? '' : ` blob:${map}`}`,
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self'${map}`,
+    ...(map === '' ? [] : ["worker-src 'self'"]),
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'self'",
@@ -20,9 +30,13 @@ export function contentSecurityPolicy(nonce: string, development: boolean): stri
   return directives.join('; ');
 }
 
-export function securityHeaders(nonce: string, development: boolean): Record<string, string> {
+export function securityHeaders(
+  nonce: string,
+  development: boolean,
+  mapOrigins: readonly string[] = [],
+): Record<string, string> {
   const headers: Record<string, string> = {
-    'content-security-policy': contentSecurityPolicy(nonce, development),
+    'content-security-policy': contentSecurityPolicy(nonce, development, mapOrigins),
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'cross-origin-opener-policy': 'same-origin',

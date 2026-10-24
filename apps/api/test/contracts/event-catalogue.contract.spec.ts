@@ -78,7 +78,7 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     expect(worker.get(SubscriptionRegistry).names()).toEqual(api.get(SubscriptionRegistry).names());
   });
 
-  it("registers identity's mail subscriptions and seals the registry (P 6.4)", () => {
+  it("registers identity's mail and notifications' delivery subscriptions and seals the registry (P 6.4)", () => {
     const subscriptions = graphs.get('worker')!.get(SubscriptionRegistry);
 
     expect(subscriptions.names()).toEqual([
@@ -89,6 +89,9 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
       'identity.other-sessions-signed-out-mail',
       'identity.password-changed-mail',
       'identity.second-factor-mail',
+      'notifications.delivery-booked',
+      'notifications.delivery-cancelled',
+      'notifications.delivery-status-changed',
       'tracking.delivery-booked',
       'tracking.delivery-cancelled',
       'tracking.delivery-status-changed',
