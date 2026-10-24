@@ -96,33 +96,29 @@ export async function submitCourierDocument(
   const documentId = deps.ids.next<'CourierDocument'>();
   const fileKey = `${documentPrefix(context.market.marketId)}/${courierId}/${documentId}`;
   await deps.files.put(fileKey, input.file);
-  let result: Result<CourierState, FleetFailure> | undefined;
-  try {
-    result = await deps.changes.apply(
-      context,
-      { id: courierId },
-      {
-        allowed: own,
-        decide: (courier, rules, now) =>
-          submitDocument(
-            courier,
-            {
-              id: documentId,
-              type: input.type,
-              ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
-              fileKey,
-              mediaType,
-              ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
-            },
-            rules,
-            now,
-          ),
-      },
-    );
-  } finally {
-    if (result === undefined || !result.ok) {
-      await deps.files.delete(fileKey).catch(() => undefined);
-    }
-  }
+  // A throw leaves the file in place: the commit may have happened, and the sweep checks the
+  // rows before it deletes anything.
+  const result = await deps.changes.apply(
+    context,
+    { id: courierId },
+    {
+      allowed: own,
+      decide: (courier, rules, now) =>
+        submitDocument(
+          courier,
+          {
+            id: documentId,
+            type: input.type,
+            ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
+            fileKey,
+            mediaType,
+            ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
+          },
+          rules,
+          now,
+        ),
+    },
+  );
+  if (!result.ok) await deps.files.delete(fileKey).catch(() => undefined);
   return result.ok ? ok({ courier: result.value, documentId }) : result;
 }

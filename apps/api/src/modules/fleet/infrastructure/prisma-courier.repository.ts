@@ -215,11 +215,9 @@ export class PrismaCourierRepository implements CourierRepository {
   async namedFileKeys(market: MarketContext, fileKeys: readonly string[]) {
     if (fileKeys.length === 0) return new Set<string>();
     const rows = await this.prisma.tx(market).fleetDocument.findMany({
-      where: {
-        marketId: market.marketId,
-        tenantId: market.tenantId,
-        fileKey: { in: [...fileKeys] },
-      },
+      // Every tenant's rows: a file key names no tenant, so a sweep that saw only its own
+      // tenant's documents would delete another tenant's live files.
+      where: { marketId: market.marketId, fileKey: { in: [...fileKeys] } },
       select: { fileKey: true },
     });
     return new Set(rows.map((row) => row.fileKey));

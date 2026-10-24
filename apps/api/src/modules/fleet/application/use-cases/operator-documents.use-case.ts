@@ -1,8 +1,13 @@
 import { err, type CallContext, type Id, type Result } from '@mondapac-drive/shared-kernel';
 import type { Temporal } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
-import { COURIER_VIEW, DOCUMENT_REVIEW } from '../../contracts/permissions';
-import { documentRejected, documentRevoked, documentVerified } from '../../domain/audit-actions';
+import { DOCUMENT_REVIEW } from '../../contracts/permissions';
+import {
+  documentDownloaded,
+  documentRejected,
+  documentRevoked,
+  documentVerified,
+} from '../../domain/audit-actions';
 import {
   rejectDocument,
   revokeDocument,
@@ -151,7 +156,11 @@ export class RevokeCourierDocument extends UseCase<
   }
 }
 
-/** The file of a courier's document, for review. Rule `permissions [fleet.courier.view]`. */
+/**
+ * The file of a courier's document, for review: only reviewers, never every operator (identity
+ * documents), and every download is audited before the bytes go out.
+ * Rule `permissions [fleet.document.review]`.
+ */
 export class DownloadCourierDocument extends UseCase<
   CourierDocumentRef,
   DocumentFile,
@@ -159,7 +168,7 @@ export class DownloadCourierDocument extends UseCase<
 > {
   static override readonly access: AccessDeclaration = {
     name: 'fleet.download-courier-document',
-    rule: { kind: 'permissions', allOf: [COURIER_VIEW.key] },
+    rule: { kind: 'permissions', allOf: [DOCUMENT_REVIEW.key] },
   };
 
   constructor(
@@ -169,14 +178,24 @@ export class DownloadCourierDocument extends UseCase<
     super(gate);
   }
 
-  protected handle(context: CallContext, input: CourierDocumentRef): Outcome<DocumentFile> {
-    if (!isOperator(context)) return Promise.resolve(err(forbidden()));
-    return readDocumentFile(
+  protected async handle(
+    context: CallContext,
+    input: CourierDocumentRef,
+  ): Promise<Result<DocumentFile, FleetFailure>> {
+    if (!isOperator(context)) return err(forbidden());
+    const file = await readDocumentFile(
       this.deps,
       context,
       { id: input.courierId },
       input.documentId,
       () => true,
     );
+    if (file.ok) {
+      await this.deps.changes.record(
+        context,
+        documentDownloaded.entry(input.documentId, { after: { courierId: input.courierId } }),
+      );
+    }
+    return file;
   }
 }

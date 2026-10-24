@@ -34,7 +34,7 @@ export interface CourierRepository {
       readonly limit: number;
     },
   ): Promise<CourierState[]>;
-  /** Which of these file keys a document row of the Market names. */
+  /** Which of these file keys a document row of the Market names, in any tenant. */
   namedFileKeys(market: MarketContext, fileKeys: readonly string[]): Promise<Set<string>>;
   /** The active couriers who are online in a service area, with their vehicles and documents. */
   findOnlineInArea(market: MarketContext, serviceAreaCode: string): Promise<CourierState[]>;

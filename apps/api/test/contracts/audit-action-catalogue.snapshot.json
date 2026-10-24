@@ -65,6 +65,16 @@
     }
   },
   {
+    "action": "fleet.document.downloaded",
+    "targetType": "fleet.document",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "courierId": "id"
+    }
+  },
+  {
     "action": "fleet.document.rejected",
     "targetType": "fleet.document",
     "targetId": "id",

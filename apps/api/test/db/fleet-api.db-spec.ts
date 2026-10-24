@@ -187,14 +187,31 @@ describe('fleet API (database integration)', () => {
         .set(as(stranger.headers));
       expect(theirs.status).toBe(404);
 
-      // An operator may look and download, not review; the dispatcher reviews.
+      // An operator may look, not download, review or decide; the dispatcher reviews, and
+      // every download of a document is audited.
       const base = `/fleet/admin/couriers/${courierId}`;
       expect((await http().get(base).set(as(operator.headers))).status).toBe(200);
+      expect(
+        (await http().get(`${base}/documents/${firstDocument}/file`).set(as(operator.headers)))
+          .status,
+      ).toBe(403);
+      expect(
+        (
+          await http()
+            .post(`${base}/approve`)
+            .set(as(operator.headers))
+            .send({ employmentType: 'contractor', coldChainCapable: true })
+        ).status,
+      ).toBe(403);
       const adminFile = await http()
         .get(`${base}/documents/${firstDocument}/file`)
-        .set(as(operator.headers));
+        .set(as(dispatcher.headers));
       expect(adminFile.status).toBe(200);
       expect(adminFile.headers['content-disposition']).toContain('attachment');
+      expect(adminFile.headers['content-security-policy']).toContain('sandbox');
+      expect(await auditOf(dispatcher.accountId, 'fleet.document.downloaded')).toEqual([
+        containing({ target_id: firstDocument, after: { courierId } }),
+      ]);
       expect(
         (
           await http()

@@ -78,4 +78,13 @@ export class CourierChanges {
       }),
     );
   }
+
+  /** Records an audit row on its own, for an operator's read that must leave a trace. */
+  async record(context: CallContext, entry: AuditEntry): Promise<void> {
+    const done = await this.unitOfWork.run(context.market, async () => {
+      await this.auditLog.record(context, entry);
+      return ok(undefined);
+    });
+    if (!done.ok) throw new Error('fleet: the audit row was not written');
+  }
 }

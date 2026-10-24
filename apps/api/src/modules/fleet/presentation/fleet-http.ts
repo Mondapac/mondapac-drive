@@ -87,6 +87,8 @@ export function sendFile(
     file.mediaType === 'application/pdf' ? 'pdf' : file.mediaType === 'image/png' ? 'png' : 'jpg';
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
+  // A file opened in the browser anyway runs no script and loads nothing.
+  res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
   return new StreamableFile(file.bytes, {
     type: file.mediaType,
     disposition: `attachment; filename="${file.documentId}.${extension}"`,

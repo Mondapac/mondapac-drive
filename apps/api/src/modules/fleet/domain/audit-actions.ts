@@ -103,6 +103,14 @@ export const vehicleCapacitySet = defineAuditAction({
   },
 });
 
+/** Recorded when an operator downloads a courier's document file (identity documents). */
+export const documentDownloaded = defineAuditAction({
+  action: 'fleet.document.downloaded',
+  targetType: 'fleet.document',
+  actors: ['authenticated'],
+  after: { courierId: auditField.id() },
+});
+
 export const FLEET_AUDIT_ACTIONS = [
   courierApproved,
   courierSuspendedAudit,
@@ -114,4 +122,5 @@ export const FLEET_AUDIT_ACTIONS = [
   vehicleDeactivated,
   courierTaxRegistrationSet,
   vehicleCapacitySet,
+  documentDownloaded,
 ] as const;
