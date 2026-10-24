@@ -168,15 +168,14 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
       });
 
       await report(id, { type: 'arrived_at_dropoff' });
-      // The server checks the proof (delivery PR #24): the recipient's PIN, read as the system.
-      const recipient = await app
+      // The server checks the proof: the recipient's PIN, as notifications sends it.
+      const recipients = await app
         .get(DeliveryRecipients, { strict: false })
-        .forNotification(testCallContext(marketOf(code), 'system'), id as never);
-      const delivered = await report(id, {
-        type: 'delivered',
-        proof: { kind: 'pin', pin: recipient!.recipientPin },
-      });
-      expect(delivered.status).toBe(200);
+        .forNotification(system(), id as never);
+      const pin = recipients!.recipientPin!;
+      expect((await report(id, { type: 'delivered', proof: { kind: 'pin', pin } })).status).toBe(
+        200,
+      );
       await handleUntil(id, 'DELIVERED');
       expect(await tracked(id)).toMatchObject({ status: 'DELIVERED', ended: true });
       const ended = await request(app.getHttpServer())
