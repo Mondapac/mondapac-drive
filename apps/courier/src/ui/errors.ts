@@ -14,6 +14,7 @@ const MESSAGES: Readonly<Record<string, TranslationKey>> = {
   'offer.expired': 'errors.offerExpired',
   'offer.not-found': 'errors.offerGone',
   'offer.not-pending': 'errors.offerGone',
+  'dispatch.conflict': 'errors.offerGone',
   'network.unavailable': 'errors.network',
   'session.missing': 'errors.session',
   'shift.delivery-in-progress': 'errors.deliveryInProgress',
