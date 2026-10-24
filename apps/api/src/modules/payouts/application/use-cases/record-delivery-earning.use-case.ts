@@ -1,4 +1,10 @@
-import { err, ok, type CallContext, type Result, type Temporal } from '@mondapac-drive/shared-kernel';
+import {
+  err,
+  ok,
+  type CallContext,
+  type Result,
+  type Temporal,
+} from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import type { EventDelivery } from '../../../../platform/events/event-delivery';
 import { earningFor, type CompletedDelivery, type EarningBreakdown } from '../../domain/earnings';
@@ -37,7 +43,11 @@ export interface RecordedEarning {
  * nothing. Fleet (the payee) and delivery (vehicle, distance, temperature) are read before the
  * unit opens. Waiting time is not reported by delivery yet, so none is paid. Rule `system`.
  */
-export class RecordDeliveryEarning extends UseCase<DeliveredInput, RecordedEarning, PayoutsFailure> {
+export class RecordDeliveryEarning extends UseCase<
+  DeliveredInput,
+  RecordedEarning,
+  PayoutsFailure
+> {
   static override readonly access: AccessDeclaration = {
     name: 'payouts.record-delivery-earning',
     rule: { kind: 'system' },

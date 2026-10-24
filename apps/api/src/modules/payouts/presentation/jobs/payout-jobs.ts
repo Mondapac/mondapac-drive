@@ -27,7 +27,9 @@ export function payoutJob(runPayouts: RunPayouts): JobDefinition {
         );
       }
       if (held > 0) {
-        logger.warn(`payouts.lines-held-at-sending market=${context.market.marketId} count=${held}`);
+        logger.warn(
+          `payouts.lines-held-at-sending market=${context.market.marketId} count=${held}`,
+        );
       }
     },
   };

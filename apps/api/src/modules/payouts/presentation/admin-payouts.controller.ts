@@ -51,7 +51,10 @@ export class AdminPayoutsController {
         ...(input.after === undefined ? {} : { after: input.after as Id<'PayoutLine'> }),
       }),
     );
-    return { lines: page.lines.map(lineBody), ...(page.next === undefined ? {} : { next: page.next }) };
+    return {
+      lines: page.lines.map(lineBody),
+      ...(page.next === undefined ? {} : { next: page.next }),
+    };
   }
 
   @Get('couriers/:courierId/balance')

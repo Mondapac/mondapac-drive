@@ -1,4 +1,10 @@
-import { err, ok, type CallContext, type Result, type Temporal } from '@mondapac-drive/shared-kernel';
+import {
+  err,
+  ok,
+  type CallContext,
+  type Result,
+  type Temporal,
+} from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { ACCOUNT_ONBOARD } from '../../contracts/permissions';
 import { courierOf } from '../callers';

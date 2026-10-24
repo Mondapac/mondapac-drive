@@ -60,7 +60,11 @@ export interface LedgerRepository {
     currency: string,
   ): Promise<Money>;
   /** How many deliveries one courier delivered at or after `since`. */
-  deliveriesSince(market: MarketContext, courierId: string, since: Temporal.Instant): Promise<number>;
+  deliveriesSince(
+    market: MarketContext,
+    courierId: string,
+    since: Temporal.Instant,
+  ): Promise<number>;
 }
 export const LEDGER_REPOSITORY = Symbol('LedgerRepository');
 

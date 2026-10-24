@@ -46,7 +46,10 @@ export class ListPayoutLines extends UseCase<PayoutLineQuery, PayoutLinePage, Pa
   ): Promise<Result<PayoutLinePage, PayoutsFailure>> {
     if (!isAdmin(context)) return err(ACCESS_DENIED);
     const { market } = context;
-    const limit = Math.min(Math.max(Math.trunc(input.limit ?? DEFAULT_LINE_PAGE), 1), MAX_LINE_PAGE);
+    const limit = Math.min(
+      Math.max(Math.trunc(input.limit ?? DEFAULT_LINE_PAGE), 1),
+      MAX_LINE_PAGE,
+    );
     const found = await this.deps.unitOfWork.run(
       market,
       async () =>

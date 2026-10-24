@@ -198,7 +198,8 @@ export class StripePayoutGateway implements PayoutGateway {
       }
       for (const item of data as unknown[]) {
         const transfer = transferOf(item);
-        if (transfer === undefined) return err({ code: 'stripe.malformed-answer', transient: true });
+        if (transfer === undefined)
+          return err({ code: 'stripe.malformed-answer', transient: true });
         found.push(transfer);
       }
       const last = found.at(-1);

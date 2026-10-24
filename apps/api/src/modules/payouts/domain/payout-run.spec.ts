@@ -279,11 +279,7 @@ describe('an account update (L1)', () => {
 
   it('changes nothing for a report older than the stored state', () => {
     expect(
-      accountUpdated(
-        stored,
-        { payoutsEnabled: true, stateAt: now.subtract({ seconds: 1 }) },
-        now,
-      ),
+      accountUpdated(stored, { payoutsEnabled: true, stateAt: now.subtract({ seconds: 1 }) }, now),
     ).toBeUndefined();
   });
 });

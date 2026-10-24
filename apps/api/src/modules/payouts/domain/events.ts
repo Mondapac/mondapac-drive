@@ -1,9 +1,4 @@
-import {
-  defineEvent,
-  eventField,
-  type Id,
-  type PendingEvent,
-} from '@mondapac-drive/shared-kernel';
+import { defineEvent, eventField, type Id, type PendingEvent } from '@mondapac-drive/shared-kernel';
 import type { PayoutLine } from './payout-run';
 
 // The facts the payouts module publishes through its outbox, for the operations panel and

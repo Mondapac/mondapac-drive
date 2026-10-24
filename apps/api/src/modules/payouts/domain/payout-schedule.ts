@@ -48,6 +48,9 @@ export function earningPeriods(timezone: string, now: Temporal.Instant): Earning
   const today = now.toZonedDateTimeISO(timezone).startOfDay();
   return {
     dayStart: today.toInstant(),
-    weekStart: today.subtract({ days: today.dayOfWeek - 1 }).startOfDay().toInstant(),
+    weekStart: today
+      .subtract({ days: today.dayOfWeek - 1 })
+      .startOfDay()
+      .toInstant(),
   };
 }

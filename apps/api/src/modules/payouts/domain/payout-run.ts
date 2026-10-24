@@ -270,8 +270,7 @@ export function lineHeldBeforeTransfer(
 
 /** An unresolved line an operator settled against the provider's records. */
 export type Settlement =
-  | { readonly found: true; readonly transferId: string }
-  | { readonly found: false };
+  { readonly found: true; readonly transferId: string } | { readonly found: false };
 
 /** The code an operator's settlement leaves on a line the provider never transferred. */
 export const SETTLED_NOT_TRANSFERRED = 'settled.not-transferred';

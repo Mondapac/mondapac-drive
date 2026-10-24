@@ -63,9 +63,7 @@ export class RecordAdjustment extends UseCase<AdjustmentInput, RecordedEntry, Pa
     const { market } = context;
     const { ledger, payees, audit, unitOfWork, clock, ids } = this.deps;
     const settings = this.deps.settings.get(market.marketId);
-    const payee = (await payees.payees(context, [adjustment.courierId])).get(
-      adjustment.courierId,
-    );
+    const payee = (await payees.payees(context, [adjustment.courierId])).get(adjustment.courierId);
     if (payee === undefined) return err(unknownCourier(adjustment.courierId));
     const id = ids.next<'LedgerEntry'>();
 
@@ -82,7 +80,8 @@ export class RecordAdjustment extends UseCase<AdjustmentInput, RecordedEntry, Pa
           `Adjustments in this Market are in ${settings.currency}`,
         );
       }
-      const size = adjustment.amount.amount < 0n ? -adjustment.amount.amount : adjustment.amount.amount;
+      const size =
+        adjustment.amount.amount < 0n ? -adjustment.amount.amount : adjustment.amount.amount;
       if (size > MAX_ADJUSTMENT_MINOR) {
         throw new PayoutsDomainError('payouts.adjustment-too-large', 'The adjustment is too large');
       }

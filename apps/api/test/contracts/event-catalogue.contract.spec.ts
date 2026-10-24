@@ -89,6 +89,10 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
       'identity.other-sessions-signed-out-mail',
       'identity.password-changed-mail',
       'identity.second-factor-mail',
+      'payouts.delivery-earning',
+    ]);
+    expect(subscriptions.subscribersOf('delivery.status-changed.v1')).toEqual([
+      'payouts.delivery-earning',
     ]);
     expect(subscriptions.subscribersOf('identity.invitation-issued.v1')).toEqual([
       'identity.invitation-mail',

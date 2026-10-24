@@ -56,9 +56,12 @@ import { MAX_TRANSFER_ATTEMPTS } from '../../src/modules/payouts/domain/payout-r
 import { latestCutoff } from '../../src/modules/payouts/domain/payout-schedule';
 import { InMemoryPayeeDirectory } from '../../src/modules/payouts/infrastructure/in-memory-payee-directory';
 import { StripeWebhookVerifier } from '../../src/modules/payouts/infrastructure/stripe-webhook-verifier';
+import { DELIVERY_EARNING_SUBSCRIBER } from '../../src/modules/payouts/presentation/subscribers/delivery-earning.subscriptions';
 import { AUTHORISATION_CHECK, type AuthorisationCheck } from '../../src/platform/authz';
 import { CLOCK } from '../../src/platform/clock/clock.module';
 import { ProviderSecret } from '../../src/platform/config/payment-provider';
+import { SubscriptionRegistry } from '../../src/platform/events/event-subscriptions';
+import { issueDelivery } from '../../src/platform/persistence/outbox/delivery-ledger';
 import { payoutMarkets } from '../support/payouts-markets';
 import { testAppConfig, TEST_MARKETS } from '../support/test-config';
 import { marketOf } from './persistence-support';
@@ -160,7 +163,9 @@ class FakeGateway implements PayoutGateway {
             ];
       });
     const unseen = this.unseen.filter((transfer) => transfer.group === group);
-    return Promise.resolve(ok([...new Map([...sent, ...unseen].map((t) => [t.transferId, t])).values()]));
+    return Promise.resolve(
+      ok([...new Map([...sent, ...unseen].map((t) => [t.transferId, t])).values()]),
+    );
   }
 }
 
@@ -217,7 +222,9 @@ describe('courier pay and payouts (database integration)', () => {
     const market = marketOf(code);
     const settings = payoutMarkets.get(market.marketId);
     // Each test lives in its own period, weeks apart, so its run is its own.
-    clock.set(Temporal.Instant.from('2031-01-01T00:00:00Z').add({ hours: 24 * 7 * 3 * periodIndex }));
+    clock.set(
+      Temporal.Instant.from('2031-01-01T00:00:00Z').add({ hours: 24 * 7 * 3 * periodIndex }),
+    );
     const system = () => testCallContext(market, 'system', `payouts-job-${newId()}`);
     const person = (population: 'courier' | 'admin', accountId: string = newId()) =>
       testCallContext(
@@ -412,6 +419,64 @@ describe('courier pay and payouts (database integration)', () => {
       expect(
         await w.earn({ deliveryId: newId(), courierId: known, deliveredAt: w.before() }),
       ).toEqual(err(expect.objectContaining({ code: 'payouts.unknown-delivery' })));
+    });
+
+    it("records an earning from delivery's delivered event once, and ignores every other status", async () => {
+      const w = world(code, index + 19);
+      const courierId = w.courier({ taxRegistered: false });
+      const fact = w.delivered(courierId);
+      const subscriber = app.get(SubscriptionRegistry).get(DELIVERY_EARNING_SUBSCRIBER)!;
+      const statusChanged = (status: string, courier: string | null) => ({
+        eventId: newId(),
+        type: 'delivery.status-changed.v1',
+        occurredAt: fact.deliveredAt,
+        market: w.market,
+        aggregateType: 'delivery',
+        aggregateId: fact.deliveryId as Id,
+        aggregateVersion: 5,
+        correlationId: w.system().correlationId,
+        causationId: null,
+        payload: {
+          deliveryId: fact.deliveryId,
+          status,
+          previousStatus: 'at-dropoff',
+          courierId: courier,
+          reason: null,
+        },
+      });
+      // A delivery handed out as the dispatcher hands one out: in-process, so another spec
+      // file's dispatcher (whose fakes know none of these couriers) never claims it.
+      const deliver = (event: ReturnType<typeof statusChanged>, attempt = 1) =>
+        subscriber.handle(
+          event,
+          issueDelivery(
+            { eventId: event.eventId as Id<'event'>, subscriber: subscriber.name, attempt },
+            w.market,
+            () => clock.now(),
+          ),
+          w.system() as Parameters<typeof subscriber.handle>[2],
+        );
+      const delivered = statusChanged('delivered', courierId);
+      const rate = w.settings.earnings.vehicles.van!;
+      const pay = BigInt(
+        rate.perDelivery + rate.perKm * 10 + w.settings.earnings.coldChainBonus.frozen,
+      );
+
+      expect(subscriber.event.type).toBe('delivery.status-changed.v1');
+      await deliver(statusChanged('at-dropoff', courierId));
+      await deliver(statusChanged('delivered', null));
+      expect(await w.balanceOf(courierId)).toEqual(w.m(0n));
+
+      await deliver(delivered);
+      // A redelivery of the same event, and another event for the same delivery, earn nothing.
+      await deliver(delivered, 2);
+      await deliver(statusChanged('delivered', courierId));
+      expect(await w.balanceOf(courierId)).toEqual(w.m(pay));
+
+      // A refusal throws, so the dispatcher retries the event.
+      await expect(deliver(statusChanged('delivered', newId()))).rejects.toThrow(
+        `${DELIVERY_EARNING_SUBSCRIBER} refused: payouts.unknown-courier`,
+      );
     });
 
     it('pays a closed period once: one line per courier, one transfer per line, balance to zero', async () => {
@@ -758,7 +823,9 @@ describe('courier pay and payouts (database integration)', () => {
       const earlier = clock.now().epochMilliseconds / 1000 - 60;
 
       expect(
-        await w.webhook(w.hook('account.updated', { id: account, payouts_enabled: false }, earlier)),
+        await w.webhook(
+          w.hook('account.updated', { id: account, payouts_enabled: false }, earlier),
+        ),
       ).toEqual(ok({ outcome: 'ignored' }));
       const { rows } = await sql.query<{ payouts_enabled: boolean }>(
         'SELECT payouts_enabled FROM payouts.payout_accounts WHERE market_id = $1 AND courier_id = $2',
@@ -769,7 +836,11 @@ describe('courier pay and payouts (database integration)', () => {
 
     it('refuses a webhook that was not signed with the endpoint secret', async () => {
       const w = world(code, index + 15);
-      const body = JSON.stringify({ id: 'evt_forged', type: 'account.updated', data: { object: {} } });
+      const body = JSON.stringify({
+        id: 'evt_forged',
+        type: 'account.updated',
+        data: { object: {} },
+      });
       const forged = `t=${clock.now().epochMilliseconds / 1000},v1=${'a'.repeat(64)}`;
 
       expect(await w.webhook({ rawBody: Buffer.from(body), signatureHeader: forged })).toEqual(
@@ -837,9 +908,9 @@ describe('courier pay and payouts (database integration)', () => {
       expect(await adjust({ ...bonus, amount: w.m(5n) })).toEqual(
         err(expect.objectContaining({ code: 'payouts.key-reused' })),
       );
-      expect(
-        await use(RecordAdjustment).execute(w.person('courier', courierId), bonus),
-      ).toEqual(err(expect.objectContaining({ code: 'access.denied' })));
+      expect(await use(RecordAdjustment).execute(w.person('courier', courierId), bonus)).toEqual(
+        err(expect.objectContaining({ code: 'access.denied' })),
+      );
       const tax = (1000n * BigInt(w.settings.tax.rateBps)) / 10_000n;
       expect(await w.balanceOf(courierId)).toEqual(w.m(1000n + tax));
       expect(await w.auditOf(courierId)).toEqual([
