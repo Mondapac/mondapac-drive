@@ -107,6 +107,9 @@ describe('delivery lifecycle', () => {
         reason: 'merchant',
       }),
     ).toThrow(expect.objectContaining({ code: 'delivery.invalid-transition' }) as Error);
+    expect(() => run(newDelivery('ambient'), { type: 'cancelled', reason: 'refunded' })).toThrow(
+      expect.objectContaining({ code: 'delivery.reason-required' }) as Error,
+    );
   });
 
   it('returns a failed delivery to the sender', () => {

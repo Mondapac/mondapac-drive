@@ -78,9 +78,9 @@ export class CancelBooking extends UseCase<CancelInput, DeliveryState, DeliveryF
     if (merchantId === null) return Promise.resolve(err(ACCESS_DENIED));
     return recordEvent(
       this.deps,
-      context.market,
+      context,
       input.deliveryId,
-      { type: 'cancelled', reason: input.reason },
+      { type: 'cancelled', reason: input.reason, reasonCode: 'merchant-cancelled' },
       (delivery) => delivery.merchantId === merchantId,
       ['cancelled'],
     );
