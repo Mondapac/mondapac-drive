@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import type { PhotoFile } from '../api/client';
 import { t } from '../i18n';
-import { compressProofPhoto } from '../pod/photo';
+import { compressProofPhoto, discardPhoto } from '../pod/photo';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
 
@@ -42,7 +42,10 @@ export function CameraCapture({ photo, onCaptured }: Props) {
         <Button
           label={t('proof.retakePhoto')}
           variant="secondary"
-          onPress={() => onCaptured(null)}
+          onPress={() => {
+            discardPhoto(photo.uri);
+            onCaptured(null);
+          }}
         />
       </>
     );

@@ -1,5 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react-native';
 import * as Camera from 'expo-camera';
+import * as FileSystem from 'expo-file-system';
 import { ImageManipulator } from 'expo-image-manipulator';
 import { Linking } from 'react-native';
 import { JobScreen } from '../src/screens/JobScreen';
@@ -10,9 +11,12 @@ const press = (name: string) => fireEvent.press(screen.getByRole('button', { nam
 const typeInto = (label: string, value: string) =>
   fireEvent.changeText(screen.getByLabelText(label), value);
 const TEMPERATURE = 'Box temperature (°C)';
+const { __files: deviceFiles } = FileSystem as unknown as { __files: Set<string> };
 const { __takePictureAsync: takePictureAsync } = Camera as unknown as {
   __takePictureAsync: jest.Mock;
 };
+
+beforeEach(() => deviceFiles.clear());
 
 describe.each(MARKETS)('active job in $marketId', (settings) => {
   const max = settings.coldChain.chilled.maxCelsius;
@@ -140,6 +144,24 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
       uri: 'file:///compressed.jpg',
       mimeType: 'image/jpeg',
     });
+    // Security L2: neither the original nor the uploaded copy stays on the phone.
+    expect(deviceFiles.size).toBe(0);
+  });
+
+  it('deletes a retaken photo and a photo never sent when the courier leaves', async () => {
+    await reachDropoff();
+    await press('Photo');
+    await press('Take photo');
+    await screen.findByText('Photo ready to upload.');
+    expect([...deviceFiles]).toEqual(['file:///compressed.jpg']);
+    await press('Retake');
+    expect(deviceFiles.size).toBe(0);
+
+    await press('Take photo');
+    await screen.findByText('Photo ready to upload.');
+    expect(deviceFiles.size).toBe(1);
+    await screen.unmount();
+    expect(deviceFiles.size).toBe(0);
   });
 });
 
