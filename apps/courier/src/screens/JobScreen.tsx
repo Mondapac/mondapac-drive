@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import type { JobEvent, ProofInput } from '../api/client';
 import type { CourierSettings, FailureReason, Job, Stop } from '../api/schemas';
@@ -9,6 +9,7 @@ import { directionsUrl, webDirectionsUrl } from '../domain/navigation';
 import { FailureForm } from '../components/FailureForm';
 import { ProofOfDelivery, proofReady, type ProofDraft } from '../components/ProofOfDelivery';
 import { TemperatureEntry } from '../components/TemperatureEntry';
+import { discardPhoto } from '../pod/photo';
 import { t } from '../i18n';
 import { queryKeys, useServices, useSettings } from '../providers';
 import { Button } from '../ui/Button';
@@ -62,6 +63,31 @@ function JobSteps({
   const [reading, setReading] = useState('');
   const [proof, setProof] = useState<ProofDraft>({ kind: 'pin', pin: '' });
   const [failing, setFailing] = useState<{ reason?: FailureReason } | null>(null);
+  // The photo already uploaded: a retry after a refused event sends its reference again, since
+  // the file itself is deleted once it is on the server.
+  const uploaded = useRef<{ readonly uri: string; readonly photoRef: string } | null>(null);
+  const latestProof = useRef(proof);
+  latestProof.current = proof;
+
+  // A photo taken but never uploaded is deleted when the courier leaves the job.
+  useEffect(
+    () => () => {
+      const left = latestProof.current;
+      if (left.kind === 'photo' && left.photo) discardPhoto(left.photo.uri);
+    },
+    [],
+  );
+
+  // A photo the draft no longer holds (retaken, or the courier switched to the PIN) is deleted.
+  const changeProof = (next: ProofDraft) => {
+    const previous = latestProof.current;
+    const kept = next.kind === 'photo' ? next.photo?.uri : undefined;
+    if (previous.kind === 'photo' && previous.photo && previous.photo.uri !== kept) {
+      discardPhoto(previous.photo.uri);
+    }
+    latestProof.current = next;
+    setProof(next);
+  };
 
   const record = useMutation({
     mutationFn: async (event: JobEvent) => api.recordEvent(job.id, event),
@@ -82,9 +108,14 @@ function JobSteps({
       if (proof.kind === 'pin') {
         input = { kind: 'pin', pin: proof.pin };
       } else {
-        if (!proof.photo) throw new Error('photo missing');
-        const { photoRef } = await api.uploadProofPhoto(job.id, proof.photo);
-        input = { kind: 'photo', photoRef };
+        const photo = proof.photo;
+        if (!photo) throw new Error('photo missing');
+        if (uploaded.current?.uri !== photo.uri) {
+          const { photoRef } = await api.uploadProofPhoto(job.id, photo);
+          uploaded.current = { uri: photo.uri, photoRef };
+          discardPhoto(photo.uri);
+        }
+        input = { kind: 'photo', photoRef: uploaded.current.photoRef };
       }
       return record.mutateAsync({
         type: 'delivered',
@@ -183,7 +214,7 @@ function JobSteps({
                 value={reading}
                 onChange={setReading}
               />
-              {check.kind !== 'breach' && <ProofOfDelivery draft={proof} onChange={setProof} />}
+              {check.kind !== 'breach' && <ProofOfDelivery draft={proof} onChange={changeProof} />}
               {deliver.isPending && proof.kind === 'photo' && <Text>{t('proof.uploading')}</Text>}
               <Button
                 label={t('job.deliver')}
