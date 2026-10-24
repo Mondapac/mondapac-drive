@@ -16,7 +16,11 @@ export interface QuoteDeliveryDependencies {
  * Prices a delivery without booking it, for the merchant of the API key. Rule `permissions
  * [delivery.quote.create]`, which only the merchant role holds. Nothing is stored.
  */
-export class QuoteDelivery extends UseCase<QuoteDeliveryInput, QuoteDeliveryResult, DeliveryFailure> {
+export class QuoteDelivery extends UseCase<
+  QuoteDeliveryInput,
+  QuoteDeliveryResult,
+  DeliveryFailure
+> {
   static override readonly access: AccessDeclaration = {
     name: 'delivery.quote-delivery',
     rule: { kind: 'permissions', allOf: [QUOTE_CREATE.key] },

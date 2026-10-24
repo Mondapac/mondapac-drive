@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, Post } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
+import { RoutePopulation } from '../src/platform/call-context/route-population.decorator';
 import { RateLimit } from '../src/platform/rate-limit/rate-limit.decorator';
 import { createTestApp } from './support/test-app';
 
@@ -11,6 +12,7 @@ import { createTestApp } from './support/test-app';
 const reached = { anonymous: 0, plain: 0 };
 
 /** Test-only routes, one per limit class. */
+@RoutePopulation('courier')
 @Controller('test/limited')
 class LimitedController {
   @Post('anonymous')

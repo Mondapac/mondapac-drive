@@ -1,11 +1,7 @@
 import { err } from '@mondapac-drive/shared-kernel';
 import type { CallContext, Result } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
-import {
-  DELIVERY_CANCEL,
-  DELIVERY_DISPATCH,
-  DELIVERY_VIEW,
-} from '../../contracts/permissions';
+import { DELIVERY_CANCEL, DELIVERY_DISPATCH, DELIVERY_VIEW } from '../../contracts/permissions';
 import type { DeliveryEventInput, DeliveryState } from '../../domain/delivery';
 import type { DeliveryEventType } from '../../domain/delivery-status';
 import {

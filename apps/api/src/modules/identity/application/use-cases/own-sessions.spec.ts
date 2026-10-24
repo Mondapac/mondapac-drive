@@ -412,7 +412,11 @@ describe.each(TEST_MARKETS)('own sessions in market %s', (code) => {
         value: { code: 'other-sessions-signed-out-mail.already-handled' },
       });
       await expect(
-        send.execute(system, { delivery: deliveryOf(), accountId: MERCHANT_ACCOUNT_ID, occurredAt: START }),
+        send.execute(system, {
+          delivery: deliveryOf(),
+          accountId: MERCHANT_ACCOUNT_ID,
+          occurredAt: START,
+        }),
       ).resolves.toEqual({
         ok: true,
         value: { code: 'other-sessions-signed-out-mail.skipped', reason: 'account.gone' },

@@ -1,5 +1,13 @@
 import { HttpException } from '@nestjs/common';
-import type { FieldProblem } from '../application/field-problem';
+
+/**
+ * A field the request got wrong; never its value (identity design 5.2). The shape of
+ * application's FieldProblem, which an entry point may not import (use-cases-are-the-only-way-in).
+ */
+interface FieldProblem {
+  readonly path: string;
+  readonly code: string;
+}
 
 /** At most this many unknown field names are echoed, then one {@link MORE_FIELDS} marker. */
 export const MAX_ECHOED_UNKNOWN_FIELDS = 10;

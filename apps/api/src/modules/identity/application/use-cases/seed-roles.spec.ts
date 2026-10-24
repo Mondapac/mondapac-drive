@@ -120,9 +120,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     });
     expect(fakes.audits).toHaveLength(5);
     await seedRoles().execute(testCallContext(other, 'system', 'seed-roles-0002'), {});
-    expect([...fakes.roles.values()].filter((r) => r.marketId === market.marketId)).toHaveLength(
-      5,
-    );
+    expect([...fakes.roles.values()].filter((r) => r.marketId === market.marketId)).toHaveLength(5);
   });
 
   it('upgrades a default role key by key, with one seed-applied row (Ali 2026-10-08)', async () => {

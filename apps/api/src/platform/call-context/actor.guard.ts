@@ -5,11 +5,7 @@ import { Reflector } from '@nestjs/core';
 import { isMinted } from '@mondapac-drive/shared-kernel';
 import type { MarketContext, Population } from '@mondapac-drive/shared-kernel';
 import { anonymousActor } from '@mondapac-drive/shared-kernel/contexts';
-import {
-  AUTHENTICATOR,
-  type Authenticator,
-  type SessionTransport,
-} from '../authz/authenticator';
+import { AUTHENTICATOR, type Authenticator, type SessionTransport } from '../authz/authenticator';
 import { MarketRegistry } from '../market-config/market-registry';
 import { isMarketContextExempt } from '../market-context/market-context.guard';
 import { marketContextOf } from '../market-context/market.decorator';

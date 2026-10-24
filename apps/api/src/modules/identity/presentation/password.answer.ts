@@ -205,10 +205,7 @@ export async function answerChangePassword(
       });
     case 'session.invalid':
       if (population === 'admin') {
-        response.setHeader(
-          'Set-Cookie',
-          clearedSessionCookie(population, context.market.marketId),
-        );
+        response.setHeader('Set-Cookie', clearedSessionCookie(population, context.market.marketId));
       }
       return fail(PASSWORD_STATUS[error.code], error.code);
     case 'password.current-incorrect':

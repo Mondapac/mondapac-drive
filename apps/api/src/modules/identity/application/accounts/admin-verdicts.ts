@@ -1,5 +1,11 @@
 import { err, ok } from '@mondapac-drive/shared-kernel';
-import type { Id, MarketContext, Population, Result, Temporal } from '@mondapac-drive/shared-kernel';
+import type {
+  Id,
+  MarketContext,
+  Population,
+  Result,
+  Temporal,
+} from '@mondapac-drive/shared-kernel';
 import type { SealedPermissionCatalogue } from '../../../../platform/authz';
 import { statusChangeRefusal } from '../../domain/account';
 import {

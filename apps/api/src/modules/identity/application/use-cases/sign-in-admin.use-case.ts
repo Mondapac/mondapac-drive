@@ -27,8 +27,7 @@ export interface SignInAdminInput {
 export type SignInAdminOutput = AdminSecondStepOutcome;
 
 export type SignInAdminFailure =
-  | { readonly code: 'validation.failed'; readonly fields: readonly FieldProblem[] }
-  | SignInRefusal;
+  { readonly code: 'validation.failed'; readonly fields: readonly FieldProblem[] } | SignInRefusal;
 
 export interface SignInAdminDependencies extends SignInDependencies {
   readonly factors: SecondFactorRepository;

@@ -1,6 +1,6 @@
 import { parseId, parseMarketId, Temporal } from '@mondapac-drive/shared-kernel';
 import type { Id, MarketId } from '@mondapac-drive/shared-kernel';
-import { Account, AccountInvariantError, type AccountState } from './account';
+import { Account, AccountInvariantError } from './account';
 
 const NOW = Temporal.Instant.from('2026-10-07T10:00:00Z');
 const HASH = '$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHRzYWx0c2FsdA$dGFndGFndGFn';

@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Client } from 'pg';
 import { SystemClock } from '../../src/platform/clock/system-clock';
 import request from 'supertest';
+import { RoutePopulation } from '../../src/platform/call-context/route-population.decorator';
 import { PostgresRateLimitCounters } from '../../src/platform/persistence/postgres-rate-limit-counters';
 import { RateLimit } from '../../src/platform/rate-limit/rate-limit.decorator';
 import { createTestApp } from '../support/test-app';
@@ -15,6 +16,7 @@ import { testDatabaseUrl } from './test-database';
 // a minute, ZZ 10 / 200 a minute. This is the only suite that counts in the table, so clearing
 // it between tests disturbs no other suite.
 
+@RoutePopulation('courier')
 @Controller('test/limited')
 class LimitedController {
   @Post('anonymous')

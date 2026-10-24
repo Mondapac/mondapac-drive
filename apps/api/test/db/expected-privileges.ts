@@ -95,7 +95,10 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: [],
     },
     'identity.sign_in_records': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
-    'identity.one_time_links': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.one_time_links': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
     'identity.merchants': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: ['state', 'state_changed_at', 'version'],
@@ -106,9 +109,18 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     'identity.roles': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
     'identity.role_permissions': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
-    'identity.role_assignments': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
-    'identity.second_factors': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
-    'identity.recovery_codes': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.role_assignments': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.second_factors': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
+    'identity.recovery_codes': {
+      table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
+      columnUpdate: [],
+    },
     'identity.sign_in_challenges': {
       table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
       columnUpdate: [],

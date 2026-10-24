@@ -84,10 +84,7 @@ export interface SignInDependencies {
 type Reserved = { readonly reservation: ThrottleReservation; readonly rule: ThrottleRule };
 
 type Refused =
-  | 'credentials.invalid'
-  | 'email-verification-required'
-  | 'account.disabled'
-  | 'access.unavailable';
+  'credentials.invalid' | 'email-verification-required' | 'account.disabled' | 'access.unavailable';
 
 /** What the closing unit decided. */
 type Closed =

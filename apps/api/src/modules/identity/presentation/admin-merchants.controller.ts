@@ -148,7 +148,10 @@ export class AdminMerchantsController {
 
   @Get('merchants')
   @ReadsSession()
-  @ApiOperation({ summary: 'The merchants of the Market', description: 'Needs identity.merchant.view.' })
+  @ApiOperation({
+    summary: 'The merchants of the Market',
+    description: 'Needs identity.merchant.view.',
+  })
   @ApiOkResponse({ type: AdminMerchantList })
   @ApiErrors()
   async list(
@@ -306,7 +309,10 @@ export class AdminMerchantsController {
   ): Promise<AdminApiKeyIssued> {
     response.setHeader('Cache-Control', 'no-store');
     const merchantId = pathId<'Merchant'>(rawMerchantId, 'merchant.unknown');
-    const input = merchantId instanceof HttpException ? merchantId : adminBody(request, body, ['label'] as const);
+    const input =
+      merchantId instanceof HttpException
+        ? merchantId
+        : adminBody(request, body, ['label'] as const);
     let outcome: AdminApiKeyIssued | HttpException;
     if (input instanceof HttpException) outcome = input;
     else {
@@ -382,7 +388,11 @@ export class AdminMerchantsController {
       : refusal(result.error);
   }
 
-  private settle<T extends object>(msg: string, context: CallContext, outcome: T | HttpException): T {
+  private settle<T extends object>(
+    msg: string,
+    context: CallContext,
+    outcome: T | HttpException,
+  ): T {
     this.#logger.log({
       msg,
       outcome: outcome instanceof HttpException ? outcomeOf(outcome) : 'ok',

@@ -159,9 +159,7 @@ describe('PermissionRegistry', () => {
         'identity.team-member.invite',
         'identity.team-member.view',
       ]);
-      expect(registry.list('platform').map((d) => d.key)).toEqual([
-        'identity.merchant.approve',
-      ]);
+      expect(registry.list('platform').map((d) => d.key)).toEqual(['identity.merchant.approve']);
       expect(registry.list()).toHaveLength(4);
     });
   });

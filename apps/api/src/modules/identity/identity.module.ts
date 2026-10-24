@@ -65,7 +65,10 @@ import { AcceptAdminInvitation } from './application/use-cases/accept-admin-invi
 import { AcceptCourierInvitation } from './application/use-cases/accept-courier-invitation.use-case';
 import { AssignAdminRole } from './application/use-cases/assign-admin-role.use-case';
 import { ChangeDisplayName } from './application/use-cases/change-display-name.use-case';
-import { ReinstateMerchant, SuspendMerchant } from './application/use-cases/change-merchant-state.use-case';
+import {
+  ReinstateMerchant,
+  SuspendMerchant,
+} from './application/use-cases/change-merchant-state.use-case';
 import { ChangePanelPreferences } from './application/use-cases/change-panel-preferences.use-case';
 import { ChangePassword } from './application/use-cases/change-password.use-case';
 import { CompleteAdminSignIn } from './application/use-cases/complete-admin-sign-in.use-case';
@@ -88,7 +91,11 @@ import { ListAdminTeam } from './application/use-cases/list-admin-team.use-case'
 import { ListMerchants } from './application/use-cases/list-merchants.use-case';
 import { ListOwnSessions } from './application/use-cases/list-own-sessions.use-case';
 import { ListPlatformRoles } from './application/use-cases/list-platform-roles.use-case';
-import { IssueMerchantApiKey, ListMerchantApiKeys, RevokeMerchantApiKey } from './application/use-cases/merchant-api-keys.use-case';
+import {
+  IssueMerchantApiKey,
+  ListMerchantApiKeys,
+  RevokeMerchantApiKey,
+} from './application/use-cases/merchant-api-keys.use-case';
 import { PurgeExpired } from './application/use-cases/purge-expired.use-case';
 import { RegenerateRecoveryCodes } from './application/use-cases/regenerate-recovery-codes.use-case';
 import { RequestPasswordReset } from './application/use-cases/request-password-reset.use-case';
@@ -136,7 +143,10 @@ import { CourierSessionController } from './presentation/courier-session.control
 import { IdentityFacadeImplementation } from './presentation/identity.facade';
 import { purgeExpiredJob } from './presentation/jobs/purge-expired.job';
 import { seedRolesJob } from './presentation/jobs/seed-roles.job';
-import { AdminProfileController, CourierProfileController } from './presentation/profile.controller';
+import {
+  AdminProfileController,
+  CourierProfileController,
+} from './presentation/profile.controller';
 import { identityMailSubscriptions } from './presentation/subscribers/mail.subscriptions';
 
 /**
@@ -848,7 +858,10 @@ function useCaseProvider<D, U>(
     registerJobsFrom(
       'identity',
       [PurgeExpired, SeedRoles],
-      (purge: PurgeExpired, seedRoles: SeedRoles) => [purgeExpiredJob(purge), seedRolesJob(seedRoles)],
+      (purge: PurgeExpired, seedRoles: SeedRoles) => [
+        purgeExpiredJob(purge),
+        seedRolesJob(seedRoles),
+      ],
     ),
     registerSubscriptionsFrom(
       'identity',

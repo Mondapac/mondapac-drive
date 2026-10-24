@@ -125,9 +125,9 @@ describe('openSession refuses', () => {
     const lifetime = { idleTimeoutSeconds: 1, absoluteLifetimeSeconds: 2 };
     const merchant = { population: 'merchant' as const, merchantId: MERCHANT, lifetime };
     expect(() => openSession({ ...base, ...merchant, transport: 'api-key' })).toThrow(TypeError);
-    expect(() =>
-      openSession({ ...base, population: 'admin', lifetime, label: 'Shop' }),
-    ).toThrow(TypeError);
+    expect(() => openSession({ ...base, population: 'admin', lifetime, label: 'Shop' })).toThrow(
+      TypeError,
+    );
     expect(() =>
       openSession({ ...base, ...merchant, transport: 'api-key', label: 'x'.repeat(65) }),
     ).toThrow(TypeError);

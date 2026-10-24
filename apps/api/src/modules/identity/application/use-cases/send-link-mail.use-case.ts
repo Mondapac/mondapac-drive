@@ -8,7 +8,7 @@ import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../p
 import type { Account } from '../../domain/account';
 import type { LinkPurpose, OneTimeLink } from '../../domain/one-time-link';
 import type { AccountRepository } from '../ports/account.repository';
-import type { IdentityMail, IdentityMailComposer } from '../ports/identity-mails';
+import type { IdentityMailComposer } from '../ports/identity-mails';
 import type { IdentityMarketPolicy } from '../ports/identity-market-policy';
 import type { LinkPage, LinkTargets, LinkTokens } from '../ports/link-secrets';
 import type { OneTimeLinkRepository } from '../ports/one-time-link.repository';
@@ -153,14 +153,14 @@ export class SendLinkMail extends UseCase<
     const url = new URL(target);
     url.hash = minted.token;
     // The template/population pairs are checked at runtime by the composer (a missing key throws,
-    // so the delivery is retried and dead-lettered); E15 is only ever requested for a seller owner
-    // and `skipReason` skips it for any other population.
+    // so the delivery is retried and dead-lettered); enrol-second-factor is only ever requested
+    // for an admin, and `skipReason` skips it for any other population.
     const composed = this.deps.composer.compose(market, {
       template: mail.template,
       population,
       url: url.toString(),
       lifetimeMinutes,
-    } as IdentityMail);
+    });
     const sender = policy.mailSender(market);
     await this.deps.transport.send({
       to: account!.state.email.typed,

@@ -1,6 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { err, ok } from '@mondapac-drive/shared-kernel';
-import type { AuthenticatedActor, Clock, MarketContext, Result } from '@mondapac-drive/shared-kernel';
+import type {
+  AuthenticatedActor,
+  Clock,
+  MarketContext,
+  Result,
+} from '@mondapac-drive/shared-kernel';
 import { authenticatedActor } from '@mondapac-drive/shared-kernel/authenticated-actor';
 import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import type {

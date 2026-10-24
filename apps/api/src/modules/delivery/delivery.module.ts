@@ -79,7 +79,14 @@ function deliveryUseCase<U>(
     },
     {
       provide: BookDelivery,
-      inject: [USE_CASE_GATE, DeliveryPricing, DELIVERY_REPOSITORY, UNIT_OF_WORK, ID_GENERATOR, CLOCK],
+      inject: [
+        USE_CASE_GATE,
+        DeliveryPricing,
+        DELIVERY_REPOSITORY,
+        UNIT_OF_WORK,
+        ID_GENERATOR,
+        CLOCK,
+      ],
       useFactory: (
         gate: UseCaseGate,
         pricing: DeliveryPricing,

@@ -27,8 +27,7 @@ export interface MerchantAdminDependencies extends ActingGrantDependencies {
 }
 
 export type MerchantAdminRefusal =
-  | { readonly code: 'access.denied' }
-  | { readonly code: 'access.unavailable' };
+  { readonly code: 'access.denied' } | { readonly code: 'access.unavailable' };
 
 const logger = new Logger('MerchantAdmin');
 

@@ -231,17 +231,20 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
       ['an API key whose membership is of another merchant', 'active', 'other-merchant', 'api-key'],
       ['an API key of a suspended merchant', 'suspended', 'active', 'api-key'],
       ['an API key presented as a courier bearer token', 'active', 'active', 'bearer'],
-    ])('rejects %s with the one credential.rejected', async (_case, state, membership, transport) => {
-      seedMerchant(fakes, code, state, membership);
-      seedApiKey();
+    ])(
+      'rejects %s with the one credential.rejected',
+      async (_case, state, membership, transport) => {
+        seedMerchant(fakes, code, state, membership);
+        seedApiKey();
 
-      await expect(
-        authenticator().authenticate(market, {
-          token: TOKEN,
-          transport: transport as 'api-key' | 'bearer',
-        }),
-      ).resolves.toEqual({ ok: false, error: { code: 'credential.rejected' } });
-    });
+        await expect(
+          authenticator().authenticate(market, {
+            token: TOKEN,
+            transport: transport as 'api-key' | 'bearer',
+          }),
+        ).resolves.toEqual({ ok: false, error: { code: 'credential.rejected' } });
+      },
+    );
 
     it('builds a minted courier actor from a live session, in a read-only unit', async () => {
       seedSession();
@@ -529,9 +532,9 @@ describe.each(TEST_MARKETS)('identity access ports in market %s', (code) => {
         seedMerchant(fakes, code, 'active', 'other-merchant');
         await expect(check().check(merchantContext(), ownResources)).resolves.toEqual(DENIED);
         seedMerchant(fakes, code, 'active');
-        await expect(check().check(merchantContext(OTHER_MERCHANT_ID), ownResources)).resolves.toEqual(
-          DENIED,
-        );
+        await expect(
+          check().check(merchantContext(OTHER_MERCHANT_ID), ownResources),
+        ).resolves.toEqual(DENIED);
       });
 
       it('the merchant system role holds every merchant key and no platform or courier key (R2, R3)', async () => {

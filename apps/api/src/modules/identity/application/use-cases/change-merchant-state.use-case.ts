@@ -20,9 +20,7 @@ export interface MerchantStateOutput {
 }
 
 export type MerchantStateFailure =
-  | { readonly code: 'merchant.unknown' }
-  | MerchantStateRefused
-  | MerchantAdminRefusal;
+  { readonly code: 'merchant.unknown' } | MerchantStateRefused | MerchantAdminRefusal;
 
 /**
  * Suspends a merchant (Drive). Rule `permissions [identity.merchant.suspend]` (protected). In one

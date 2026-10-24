@@ -2,7 +2,12 @@ import { Controller, HttpException, Logger } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { err, ok, parseId, POPULATIONS } from '@mondapac-drive/shared-kernel';
-import type { AuthenticatedActor, Id, MarketContext, Population } from '@mondapac-drive/shared-kernel';
+import type {
+  AuthenticatedActor,
+  Id,
+  MarketContext,
+  Population,
+} from '@mondapac-drive/shared-kernel';
 import {
   testAuthenticatedActor,
   testCallContext,
@@ -170,7 +175,7 @@ const panelMarkets = new MarketRegistry(
         ...config.allowedOrigins,
         admin: list.length > 0 ? list : [...new Set(pages.map((page) => new URL(page).origin))],
       };
-      return [marketId, { ...config, allowedOrigins } as typeof config] as const;
+      return [marketId, { ...config, allowedOrigins }] as const;
     }),
   ),
 );
@@ -380,7 +385,9 @@ describe.each(TEST_MARKETS)('the actor and CallContext of a request in %s', (cod
       const response = new FakeResponse();
       const req = request({ headers: { authorization: BEARER } });
 
-      await refusal(guard.canActivate(httpContext(req, handler, AdminController, 'http', response)));
+      await refusal(
+        guard.canActivate(httpContext(req, handler, AdminController, 'http', response)),
+      );
 
       if (handler === 'sessionRoute') {
         expect(response.headers.get('Set-Cookie')).toMatch(
@@ -482,7 +489,11 @@ describe.each(TEST_MARKETS)('the actor and CallContext of a request in %s', (cod
     it('accepts the right CSRF token', async () => {
       const req = request({
         method: 'DELETE',
-        headers: { ...own(), cookie: `${cookieName}=${TOKEN}`, 'x-csrf-token': csrfTokenFor(TOKEN) },
+        headers: {
+          ...own(),
+          cookie: `${cookieName}=${TOKEN}`,
+          'x-csrf-token': csrfTokenFor(TOKEN),
+        },
       });
 
       await expect(panelGuard.canActivate(httpContext(req, 'sessionRoute'))).resolves.toBe(true);
@@ -538,9 +549,9 @@ describe.each(TEST_MARKETS)('the actor and CallContext of a request in %s', (cod
         const controller = CONTROLLER_OF[population];
         const plain = request({ method: 'POST' });
 
-        await expect(guard.canActivate(httpContext(plain, 'anonymousRoute', controller))).resolves.toBe(
-          true,
-        );
+        await expect(
+          guard.canActivate(httpContext(plain, 'anonymousRoute', controller)),
+        ).resolves.toBe(true);
         if (markets.get(market.marketId).allowedOrigins[population].length === 0) {
           for (const origin of [originOf('admin'), originOf('courier'), 'https://evil.example']) {
             const req = request({

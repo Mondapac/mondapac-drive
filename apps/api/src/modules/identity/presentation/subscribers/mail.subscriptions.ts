@@ -1,7 +1,6 @@
 import {
   subscription,
   type RegisteredSubscription,
-  type SubscriberContext,
 } from '../../../../platform/events/event-subscriptions';
 import type { SendInvitationMail } from '../../application/use-cases/send-invitation-mail.use-case';
 import type { SendLinkMail } from '../../application/use-cases/send-link-mail.use-case';

@@ -380,7 +380,11 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
     for (const absent of [...populationRoles, ELSEWHERE_ROLE]) {
       expect(ids).not.toContain(absent);
     }
-    for (const input of [{ scope: 'merchant' }, { merchantId: MERCHANT_ID }, { scope: 'platform' }]) {
+    for (const input of [
+      { scope: 'merchant' },
+      { merchantId: MERCHANT_ID },
+      { scope: 'platform' },
+    ]) {
       const refused = await list.execute(as(ROOT), input as unknown as ListPlatformRolesInput);
       expect(refused).toEqual({
         ok: false,

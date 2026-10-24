@@ -1,5 +1,12 @@
-import { err, ok, Temporal } from '@mondapac-drive/shared-kernel';
-import type { Id, MarketId, PendingEvent, Population, Result } from '@mondapac-drive/shared-kernel';
+import { err, ok } from '@mondapac-drive/shared-kernel';
+import type {
+  Id,
+  MarketId,
+  PendingEvent,
+  Population,
+  Result,
+  Temporal,
+} from '@mondapac-drive/shared-kernel';
 import type { EmailAddress } from './email-address';
 import type { PASSWORD_CHANGE_CAUSES } from './events';
 import {

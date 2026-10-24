@@ -1,1 +1,285 @@
-[]
+[
+  {
+    "action": "identity.account-role.assigned",
+    "targetType": "identity.account",
+    "targetId": "id",
+    "actors": ["anonymous"],
+    "before": null,
+    "after": {
+      "accountId": "id",
+      "boundSubjectId": "id",
+      "founding": "boolean",
+      "roleId": "id",
+      "scope": "enumOf(platform|merchant|courier)"
+    }
+  },
+  {
+    "action": "identity.account-role.changed",
+    "targetType": "identity.account",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "roleId": "id"
+    },
+    "after": {
+      "roleId": "id",
+      "scope": "enumOf(platform|merchant|courier)"
+    }
+  },
+  {
+    "action": "identity.account.disabled",
+    "targetType": "identity.account",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(active|disabled)"
+    },
+    "after": {
+      "population": "enumOf(admin|courier)",
+      "status": "enumOf(active|disabled)"
+    }
+  },
+  {
+    "action": "identity.account.enabled",
+    "targetType": "identity.account",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(active|disabled)"
+    },
+    "after": {
+      "population": "enumOf(admin|courier)",
+      "status": "enumOf(active|disabled)"
+    }
+  },
+  {
+    "action": "identity.account.other-sessions-signed-out",
+    "targetType": "identity.account",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "keptSessionId": "id",
+      "revokedSessions": "integer"
+    }
+  },
+  {
+    "action": "identity.admin-session.opened",
+    "targetType": "identity.account",
+    "targetId": "id",
+    "actors": ["anonymous"],
+    "before": null,
+    "after": {
+      "boundSubjectId": "id",
+      "sessionId": "id"
+    }
+  },
+  {
+    "action": "identity.api-key.issued",
+    "targetType": "identity.api-key",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "accountId": "id",
+      "merchantId": "id"
+    }
+  },
+  {
+    "action": "identity.api-key.revoked",
+    "targetType": "identity.api-key",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "merchantId": "id"
+    }
+  },
+  {
+    "action": "identity.invitation.accepted",
+    "targetType": "identity.invitation",
+    "targetId": "id",
+    "actors": ["anonymous"],
+    "before": null,
+    "after": {
+      "accountId": "id",
+      "boundSubjectId": "id",
+      "kind": "enumOf(admin|courier)",
+      "roleId": "id"
+    }
+  },
+  {
+    "action": "identity.invitation.issued",
+    "targetType": "identity.invitation",
+    "targetId": "id",
+    "actors": ["authenticated", "system"],
+    "before": null,
+    "after": {
+      "kind": "enumOf(admin|courier)",
+      "roleId": "id"
+    }
+  },
+  {
+    "action": "identity.invitation.reissued",
+    "targetType": "identity.invitation",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "kind": "enumOf(admin|courier)",
+      "roleId": "id"
+    }
+  },
+  {
+    "action": "identity.invitation.revoked",
+    "targetType": "identity.invitation",
+    "targetId": "id",
+    "actors": ["authenticated", "system"],
+    "before": null,
+    "after": {
+      "kind": "enumOf(admin|courier)",
+      "roleId": "id"
+    }
+  },
+  {
+    "action": "identity.merchant.created",
+    "targetType": "identity.merchant",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "accountId": "id",
+      "roleId": "id",
+      "state": "enumOf(active|suspended)"
+    }
+  },
+  {
+    "action": "identity.merchant.reinstated",
+    "targetType": "identity.merchant",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "state": "enumOf(active|suspended)"
+    },
+    "after": {
+      "state": "enumOf(active|suspended)"
+    }
+  },
+  {
+    "action": "identity.merchant.suspended",
+    "targetType": "identity.merchant",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "state": "enumOf(active|suspended)"
+    },
+    "after": {
+      "revokedSessions": "integer",
+      "state": "enumOf(active|suspended)"
+    }
+  },
+  {
+    "action": "identity.role.created",
+    "targetType": "identity.role",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "addedKeys": "listOf(permissionKey, max 40)",
+      "scope": "enumOf(platform|merchant|courier)"
+    }
+  },
+  {
+    "action": "identity.role.deleted",
+    "targetType": "identity.role",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "removedKeys": "listOf(permissionKey, max 40)",
+      "scope": "enumOf(platform|merchant|courier)"
+    },
+    "after": null
+  },
+  {
+    "action": "identity.role.seed-applied",
+    "targetType": "identity.role",
+    "targetId": "id",
+    "actors": ["system"],
+    "before": {
+      "seedVersion": "integer"
+    },
+    "after": {
+      "addedKeys": "listOf(permissionKey, max 40)",
+      "removedKeys": "listOf(permissionKey, max 40)",
+      "seedVersion": "integer"
+    }
+  },
+  {
+    "action": "identity.role.seeded",
+    "targetType": "identity.role",
+    "targetId": "id",
+    "actors": ["system"],
+    "before": null,
+    "after": {
+      "kind": "enumOf(system|default|custom)",
+      "scope": "enumOf(platform|merchant|courier)",
+      "seedVersion": "integer"
+    }
+  },
+  {
+    "action": "identity.role.updated",
+    "targetType": "identity.role",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "addedKeys": "listOf(permissionKey, max 40)",
+      "removedKeys": "listOf(permissionKey, max 40)",
+      "renamed": "boolean",
+      "scope": "enumOf(platform|merchant|courier)"
+    }
+  },
+  {
+    "action": "identity.second-factor.activated",
+    "targetType": "identity.second-factor",
+    "targetId": "id",
+    "actors": ["anonymous"],
+    "before": null,
+    "after": {
+      "accountId": "id",
+      "boundSubjectId": "id"
+    }
+  },
+  {
+    "action": "identity.second-factor.recovery-codes-regenerated",
+    "targetType": "identity.second-factor",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "accountId": "id"
+    }
+  },
+  {
+    "action": "identity.second-factor.replaced",
+    "targetType": "identity.second-factor",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "accountId": "id"
+    }
+  },
+  {
+    "action": "identity.second-factor.reset",
+    "targetType": "identity.second-factor",
+    "targetId": "id",
+    "actors": ["authenticated", "system"],
+    "before": {
+      "state": "enumOf(pending|active)"
+    },
+    "after": {
+      "accountId": "id"
+    }
+  }
+]

@@ -42,10 +42,10 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
 
 /**
  * The Nest modules that bind their own audit writer and register their actions. A module joins
- * this list only with the audited actions its approved design names. Drive has none yet:
- * identity joins with its access-management actions.
+ * this list only with the audited actions its approved design names: identity, with its
+ * access-management actions (accounts, roles, sessions, merchants and API keys).
  */
-const AUDITING_MODULES: readonly string[] = [];
+const AUDITING_MODULES: readonly string[] = ['IdentityModule'];
 const SRC = path.join(__dirname, '../../src');
 
 const foldersOf = (dir: string) =>
@@ -364,7 +364,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ]);
     await moduleRef.close();
 
-    expect(binders.sort()).toEqual([]);
+    expect(binders.sort()).toEqual([['IdentityModule', 'identity']]);
   });
 
   it('binds every writer and registers every action list in the Nest module of its owner (Hassan L4)', async () => {
@@ -384,7 +384,10 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     }
     await moduleRef.close();
 
-    expect(found.map((entry) => [entry.module, entry.kind]).sort()).toEqual([]);
+    expect(found.map((entry) => [entry.module, entry.kind]).sort()).toEqual([
+      ['IdentityModule', 'actions'],
+      ['IdentityModule', 'writer'],
+    ]);
     expect(found.filter((entry) => entry.owner !== entry.allowed)).toEqual([]);
   });
 
@@ -461,7 +464,10 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     }
 
     expect(offenders).toEqual([]);
-    expect(calls.sort()).toEqual([]);
+    expect(calls.sort()).toEqual([
+      `${path.join('modules', 'identity', 'identity.module.ts')}: auditWriterFor('identity')`,
+      `${path.join('modules', 'identity', 'identity.module.ts')}: registerAuditActions('identity')`,
+    ]);
   });
 });
 

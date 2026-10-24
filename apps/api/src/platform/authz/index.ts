@@ -18,11 +18,7 @@ export {
   type AccessDecision,
   type AuthorisationCheck,
 } from './authorisation-check';
-export type {
-  AccessDeclaration,
-  AccessRule,
-  PermissionKey,
-} from './access-rule';
+export type { AccessDeclaration, AccessRule, PermissionKey } from './access-rule';
 export {
   declarePermissions,
   definePermission,

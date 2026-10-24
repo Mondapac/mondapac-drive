@@ -1,4 +1,14 @@
-import { Body, Controller, HttpCode, HttpException, Logger, Post, Put, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpException,
+  Logger,
+  Post,
+  Put,
+  Req,
+  Res,
+} from '@nestjs/common';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
@@ -102,7 +112,10 @@ export class CourierSessionController {
     type: ApiErrorBody,
     description: 'request.throttled (details.retryAfterSeconds, Retry-After)',
   })
-  @ApiServiceUnavailableResponse({ type: ApiErrorBody, description: 'request.busy or access.unavailable' })
+  @ApiServiceUnavailableResponse({
+    type: ApiErrorBody,
+    description: 'request.busy or access.unavailable',
+  })
   async signIn(
     @Call() context: CallContext,
     @Req() request: Request,
@@ -139,7 +152,10 @@ export class CourierSessionController {
   })
   @ApiUnsupportedMediaTypeResponse({ type: ApiErrorBody, description: 'Not application/json' })
   @ApiTooManyRequestsResponse({ type: ApiErrorBody, description: 'request.throttled' })
-  @ApiServiceUnavailableResponse({ type: ApiErrorBody, description: 'request.busy or access.unavailable' })
+  @ApiServiceUnavailableResponse({
+    type: ApiErrorBody,
+    description: 'request.busy or access.unavailable',
+  })
   async accept(
     @Call() context: CallContext,
     @Req() request: Request,
@@ -198,7 +214,10 @@ export class CourierSessionController {
     description: 'validation.failed, password.rejected or link.rejected',
   })
   @ApiTooManyRequestsResponse({ type: ApiErrorBody, description: 'request.throttled' })
-  @ApiServiceUnavailableResponse({ type: ApiErrorBody, description: 'request.busy or access.unavailable' })
+  @ApiServiceUnavailableResponse({
+    type: ApiErrorBody,
+    description: 'request.busy or access.unavailable',
+  })
   async reset(
     @Call() context: CallContext,
     @Req() request: Request,
@@ -235,7 +254,10 @@ export class CourierSessionController {
   @ApiUnauthorizedResponse({ type: ApiErrorBody, description: BEARER })
   @ApiForbiddenResponse({ type: ApiErrorBody, description: 'access.denied' })
   @ApiTooManyRequestsResponse({ type: ApiErrorBody, description: 'request.throttled' })
-  @ApiServiceUnavailableResponse({ type: ApiErrorBody, description: 'request.busy or access.unavailable' })
+  @ApiServiceUnavailableResponse({
+    type: ApiErrorBody,
+    description: 'request.busy or access.unavailable',
+  })
   async changeOwnPassword(
     @Call() context: CallContext,
     @Req() request: Request,

@@ -42,9 +42,7 @@ export function merchantOf(context: CallContext): Id<'Merchant'> | null {
 /** The courier's account id of a courier actor, or null for any other actor. */
 export function courierOf(context: CallContext): Id<'Account'> | null {
   const { actor } = context;
-  return actor.kind === 'authenticated' && actor.population === 'courier'
-    ? actor.accountId
-    : null;
+  return actor.kind === 'authenticated' && actor.population === 'courier' ? actor.accountId : null;
 }
 
 /** Whether the actor is a signed-in admin (an operator or a dispatcher). */

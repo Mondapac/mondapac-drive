@@ -222,7 +222,7 @@ export class PrismaRoleRepository implements RoleRepository {
           kind: state.kind,
           seedCode: state.seedCode,
           seedVersion: state.seedVersion,
-            version: state.version,
+          version: state.version,
           createdAt: toDate(state.createdAt),
         },
       ],

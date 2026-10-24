@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Logger, Post } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
+import { RoutePopulation } from '../src/platform/call-context/route-population.decorator';
 import { NoMarketContext } from '../src/platform/market-context/no-market-context.decorator';
 import { completionLineOf, createTestApp, type LogLine } from './support/test-app';
 
@@ -27,6 +28,7 @@ class FailingController {
  * Test-only: echoes the parsed body, so a test can show the parser still runs. Market-scoped:
  * an unsafe route on a market-exempt controller fails the start-up check (identity design 6.4).
  */
+@RoutePopulation('courier')
 @Controller('test/echo')
 class EchoController {
   @Post()

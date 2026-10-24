@@ -27,7 +27,10 @@ import {
   ViewAssignment,
 } from '../application/use-cases/courier-deliveries.use-case';
 import { CancelBooking, ViewBooking } from '../application/use-cases/merchant-deliveries.use-case';
-import { QuoteDelivery, type DeliveryFailure } from '../application/use-cases/quote-delivery.use-case';
+import {
+  QuoteDelivery,
+  type DeliveryFailure,
+} from '../application/use-cases/quote-delivery.use-case';
 import type { DeliveryState } from '../domain/delivery';
 import type { DeliveryQuote } from '../domain/pricing';
 import {
@@ -145,7 +148,7 @@ export class MerchantDeliveryController {
   @ApiOperation({
     summary: 'Book a delivery',
     description:
-      "Idempotent on the merchant and externalReference: a retry answers 200. The merchant is " +
+      'Idempotent on the merchant and externalReference: a retry answers 200. The merchant is ' +
       "the API key's.",
   })
   async create(

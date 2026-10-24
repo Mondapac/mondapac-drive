@@ -55,8 +55,7 @@ export class MerchantInvariantError extends Error {
 
 /** The state change was refused: the merchant is already in that state. */
 export type MerchantStateRefused =
-  | { readonly code: 'merchant.already-suspended' }
-  | { readonly code: 'merchant.already-active' };
+  { readonly code: 'merchant.already-suspended' } | { readonly code: 'merchant.already-active' };
 
 /**
  * The `Merchant` aggregate (Drive; the marketplace's `SellerAccess`, reduced to what Drive

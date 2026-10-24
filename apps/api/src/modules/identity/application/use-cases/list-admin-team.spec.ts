@@ -32,9 +32,7 @@ import type { IdentityMarketPolicy } from '../ports/identity-market-policy';
 import type { ThrottleKeys } from '../ports/session-secrets';
 import { AssignAdminRole } from './assign-admin-role.use-case';
 import { DisableAdminAccount } from './disable-admin-account.use-case';
-import { DisableCourierAccount } from './disable-courier-account.use-case';
 import { EnableAdminAccount } from './enable-admin-account.use-case';
-import { EnableCourierAccount } from './enable-courier-account.use-case';
 import {
   ListAdminTeam,
   type ActionHint,
@@ -191,7 +189,7 @@ describe.each(TEST_MARKETS)('ListAdminTeam in market %s (slice 8c)', (code) => {
         displayName: `Account ${n}`,
         status,
         emailVerifiedAt: START,
-          signedUpAt: START,
+        signedUpAt: START,
         createdAt: START,
         version: 1,
         credential: { passwordHash: fakeHashOf('x'), changedAt: START },

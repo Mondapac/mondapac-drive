@@ -332,9 +332,7 @@ export class IdentityFakes {
         [...this.memberships.values()]
           .filter(
             (m) =>
-              m.marketId === market.marketId &&
-              m.merchantId === merchantId &&
-              m.state === 'active',
+              m.marketId === market.marketId && m.merchantId === merchantId && m.state === 'active',
           )
           .map((m) => m.accountId)
           .sort(),
@@ -717,19 +715,14 @@ export class IdentityFakes {
               Temporal.Instant.compare(s.absoluteExpiresAt, now) > 0,
           )
           .sort(
-            (a, b) =>
-              Temporal.Instant.compare(b.createdAt, a.createdAt) || (a.id < b.id ? 1 : -1),
+            (a, b) => Temporal.Instant.compare(b.createdAt, a.createdAt) || (a.id < b.id ? 1 : -1),
           ),
       ),
     revokeAllOfMerchant: (market, merchantId, reason, now) => {
       let count = 0;
       for (const found of this.sessions.values()) {
         const s = found.session;
-        if (
-          s.marketId === market.marketId &&
-          s.merchantId === merchantId &&
-          s.revokedAt === null
-        ) {
+        if (s.marketId === market.marketId && s.merchantId === merchantId && s.revokedAt === null) {
           found.session = { ...s, revokedAt: now, revokedReason: reason };
           count += 1;
         }

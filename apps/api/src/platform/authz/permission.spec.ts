@@ -20,7 +20,10 @@ describe('definePermission', () => {
   });
 
   it.each([
-    ['a key of another module', { key: 'delivery.booking.edit', scope: 'merchant', protected: false }],
+    [
+      'a key of another module',
+      { key: 'delivery.booking.edit', scope: 'merchant', protected: false },
+    ],
     ['two segments', { key: 'identity.view', scope: 'platform', protected: false }],
     ['upper case', { key: 'identity.Merchant.view', scope: 'platform', protected: false }],
     ['a customer scope', { key: 'identity.order.view', scope: 'customer', protected: false }],

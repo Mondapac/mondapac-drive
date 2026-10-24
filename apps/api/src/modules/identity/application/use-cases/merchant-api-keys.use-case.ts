@@ -128,7 +128,8 @@ export interface RevokeMerchantApiKeyOutput {
   readonly keyId: Id<'Session'>;
 }
 
-export type RevokeMerchantApiKeyFailure = { readonly code: 'api-key.unknown' } | MerchantAdminRefusal;
+export type RevokeMerchantApiKeyFailure =
+  { readonly code: 'api-key.unknown' } | MerchantAdminRefusal;
 
 /**
  * Revokes one API key of a merchant (Drive). Rule `permissions [identity.merchant-api-key.issue]`.
@@ -208,7 +209,8 @@ export interface ListMerchantApiKeysOutput {
   readonly items: readonly ApiKeyRow[];
 }
 
-export type ListMerchantApiKeysFailure = { readonly code: 'merchant.unknown' } | MerchantAdminRefusal;
+export type ListMerchantApiKeysFailure =
+  { readonly code: 'merchant.unknown' } | MerchantAdminRefusal;
 
 /**
  * The live API keys of a merchant, newest first (Drive). Rule `permissions

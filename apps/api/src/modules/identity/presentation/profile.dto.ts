@@ -23,7 +23,7 @@ export class ChangePanelPreferencesRequest {
   @ApiProperty({
     type: String,
     nullable: true,
-    description: 'An IANA time zone id (for example Australia/Brisbane), or null for the default.',
+    description: 'An IANA time zone id (for example Pacific/Auckland), or null for the default.',
   })
   timezone!: string | null;
 

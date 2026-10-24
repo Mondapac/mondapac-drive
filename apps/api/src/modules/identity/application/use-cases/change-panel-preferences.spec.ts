@@ -155,7 +155,9 @@ describe.each(TEST_MARKETS)('ChangePanelPreferences in market %s', (code) => {
     seed(COURIER_ID, 'courier');
     const input = { timezone: 'UTC', locale: null };
 
-    await expect(useCase().execute(contextOf('merchant', MERCHANT_ACCOUNT_ID), input)).resolves.toEqual({
+    await expect(
+      useCase().execute(contextOf('merchant', MERCHANT_ACCOUNT_ID), input),
+    ).resolves.toEqual({
       ok: false,
       error: { code: 'access.denied' },
     });

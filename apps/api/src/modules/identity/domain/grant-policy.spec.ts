@@ -152,7 +152,11 @@ describe('GrantPolicy.canGrant', () => {
 
   it('R2: never across scopes, even for a role with no keys', () => {
     expect(
-      GrantPolicy.canGrant(administrator, role({ id: MERCHANT_SYSTEM, scope: 'merchant' }), catalogue),
+      GrantPolicy.canGrant(
+        administrator,
+        role({ id: MERCHANT_SYSTEM, scope: 'merchant' }),
+        catalogue,
+      ),
     ).toEqual({ ok: false, error: { code: 'role.not-grantable', reason: 'scope' } });
   });
 

@@ -44,7 +44,9 @@ export class ListMerchants extends UseCase<
     super(gate);
   }
 
-  protected handle(context: CallContext): Promise<Result<ListMerchantsOutput, MerchantAdminRefusal>> {
+  protected handle(
+    context: CallContext,
+  ): Promise<Result<ListMerchantsOutput, MerchantAdminRefusal>> {
     return asActingAdmin(
       this.deps,
       context,

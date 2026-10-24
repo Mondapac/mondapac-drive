@@ -164,7 +164,11 @@ export class AcceptCourierInvitation extends UseCase<
     // 1. The reservation unit.
     type Reserved =
       | { readonly kind: 'refused'; readonly refusal: AcceptCourierInvitationFailure }
-      | { readonly kind: 'reserved'; readonly invitationId: Id<'Invitation'>; readonly email: string };
+      | {
+          readonly kind: 'reserved';
+          readonly invitationId: Id<'Invitation'>;
+          readonly email: string;
+        };
     let reserved: Reserved;
     try {
       const run = await unitOfWork.run(market, async (): Promise<Result<Reserved, never>> => {
@@ -228,10 +232,17 @@ export class AcceptCourierInvitation extends UseCase<
         if (!acceptableInvitation(invitation, now)) return ok(null);
         const role = await this.deps.roles.findById(market, invitation.state.roleId);
         if (role === null || role.state.scope !== 'courier' || !role.isSystem) return ok(null);
-        const inviter = { accountId: invitation.state.invitedByAccountId!, population: 'admin' as const };
-        const standing = await readActingGrants(this.deps, market, inviter, [], [
-          COURIER_ACCOUNT_INVITE.key,
-        ]);
+        const inviter = {
+          accountId: invitation.state.invitedByAccountId!,
+          population: 'admin' as const,
+        };
+        const standing = await readActingGrants(
+          this.deps,
+          market,
+          inviter,
+          [],
+          [COURIER_ACCOUNT_INVITE.key],
+        );
         if (standing === null) {
           this.log('identity.accept-courier-invitation.inviter-refused', context, {
             invitationId,

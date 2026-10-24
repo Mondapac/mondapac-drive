@@ -27,8 +27,7 @@ export interface SignInCourierInput {
 export type SignInCourierOutput = SignedIn;
 
 export type SignInCourierFailure =
-  | { readonly code: 'validation.failed'; readonly fields: readonly FieldProblem[] }
-  | SignInRefusal;
+  { readonly code: 'validation.failed'; readonly fields: readonly FieldProblem[] } | SignInRefusal;
 
 export type SignInCourierDependencies = SignInDependencies;
 

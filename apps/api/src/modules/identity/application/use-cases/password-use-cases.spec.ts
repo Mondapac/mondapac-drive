@@ -1262,50 +1262,47 @@ describe.each(TEST_MARKETS)('password reset and change in market %s (identity sl
       });
     }
 
-    it.each(POPS)(
-      'tells the %s address when, with no link and no token',
-      async (population) => {
-        seed(population);
-        const u = useCases();
-        const current = sessionOf(population, 1);
-        const extra = await codeFor(population);
-        await u.change.execute(
-          testCallContext(
-            market,
-            testAuthenticatedActor(market, {
-              population,
-              accountId: accountIdOf(population),
-              sessionId: current.session.id,
-              merchantId: null,
-            }),
-          ),
-          { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, ...extra, client: CLIENT },
+    it.each(POPS)('tells the %s address when, with no link and no token', async (population) => {
+      seed(population);
+      const u = useCases();
+      const current = sessionOf(population, 1);
+      const extra = await codeFor(population);
+      await u.change.execute(
+        testCallContext(
+          market,
+          testAuthenticatedActor(market, {
+            population,
+            accountId: accountIdOf(population),
+            sessionId: current.session.id,
+            merchantId: null,
+          }),
+        ),
+        { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, ...extra, client: CLIENT },
+      );
+
+      await expect(
+        deliver(u, eventsOf('identity.account-password-changed.v1')[0]!),
+      ).resolves.toEqual({ ok: true, value: { code: 'password-changed-mail.sent' } });
+
+      const mail = fakes.mails.at(-1)!;
+      expect(mail.to).toBe(email(population).typed);
+      expect(mail.text).not.toMatch(/https?:|ml1_|\{[a-z]+\}/);
+      if (code === 'AU') {
+        expect(mail.subject).toBe(
+          `The password for your Mondapac Drive ${population} account was changed`,
         );
-
-        await expect(
-          deliver(u, eventsOf('identity.account-password-changed.v1')[0]!),
-        ).resolves.toEqual({ ok: true, value: { code: 'password-changed-mail.sent' } });
-
-        const mail = fakes.mails.at(-1)!;
-        expect(mail.to).toBe(email(population).typed);
-        expect(mail.text).not.toMatch(/https?:|ml1_|\{[a-z]+\}/);
-        if (code === 'AU') {
-          expect(mail.subject).toBe(
-            `The password for your Mondapac Drive ${population} account was changed`,
-          );
-          expect(mail.text).toContain(
-            "If this wasn't you, reset your password from the sign-in page straight away.",
-          );
-          // 10:00 UTC is 20:00 in Brisbane (the Market's zone, ADR-0005 fallback).
-          expect(mail.text).toContain('8 October 2026');
-          expect(mail.text).toMatch(/8:00:00\s?pm/);
-        } else {
-          // 10:00 UTC is 23:00 in Auckland (NZDT), ZZ's zone.
-          expect(mail.text).toContain('2026');
-          expect(mail.text).toMatch(/11:00:00\s?PM/i);
-        }
-      },
-    );
+        expect(mail.text).toContain(
+          "If this wasn't you, reset your password from the sign-in page straight away.",
+        );
+        // 10:00 UTC is 20:00 in Brisbane (the Market's zone, ADR-0005 fallback).
+        expect(mail.text).toContain('8 October 2026');
+        expect(mail.text).toMatch(/8:00:00\s?pm/);
+      } else {
+        // 10:00 UTC is 23:00 in Auckland (NZDT), ZZ's zone.
+        expect(mail.text).toContain('2026');
+        expect(mail.text).toMatch(/11:00:00\s?PM/i);
+      }
+    });
 
     it('skips an account that is gone', async () => {
       seed('courier');

@@ -185,7 +185,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         displayName: `Account ${n}`,
         status: 'active',
         emailVerifiedAt: START,
-          signedUpAt: START,
+        signedUpAt: START,
         createdAt: START,
         version: 1,
         credential: { passwordHash: fakeHashOf('x'), changedAt: START },
@@ -470,9 +470,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
     it('refuses Operator to an admin without identity.merchant.view (I-1a)', async () => {
       const { assign } = setUp();
       expect(LEAD_KEYS).not.toContain('identity.merchant.view');
-      expect(roles.get('platform:operator')!.permissionKeys).toContain(
-        'identity.merchant.view',
-      );
+      expect(roles.get('platform:operator')!.permissionKeys).toContain('identity.merchant.view');
 
       // LEAD holds identity.platform-role.assign and every other key of the role, not this one.
       await expect(
@@ -1025,8 +1023,7 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
   const WRITERS: readonly [string, (built: Built) => Promise<Result<unknown, unknown>>][] = [
     [
       'assign',
-      (b) =>
-        b.assign.execute(as(ROOT), { accountId: VIEWER, roleId: roleOf('dispatcher') }),
+      (b) => b.assign.execute(as(ROOT), { accountId: VIEWER, roleId: roleOf('dispatcher') }),
     ],
     ['disable admin', (b) => b.disableAdmin.execute(as(ROOT), { accountId: VIEWER })],
     [
@@ -1146,10 +1143,12 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         ok: false,
         error: { code: 'member.outranks-actor' },
       });
-      await expect(enableAdmin.execute(as(ROOT), { accountId: MERCHANT_ACCOUNT })).resolves.toEqual({
-        ok: false,
-        error: { code: 'account.unknown' },
-      });
+      await expect(enableAdmin.execute(as(ROOT), { accountId: MERCHANT_ACCOUNT })).resolves.toEqual(
+        {
+          ok: false,
+          error: { code: 'account.unknown' },
+        },
+      );
       await expect(enableAdmin.execute(as(SUPPORT), { accountId: ROOT2 })).resolves.toEqual({
         ok: false,
         error: { code: 'access.denied' },
@@ -1220,10 +1219,12 @@ describe.each(TEST_MARKETS)('admin team use cases in market %s (slices 8a-2, 8b)
         ok: false,
         error: { code: 'access.denied' },
       });
-      await expect(resetFactor.execute(as(ROOT), { accountId: MERCHANT_ACCOUNT })).resolves.toEqual({
-        ok: false,
-        error: { code: 'account.unknown' },
-      });
+      await expect(resetFactor.execute(as(ROOT), { accountId: MERCHANT_ACCOUNT })).resolves.toEqual(
+        {
+          ok: false,
+          error: { code: 'account.unknown' },
+        },
+      );
       expect(fakes.factors.has(SUPPORT)).toBe(true);
     });
   });

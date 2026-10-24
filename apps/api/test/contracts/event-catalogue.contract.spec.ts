@@ -78,10 +78,31 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     expect(worker.get(SubscriptionRegistry).names()).toEqual(api.get(SubscriptionRegistry).names());
   });
 
-  it('registers no subscriptions yet and seals the registry (P 6.4)', () => {
+  it("registers identity's mail subscriptions and seals the registry (P 6.4)", () => {
     const subscriptions = graphs.get('worker')!.get(SubscriptionRegistry);
 
-    expect(subscriptions.names()).toEqual([]);
+    expect(subscriptions.names()).toEqual([
+      'identity.invitation-mail',
+      'identity.link-mail',
+      'identity.other-sessions-signed-out-mail',
+      'identity.password-changed-mail',
+      'identity.second-factor-mail',
+    ]);
+    expect(subscriptions.subscribersOf('identity.invitation-issued.v1')).toEqual([
+      'identity.invitation-mail',
+    ]);
+    expect(subscriptions.subscribersOf('identity.one-time-link-requested.v1')).toEqual([
+      'identity.link-mail',
+    ]);
+    expect(subscriptions.subscribersOf('identity.account-password-changed.v1')).toEqual([
+      'identity.password-changed-mail',
+    ]);
+    expect(subscriptions.subscribersOf('identity.account-other-sessions-signed-out.v1')).toEqual([
+      'identity.other-sessions-signed-out-mail',
+    ]);
+    expect(subscriptions.subscribersOf('identity.second-factor-changed.v1')).toEqual([
+      'identity.second-factor-mail',
+    ]);
     expect(subscriptions.sealed).toBe(true);
   });
 
