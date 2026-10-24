@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
+import type { Id } from '@mondapac-drive/shared-kernel';
 import { createTestApp } from '../support/test-app';
 import { panelHeaders, TEST_MARKETS } from '../support/test-config';
 import { TestActors, type AdminActor, type MerchantActor } from './actor-support';
@@ -51,6 +52,7 @@ describe('operations panel lists (database integration)', () => {
     let admin: AdminActor;
     let dispatcher: AdminActor;
     let operator: AdminActor;
+    let unrelated: AdminActor;
     let merchant: MerchantActor;
     let otherMerchant: MerchantActor;
     let courierId: string;
@@ -73,6 +75,15 @@ describe('operations panel lists (database integration)', () => {
       admin = await actors.admin(origin);
       dispatcher = await actors.admin(origin, 'dispatcher');
       operator = await actors.admin(origin, 'operator');
+      // A custom role with neither list's view key (Hassan, WP3 review).
+      const role = await post(code, '/identity/admin/roles', admin.headers, {
+        name: `Merchants only ${randomUUID().slice(0, 8)}`,
+        permissionKeys: ['identity.merchant.view'],
+      });
+      expect(role.status).toBe(201);
+      unrelated = await actors.admin(origin, {
+        roleId: (role.body as { roleId: Id<'Role'> }).roleId,
+      });
       merchant = await actors.merchant(admin, `Merchant ${randomUUID()}`);
       otherMerchant = await actors.merchant(admin, `Merchant ${randomUUID()}`);
       const courier = await actors.courier();
@@ -164,6 +175,13 @@ describe('operations panel lists (database integration)', () => {
       for (const headers of [merchant.headers, courierHeaders]) {
         const response = await get(code, '/delivery/admin/deliveries', headers);
         expect(response.status).toBe(401);
+      }
+    });
+
+    it('refuses both lists to an admin whose role lacks their view keys (403)', async () => {
+      for (const path of ['/delivery/admin/deliveries', '/identity/admin/couriers']) {
+        const response = await get(code, path, unrelated.headers);
+        expect([path, response.status]).toEqual([path, 403]);
       }
     });
 
