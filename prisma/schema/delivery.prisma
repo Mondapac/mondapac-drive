@@ -37,6 +37,8 @@ model DeliveryDelivery {
   taxAmount         BigInt                                 @map("tax_amount")
   currency          String                                 @db.VarChar(3)
   courierId         String?                                @map("courier_id") @db.VarChar(64)
+  /// 'dispatch-exhausted' or 'cold-chain-breach' (CHECK); not part of the version.
+  exception         String?                                @db.VarChar(24)
   createdAt         DateTime                               @map("created_at") @db.Timestamptz(6)
   version           Int
 

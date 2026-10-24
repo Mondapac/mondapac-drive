@@ -126,6 +126,7 @@ function quoteBodyOf(quote: DeliveryQuote) {
 function present(delivery: DeliveryState) {
   return {
     ...delivery,
+    exception: delivery.exception ?? null,
     quote: quoteBodyOf(delivery.quote),
     window: delivery.window && {
       start: delivery.window.start.toString(),
@@ -137,7 +138,7 @@ function present(delivery: DeliveryState) {
 }
 
 /** A history entry without the courier: for the merchant and the courier, who see only their own side. */
-function withoutCourier(delivery: ReturnType<typeof present>) {
+function withoutCourier(delivery: Pick<ReturnType<typeof present>, 'history'>) {
   return delivery.history.map((entry) => {
     const { courierId: hidden, ...rest } = entry;
     void hidden;
@@ -151,8 +152,10 @@ function withoutCourier(delivery: ReturnType<typeof present>) {
  */
 function presentForMerchant(delivery: DeliveryState) {
   const full = present(delivery);
-  const { courierId: hidden, ...rest } = full;
+  // The dispatcher's exception flag is operational: neither the merchant nor the courier sees it.
+  const { courierId: hidden, exception: flag, ...rest } = full;
   void hidden;
+  void flag;
   return { ...rest, history: withoutCourier(full) };
 }
 
@@ -161,7 +164,8 @@ function presentForMerchant(delivery: DeliveryState) {
  * vehicle and distance of the quote), and no other courier's id in the history.
  */
 function presentForCourier(delivery: DeliveryState) {
-  const full = present(delivery);
+  const { exception: flag, ...full } = present(delivery);
+  void flag;
   return {
     ...full,
     quote: { vehicle: delivery.quote.vehicle, distanceMetres: delivery.quote.distanceMetres },
@@ -172,6 +176,7 @@ function presentForCourier(delivery: DeliveryState) {
 function presentSummary(delivery: DeliverySummary) {
   return {
     ...delivery,
+    exception: delivery.exception ?? null,
     total: moneyBody(delivery.total),
     window: delivery.window && {
       start: delivery.window.start.toString(),

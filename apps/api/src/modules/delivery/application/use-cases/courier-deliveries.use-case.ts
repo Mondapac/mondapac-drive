@@ -91,12 +91,18 @@ export class ReportAssignmentEvent extends UseCase<ReportInput, DeliveryState, D
   ): Promise<Result<DeliveryState, DeliveryFailure>> {
     const courierId = courierOf(context);
     if (courierId === null) return Promise.resolve(err(ACCESS_DENIED));
-    // A courier id smuggled into the body is dropped: the courier is always the actor.
-    const { courierId: dropped, ...report } = input.report as DeliveryEventInput;
+    // A courier id or reason code smuggled into the body is dropped: the courier is always the
+    // actor, and the reason code is the use case's.
+    const {
+      courierId: dropped,
+      reasonCode: droppedCode,
+      ...report
+    } = input.report as DeliveryEventInput;
     void dropped;
+    void droppedCode;
     return recordEvent(
       this.deps,
-      context.market,
+      context,
       input.deliveryId,
       report,
       (delivery) => delivery.courierId === courierId && !isFinal(delivery.status),
