@@ -151,11 +151,11 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
       });
 
       await report(id, { type: 'arrived_at_dropoff' });
-      // Delivery checks the proof on the server (#24): the recipient's PIN, as they would give it.
-      const recipient = await app
+      // The server checks the proof: the recipient's PIN, as notifications sends it.
+      const recipients = await app
         .get(DeliveryRecipients, { strict: false })
         .forNotification(system(), id as never);
-      const pin = recipient!.recipientPin!;
+      const pin = recipients!.recipientPin!;
       expect((await report(id, { type: 'delivered', proof: { kind: 'pin', pin } })).status).toBe(
         200,
       );
