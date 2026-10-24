@@ -238,13 +238,10 @@ module.exports = {
         'subscribers/; contracts/; and every *.facade.ts implementation) imports from its ' +
         "module's application/ only use-cases/*.use-case.ts, so the UseCaseGate runs for " +
         "everything an entry point reaches. The module's index.ts is an entry point too " +
-        '(security review of slice 1c, L2). Drive: delivery is exempt until identity brings ' +
-        'the UseCaseGate and its use cases move to use-cases/ (work package 2); remove the ' +
-        'pathNot below with that move.',
+        '(security review of slice 1c, L2).',
       severity: 'error',
       from: {
         path: '^src/modules/([^/]+)/(?:presentation/|contracts/|index\\.ts$|.+\\.facade\\.ts$)',
-        pathNot: '^src/modules/delivery/',
       },
       to: {
         path: '^src/modules/$1/application/',

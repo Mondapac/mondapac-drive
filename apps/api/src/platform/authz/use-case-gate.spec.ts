@@ -26,8 +26,8 @@ const id = <K extends string>(text: string): Id<K> => {
 };
 const ACCOUNT = id<'Account'>('01890a5d-ac96-774b-bcce-b302099a8057');
 const SESSION = id<'Session'>('01890a5d-ac96-774b-bcce-b302099a8058');
-const SELLER = id<'Seller'>('01890a5d-ac96-774b-bcce-b302099a8059');
-const KEY = 'identity.seller-access.view' as PermissionKey;
+const MERCHANT = id<'Merchant'>('01890a5d-ac96-774b-bcce-b302099a8059');
+const KEY = 'identity.merchant.view' as PermissionKey;
 
 /** A use-case class with its own declaration: the gate reads only `access`. */
 function useCaseWith(access: unknown): abstract new () => unknown {
@@ -41,10 +41,9 @@ const ANONYMOUS = useCaseWith({ name: 'identity.sign-in', rule: { kind: 'anonymo
 const OWN = useCaseWith({
   name: 'identity.change-password',
   rule: { kind: 'own-resources' },
-  whenSellerNotApproved: 'allow',
 });
 const PERMISSIONS = useCaseWith({
-  name: 'identity.list-seller-access',
+  name: 'identity.list-merchants',
   rule: { kind: 'permissions', allOf: [KEY] },
 });
 
@@ -61,14 +60,14 @@ const ALLOW = () => Promise.resolve<AccessDecision>({ allowed: true });
 
 describe.each(TEST_MARKETS)('UseCaseGate in market %s', (code) => {
   const market: MarketContext = testMarketContext(code, PLATFORM_TENANT_ID);
-  const authenticated = (population: 'customer' | 'seller' | 'admin' = 'admin') =>
+  const authenticated = (population: 'admin' | 'merchant' | 'courier' = 'admin') =>
     testCallContext(
       market,
       testAuthenticatedActor(market, {
         population,
         accountId: ACCOUNT,
         sessionId: SESSION,
-        sellerId: population === 'seller' ? SELLER : null,
+        merchantId: population === 'merchant' ? MERCHANT : null,
       }),
     );
   let warnings: jest.SpyInstance;
@@ -120,7 +119,7 @@ describe.each(TEST_MARKETS)('UseCaseGate in market %s', (code) => {
       });
     });
 
-    it.each(['customer', 'seller', 'admin'] as const)(
+    it.each(['admin', 'merchant', 'courier'] as const)(
       "admits a signed-in %s but hands the use case the Market's anonymous actor",
       async (population) => {
         const check = new RecordingCheck(ALLOW);
@@ -180,18 +179,11 @@ describe.each(TEST_MARKETS)('UseCaseGate in market %s', (code) => {
 
     it.each<[string, AccessDecision]>([
       ['access.denied', { allowed: false, denial: { code: 'access.denied' } }],
-      [
-        'access.seller-not-approved',
-        {
-          allowed: false,
-          denial: { code: 'access.seller-not-approved', details: { state: 'pending' } },
-        },
-      ],
       ['access.unavailable', { allowed: false, denial: { code: 'access.unavailable' } }],
     ])("passes on the check's %s", async (_code, decision) => {
       const result = await gateWith(new RecordingCheck(() => Promise.resolve(decision))).admit(
         useCase,
-        authenticated('seller'),
+        authenticated('merchant'),
       );
 
       expect(result).toEqual({ ok: false, error: decision.allowed ? null : decision.denial });
@@ -206,7 +198,7 @@ describe.each(TEST_MARKETS)('UseCaseGate in market %s', (code) => {
           Promise.resolve({ allowed: false, denial: { code: 'access.unauthenticated' } } as never),
       ],
       [
-        'invents a seller state',
+        "answers the marketplace's seller-state denial",
         () =>
           Promise.resolve({
             allowed: false,
@@ -244,11 +236,7 @@ describe.each(TEST_MARKETS)('UseCaseGate in market %s', (code) => {
       ['an empty allOf', { name: 'identity.x', rule: { kind: 'permissions', allOf: [] } }],
       ['a malformed key', { name: 'identity.x', rule: { kind: 'permissions', allOf: ['Admin'] } }],
       [
-        'own-resources without the seller-state attribute',
-        { name: 'identity.x', rule: { kind: 'own-resources' } },
-      ],
-      [
-        'the seller-state attribute on a system rule',
+        "the marketplace's seller-state attribute",
         { name: 'identity.x', rule: { kind: 'system' }, whenSellerNotApproved: 'deny' },
       ],
       ['an extra field', { name: 'identity.x', rule: { kind: 'system' }, bypass: true }],
@@ -307,7 +295,7 @@ describe.each(TEST_MARKETS)('UseCaseGate in market %s', (code) => {
 
       expect(warnings).toHaveBeenCalledWith({
         msg: 'access.denied',
-        useCase: 'identity.list-seller-access',
+        useCase: 'identity.list-merchants',
         rule: 'permissions',
         keys: [KEY],
         actor: 'authenticated',

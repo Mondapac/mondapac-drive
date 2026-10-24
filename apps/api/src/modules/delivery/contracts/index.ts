@@ -1,0 +1,13 @@
+// What other modules may import from delivery.
+export {
+  ASSIGNMENT_REPORT,
+  ASSIGNMENT_VIEW,
+  BOOKING_CANCEL,
+  BOOKING_CREATE,
+  BOOKING_VIEW,
+  DELIVERY_CANCEL,
+  DELIVERY_DISPATCH,
+  DELIVERY_PERMISSIONS,
+  DELIVERY_VIEW,
+  QUOTE_CREATE,
+} from './permissions';

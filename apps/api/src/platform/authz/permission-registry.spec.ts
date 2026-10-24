@@ -7,24 +7,24 @@ import { PermissionRegistry, PermissionRegistryError } from './permission-regist
 
 const view = definePermission('identity', {
   key: 'identity.team-member.view',
-  scope: 'seller',
+  scope: 'merchant',
   protected: false,
 });
 const invite = definePermission('identity', {
   key: 'identity.team-member.invite',
-  scope: 'seller',
+  scope: 'merchant',
   protected: true,
 });
 const approve = definePermission('identity', {
-  key: 'identity.seller-access.approve',
+  key: 'identity.merchant.approve',
   scope: 'platform',
   protected: false,
 });
 const IDENTITY = declarePermissions('identity', [view, invite, approve]);
-const SELLERS = declarePermissions('sellers', [
-  definePermission('sellers', {
-    key: 'sellers.business-identity.edit',
-    scope: 'seller',
+const DELIVERY = declarePermissions('delivery', [
+  definePermission('delivery', {
+    key: 'delivery.booking.edit',
+    scope: 'merchant',
     protected: true,
   }),
 ]);
@@ -32,7 +32,7 @@ const SELLERS = declarePermissions('sellers', [
 function sealed(retired: readonly string[] = []): PermissionRegistry {
   const registry = new PermissionRegistry(retired);
   registry.register('identity', IDENTITY);
-  registry.register('sellers', SELLERS);
+  registry.register('delivery', DELIVERY);
   registry.seal();
   return registry;
 }
@@ -42,7 +42,7 @@ describe('PermissionRegistry', () => {
     it('takes the catalogue of each module', () => {
       const registry = sealed();
       expect(registry.get('identity.team-member.view')).toEqual(view);
-      expect(registry.get('sellers.business-identity.edit')).toMatchObject({ scope: 'seller' });
+      expect(registry.get('delivery.booking.edit')).toMatchObject({ scope: 'merchant' });
     });
 
     it('refuses a duplicate key, across modules or registrations', () => {
@@ -53,7 +53,7 @@ describe('PermissionRegistry', () => {
 
     it('refuses a catalogue of another module, and a value declarePermissions did not make', () => {
       const registry = new PermissionRegistry([]);
-      expect(() => registry.register('sellers', IDENTITY)).toThrow(PermissionRegistryError);
+      expect(() => registry.register('delivery', IDENTITY)).toThrow(PermissionRegistryError);
       expect(() =>
         registry.register('identity', { module: 'identity', declarations: [view] }),
       ).toThrow(/declarePermissions/);
@@ -62,9 +62,9 @@ describe('PermissionRegistry', () => {
     it('checks each declaration again: a key changed after the catalogue was made is refused', () => {
       // A catalogue holds the objects it was given; one that was not made by definePermission
       // can still change, so the registry validates and copies every declaration itself.
-      const mutable = { key: 'identity.team-member.edit', scope: 'seller', protected: false };
+      const mutable = { key: 'identity.team-member.edit', scope: 'merchant', protected: false };
       const catalogue = declarePermissions('identity', [mutable as never]);
-      mutable.key = 'sellers.offer.edit';
+      mutable.key = 'delivery.booking.edit';
       expect(() => new PermissionRegistry([]).register('identity', catalogue)).toThrow(
         PermissionRegistryError,
       );
@@ -96,7 +96,7 @@ describe('PermissionRegistry', () => {
       registry.register('identity', IDENTITY);
       expect(() => registry.get('identity.team-member.view')).toThrow(/not sealed/);
       expect(() => registry.list()).toThrow(/not sealed/);
-      expect(() => registry.keysOf('seller')).toThrow(/not sealed/);
+      expect(() => registry.keysOf('merchant')).toThrow(/not sealed/);
       expect(() => registry.isKnownPermissionKey('identity.team-member.view')).toThrow(
         /not sealed/,
       );
@@ -127,7 +127,7 @@ describe('PermissionRegistry', () => {
     it('answers undefined for an unknown key and leaves it out of every scope', () => {
       const registry = sealed();
       expect(registry.get('identity.team-member.delete')).toBeUndefined();
-      expect(registry.keysOf('seller').has('identity.team-member.delete')).toBe(false);
+      expect(registry.keysOf('merchant').has('identity.team-member.delete')).toBe(false);
     });
   });
 
@@ -143,7 +143,7 @@ describe('PermissionRegistry', () => {
       expect(registry.isKnownPermissionKey('identity.team-member.view')).toBe(true);
       expect(registry.isKnownPermissionKey('identity.team-member.never')).toBe(false);
       expect(registry.get('identity.team-member.old')).toBeUndefined();
-      expect(registry.keysOf('seller').has('identity.team-member.old')).toBe(false);
+      expect(registry.keysOf('merchant').has('identity.team-member.old')).toBe(false);
     });
 
     it('refuses a malformed entry of the retired list', () => {
@@ -154,13 +154,13 @@ describe('PermissionRegistry', () => {
   describe('guarantee 5: the code catalogue only', () => {
     it('lists by scope, sorted by key, and every declaration once', () => {
       const registry = sealed();
-      expect(registry.list('seller').map((d) => d.key)).toEqual([
+      expect(registry.list('merchant').map((d) => d.key)).toEqual([
         'identity.team-member.invite',
         'identity.team-member.view',
-        'sellers.business-identity.edit',
+        'delivery.booking.edit',
       ]);
       expect(registry.list('platform').map((d) => d.key)).toEqual([
-        'identity.seller-access.approve',
+        'identity.merchant.approve',
       ]);
       expect(registry.list()).toHaveLength(4);
     });
@@ -169,15 +169,15 @@ describe('PermissionRegistry', () => {
   describe('N-2: what it hands out is frozen', () => {
     it('answers frozen key sets and frozen lists', () => {
       const registry = sealed();
-      const keys = registry.keysOf('seller');
+      const keys = registry.keysOf('merchant');
       expect(isFrozenKeySet(keys)).toBe(true);
       expect(() => (keys as Set<string>).add('identity.role.edit')).toThrow(TypeError);
       expect(() => (keys as Set<string>).delete('identity.team-member.view')).toThrow(TypeError);
       expect(() => (keys as Set<string>).clear()).toThrow(TypeError);
-      expect(registry.keysOf('seller').has('identity.role.edit')).toBe(false);
-      expect(registry.keysOf('seller').size).toBe(3);
+      expect(registry.keysOf('merchant').has('identity.role.edit')).toBe(false);
+      expect(registry.keysOf('merchant').size).toBe(3);
       expect(Object.isFrozen(registry.list())).toBe(true);
-      expect(Object.isFrozen(registry.list('seller'))).toBe(true);
+      expect(Object.isFrozen(registry.list('merchant'))).toBe(true);
       expect(Object.isFrozen(registry.get('identity.team-member.view'))).toBe(true);
     });
 

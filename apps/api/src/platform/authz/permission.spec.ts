@@ -12,17 +12,17 @@ describe('definePermission', () => {
   it('brands a key of the declaring module, with its scope and protection', () => {
     expect(
       definePermission('identity', {
-        key: 'identity.seller-access.view',
+        key: 'identity.merchant.view',
         scope: 'platform',
         protected: false,
       }),
-    ).toEqual({ key: 'identity.seller-access.view', scope: 'platform', protected: false });
+    ).toEqual({ key: 'identity.merchant.view', scope: 'platform', protected: false });
   });
 
   it.each([
-    ['a key of another module', { key: 'sellers.offer.edit', scope: 'seller', protected: false }],
+    ['a key of another module', { key: 'delivery.booking.edit', scope: 'merchant', protected: false }],
     ['two segments', { key: 'identity.view', scope: 'platform', protected: false }],
-    ['upper case', { key: 'identity.Seller.view', scope: 'platform', protected: false }],
+    ['upper case', { key: 'identity.Merchant.view', scope: 'platform', protected: false }],
     ['a customer scope', { key: 'identity.order.view', scope: 'customer', protected: false }],
     ['no protection stated', { key: 'identity.order.view', scope: 'platform' }],
     [
@@ -53,7 +53,7 @@ describe('the key length cap: the stored column limit of 128 (slice 8a-1; Ali on
 describe('declarePermissions', () => {
   const view = definePermission('identity', {
     key: 'identity.team-member.view',
-    scope: 'seller',
+    scope: 'merchant',
     protected: false,
   });
 
@@ -68,6 +68,6 @@ describe('declarePermissions', () => {
 
   it('refuses a duplicate key and a declaration of another module', () => {
     expect(() => declarePermissions('identity', [view, view])).toThrow(/twice/);
-    expect(() => declarePermissions('sellers', [view])).toThrow(PermissionDeclarationError);
+    expect(() => declarePermissions('delivery', [view])).toThrow(PermissionDeclarationError);
   });
 });

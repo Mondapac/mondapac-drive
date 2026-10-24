@@ -2,12 +2,17 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import type { DestinationStream } from 'pino';
 import { CORE_MODULES } from './modules';
+import { IdentityModule } from './modules/identity';
 import { AuditModule } from './platform/audit/audit.module';
+import { AuthzModule } from './platform/authz/authz.module';
+import { ActorGuard } from './platform/call-context/actor.guard';
+import { CallContextModule } from './platform/call-context/call-context.module';
 import { ClockModule } from './platform/clock/clock.module';
 import type { AppConfig } from './platform/config/app-config';
 import { ConfigModule } from './platform/config/config.module';
 import { EventsModule } from './platform/events/events.module';
 import { HealthModule } from './platform/health/health.module';
+import { I18nModule } from './platform/i18n/i18n.module';
 import { ConflictFilter } from './platform/http/conflict-filter';
 import { IdsModule } from './platform/ids/ids.module';
 import { LoggingModule } from './platform/logging/logging.module';
@@ -26,11 +31,13 @@ import { WorkerModule } from './platform/worker/worker.module';
 /**
  * Every global guard of the application, in the order they run (marketplace platform-foundations
  * 5.1). MarketContextGuard is first, so a request without a valid Market reaches nothing else.
- * RateLimitGuard is second: the generic per-origin limit runs before every controller. The actor
- * guard joins with identity. No module declares APP_GUARD, and `main.ts` adds no
- * `useGlobalGuards`; a test asserts this list and its order.
+ * RateLimitGuard is second: the generic per-origin limit runs before every controller. ActorGuard
+ * is third: it attaches the request's actor through identity's Authenticator, after the origin
+ * and CSRF checks (a cookie, a courier's bearer token or a merchant's API key, by the route's
+ * population). No module declares APP_GUARD, and `main.ts` adds no `useGlobalGuards`; a test
+ * asserts this list and its order.
  */
-export const GLOBAL_GUARDS = [MarketContextGuard, RateLimitGuard] as const;
+export const GLOBAL_GUARDS = [MarketContextGuard, RateLimitGuard, ActorGuard] as const;
 
 export interface AppModuleOptions {
   /** Overrides the configuration read from `process.env` (tests). */
@@ -55,7 +62,12 @@ export class AppModule {
         ClockModule,
         IdsModule,
         MarketConfigModule,
+        I18nModule,
         MarketContextModule,
+        // The start-up check that every controller declares its route population.
+        CallContextModule,
+        // The gate is built with identity's AuthorisationCheck.
+        AuthzModule.register(IdentityModule),
         PersistenceModule,
         SubjectKeysModule,
         EventsModule,

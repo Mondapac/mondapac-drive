@@ -1,4 +1,3 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   ok,
   type Clock,
@@ -6,7 +5,6 @@ import {
   type MarketContext,
   type Result,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../platform/clock/clock.module';
 import { DeliveryDomainError } from '../domain/errors';
 import type { MarketDeliverySettings } from '../domain/market-settings';
 import type { Parcel } from '../domain/parcel';
@@ -15,12 +13,7 @@ import { assertWindowAllowed, type DeliveryMode, type DeliveryWindow } from '../
 import type { ServiceArea } from '../domain/service-area';
 import type { VehicleType } from '../domain/vehicle';
 import { refusingBrokenRules, type DeliveryFailure } from './failure';
-import {
-  DISTANCE_PROVIDER,
-  MARKET_SETTINGS,
-  type DistanceProvider,
-  type MarketSettingsProvider,
-} from './ports';
+import type { DistanceProvider, MarketSettingsProvider } from './ports';
 
 export interface QuoteDeliveryInput {
   readonly pickup: { readonly postcode: string; readonly point: GeoPoint };
@@ -37,16 +30,30 @@ export interface QuoteDeliveryResult {
   readonly settings: MarketDeliverySettings;
 }
 
-/** Prices a delivery without booking it. CreateDelivery runs the same checks again. */
-@Injectable()
-export class QuoteDelivery {
-  constructor(
-    @Inject(MARKET_SETTINGS) private readonly markets: MarketSettingsProvider,
-    @Inject(DISTANCE_PROVIDER) private readonly distances: DistanceProvider,
-    @Inject(CLOCK) private readonly clock: Clock,
-  ) {}
+/** The ports {@link DeliveryPricing} reads. */
+export interface DeliveryPricingDependencies {
+  readonly markets: MarketSettingsProvider;
+  readonly distances: DistanceProvider;
+  readonly clock: Clock;
+}
 
-  execute(
+/**
+ * Prices a delivery: the service area of both stops, the schedule window, the road distance and
+ * the Market's tariff. Not a use case: the quote and the booking use cases call it behind their
+ * own gates, and a booking runs the same checks again.
+ */
+export class DeliveryPricing {
+  private readonly markets: MarketSettingsProvider;
+  private readonly distances: DistanceProvider;
+  private readonly clock: Clock;
+
+  constructor(deps: DeliveryPricingDependencies) {
+    this.markets = deps.markets;
+    this.distances = deps.distances;
+    this.clock = deps.clock;
+  }
+
+  price(
     market: MarketContext,
     input: QuoteDeliveryInput,
   ): Promise<Result<QuoteDeliveryResult, DeliveryFailure>> {
