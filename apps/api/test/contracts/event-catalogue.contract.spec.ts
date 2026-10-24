@@ -82,6 +82,8 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     const subscriptions = graphs.get('worker')!.get(SubscriptionRegistry);
 
     expect(subscriptions.names()).toEqual([
+      'delivery.courier-assigned',
+      'delivery.dispatch-exhausted',
       'dispatch.cancel-job',
       'dispatch.follow-delivery-status',
       'dispatch.open-job',
@@ -110,6 +112,12 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     ]);
     expect(subscriptions.subscribersOf('identity.second-factor-changed.v1')).toEqual([
       'identity.second-factor-mail',
+    ]);
+    expect(subscriptions.subscribersOf('dispatch.courier-assigned.v1')).toEqual([
+      'delivery.courier-assigned',
+    ]);
+    expect(subscriptions.subscribersOf('dispatch.job-exhausted.v1')).toEqual([
+      'delivery.dispatch-exhausted',
     ]);
     expect(subscriptions.sealed).toBe(true);
   });

@@ -11,6 +11,7 @@ import { ID_GENERATOR } from '../../platform/ids/ids.module';
 import { PersistenceModule } from '../../platform/persistence/persistence.module';
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
+import { DeliveryModule } from '../delivery';
 import { FleetModule } from '../fleet';
 import { IdentityModule } from '../identity';
 import { TrackingModule } from '../tracking';
@@ -52,7 +53,7 @@ import { deliverySubscriptions } from './presentation/subscribers/delivery.subsc
  * events and the sweep run as the system.
  */
 @Module({
-  imports: [FleetModule, TrackingModule, IdentityModule],
+  imports: [DeliveryModule, FleetModule, TrackingModule, IdentityModule],
   controllers: [CourierOffersController, DispatcherController],
   providers: [
     JobAdvancer,

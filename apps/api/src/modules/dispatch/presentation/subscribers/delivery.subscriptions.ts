@@ -6,11 +6,7 @@ import {
 import type { CancelDispatchJob } from '../../application/use-cases/cancel-dispatch-job.use-case';
 import type { FollowDeliveryStatus } from '../../application/use-cases/follow-delivery-status.use-case';
 import type { OpenDispatchJob } from '../../application/use-cases/open-dispatch-job.use-case';
-import {
-  DELIVERY_BOOKED,
-  DELIVERY_CANCELLED,
-  DELIVERY_STATUS_CHANGED,
-} from './delivery-events.pending';
+import { DELIVERY_BOOKED, DELIVERY_CANCELLED, DELIVERY_STATUS_CHANGED } from '../../../delivery';
 
 /** The subscriber names: also the `handler` of `dispatch.inbox`. */
 export const OPEN_JOB_SUBSCRIBER = 'dispatch.open-job';

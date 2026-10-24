@@ -152,11 +152,16 @@ export class DispatchDelivery extends UseCase<DispatchInput, DeliveryState, Deli
         });
       }
     }
+    // The reason code is the use case's: an unassignment here is always a dispatcher's.
+    const { reasonCode: dropped, ...event } = input.event;
+    void dropped;
     return recordEvent(
       this.deps,
-      context.market,
+      context,
       input.deliveryId,
-      input.event,
+      event.type === 'courier_unassigned'
+        ? { ...event, reasonCode: 'dispatcher-unassigned' }
+        : event,
       anyDelivery,
       DISPATCH_EVENT_TYPES,
     );
@@ -187,9 +192,9 @@ export class CancelDelivery extends UseCase<CancelInput, DeliveryState, Delivery
     if (!isAdmin(context)) return Promise.resolve(err(ACCESS_DENIED));
     return recordEvent(
       this.deps,
-      context.market,
+      context,
       input.deliveryId,
-      { type: 'cancelled', reason: input.reason },
+      { type: 'cancelled', reason: input.reason, reasonCode: 'operator-cancelled' },
       anyDelivery,
       ['cancelled'],
     );

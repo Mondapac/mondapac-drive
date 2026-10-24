@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Clock, IdGenerator } from '@mondapac-drive/shared-kernel';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Client } from 'pg';
@@ -10,12 +11,19 @@ import {
 } from '../../src/modules/dispatch/application/ports';
 import { openDispatchJob, sendWave, sweep } from '../../src/modules/dispatch/domain/dispatch-job';
 import { CLOCK } from '../../src/platform/clock/clock.module';
+import { OUTBOX_RELAY, type OutboxRelay } from '../../src/platform/events/event-bus';
+import { EVENT_DISPATCHER, type EventDispatcher } from '../../src/platform/events/event-delivery';
 import { ID_GENERATOR } from '../../src/platform/ids/ids.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../src/platform/unit-of-work/unit-of-work';
 import { requirements, stops } from '../support/dispatch-markets';
 import { createTestApp } from '../support/test-app';
 import { panelHeaders, TEST_MARKETS } from '../support/test-config';
-import { TestActors, type AdminActor, type CourierActor } from './actor-support';
+import {
+  TestActors,
+  type AdminActor,
+  type CourierActor,
+  type MerchantActor,
+} from './actor-support';
 import { marketOf } from './persistence-support';
 import { testDatabaseUrl } from './test-database';
 
@@ -24,7 +32,11 @@ import { testDatabaseUrl } from './test-database';
 // the session's, never a path or body field, and another courier's offer answers 404 like an
 // unknown one); dispatchers view a job, assign or reassign an active courier (audited) and
 // restart offering with the admin cookie; an operator without the assign key, a courier and an
-// anonymous caller are refused.
+// anonymous caller are refused. The delivery lifecycle drives the job through the outbox and
+// the event dispatcher: a booking opens it, an unassignment on the delivery's route offers it
+// again, and a cancel stops it.
+
+const POSTCODE: Readonly<Record<string, string>> = { AU: '4000', ZZ: '1000' };
 
 describe('dispatch API (database integration)', () => {
   let app: NestExpressApplication;
@@ -53,6 +65,24 @@ describe('dispatch API (database integration)', () => {
       .post(path)
       .set({ 'x-market-id': code, ...headers })
       .send(body);
+
+  async function handleAll(): Promise<void> {
+    const relay = app.get<OutboxRelay>(OUTBOX_RELAY);
+    const dispatcher = app.get<EventDispatcher>(EVENT_DISPATCHER);
+    // Each handled event may publish more (dispatch -> delivery -> dispatch): run until quiet.
+    for (let pass = 0; pass < 5; pass += 1) {
+      while ((await relay.runOnce()).published > 0);
+      let claimed = 0;
+      for (
+        let batch = await dispatcher.runOnce();
+        batch.claimed > 0;
+        batch = await dispatcher.runOnce()
+      ) {
+        claimed += batch.claimed;
+      }
+      if (claimed === 0) return;
+    }
+  }
 
   describe.each(TEST_MARKETS)('in market %s', (code) => {
     const market = marketOf(code);
@@ -253,6 +283,106 @@ describe('dispatch API (database integration)', () => {
       for (const headers of [{}, courier.headers]) {
         expect([401, 403]).toContain((await post(code, `${base}/assign`, headers, body)).status);
       }
+    });
+
+    describe('following the delivery lifecycle', () => {
+      let admin: AdminActor;
+      let merchant: MerchantActor;
+
+      beforeAll(async () => {
+        const actors = new TestActors(app, code);
+        admin = await actors.admin(panelHeaders(code).origin);
+        merchant = await actors.merchant(admin, `Merchant ${randomUUID()}`);
+      });
+
+      const stop = (lat: number, address: string) => ({
+        address,
+        postcode: POSTCODE[code]!,
+        point: { lat, lng: 153.02 },
+        contactName: 'Sam',
+        contactPhone: '+61 400 000 000',
+      });
+
+      async function book(): Promise<string> {
+        const created = await post(code, '/delivery/deliveries', merchant.headers, {
+          externalReference: `order-${randomUUID()}`,
+          pickup: stop(-27.47, '1 Example St'),
+          dropoff: stop(-27.49, '9 Recipient Rd'),
+          parcel: { weightGrams: 2000, volumeLitres: 10, temperature: 'ambient' },
+          mode: 'on_demand',
+        });
+        expect(created.status).toBe(201);
+        await handleAll();
+        return (created.body as { id: string }).id;
+      }
+
+      // Read from the table, not the route: the routes are covered above, and the rate limit
+      // of one test client would otherwise be reached in the second Market.
+      const jobOf = async (deliveryId: string) => {
+        const { rows } = await sql.query<{
+          status: string;
+          assigned_courier_id: string | null;
+          dropoff_address: string | null;
+          excluded_courier_ids: string[];
+        }>(
+          `SELECT status, assigned_courier_id, dropoff_address, excluded_courier_ids
+             FROM dispatch.jobs WHERE market_id = $1 AND delivery_id = $2`,
+          [code, deliveryId],
+        );
+        expect(rows).toHaveLength(1);
+        return rows[0]!;
+      };
+
+      it('opens a job from the booking, keeps the delivery in step, and stops on a cancel', async () => {
+        const deliveryId = await book();
+        expect(await jobOf(deliveryId)).toMatchObject({
+          status: 'OFFERING',
+          dropoff_address: '9 Recipient Rd',
+        });
+
+        // A dispatcher assigns through dispatch: the delivery records the courier.
+        const assigned = await post(
+          code,
+          `/dispatch/admin/deliveries/${deliveryId}/assign`,
+          dispatcher.headers,
+          { courierId: courier.accountId, vehicle: 'van' },
+        );
+        expect(assigned.status).toBe(200);
+        await handleAll();
+        const { rows: delivered } = await sql.query<{ status: string; courier_id: string }>(
+          'SELECT status, courier_id FROM delivery.deliveries WHERE market_id = $1 AND id = $2',
+          [code, deliveryId],
+        );
+        expect(delivered).toEqual([{ status: 'ASSIGNED', courier_id: courier.accountId }]);
+
+        // The delivery's own unassign: dispatch offers it again, never to that courier.
+        const unassigned = await post(
+          code,
+          `/delivery/admin/deliveries/${deliveryId}/dispatch`,
+          dispatcher.headers,
+          { type: 'courier_unassigned', reason: 'courier unwell' },
+        );
+        expect(unassigned.status).toBe(200);
+        await handleAll();
+        expect(await jobOf(deliveryId)).toMatchObject({
+          status: 'OFFERING',
+          assigned_courier_id: null,
+          excluded_courier_ids: [courier.accountId],
+        });
+
+        const cancelled = await post(
+          code,
+          `/delivery/deliveries/${deliveryId}/cancel`,
+          merchant.headers,
+          { reason: 'order refunded' },
+        );
+        expect(cancelled.status).toBe(200);
+        await handleAll();
+        expect(await jobOf(deliveryId)).toMatchObject({
+          status: 'CANCELLED',
+          dropoff_address: null,
+        });
+      });
     });
 
     it("answers 404 for another Market's job", async () => {

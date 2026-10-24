@@ -9,11 +9,12 @@ import {
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
 } from '../application/ports';
+import { DeliveryDispatchView } from '../../delivery';
 import { FleetDirectory } from '../../fleet';
 import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
 import { CourierPositions } from '../../tracking';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
-import { PendingDeliveryFacts } from './delivery-dispatch-facts';
+import { DeliveryDispatchFacts } from './delivery-dispatch-facts';
 import { FleetCourierAvailability } from './fleet-courier-availability';
 import { IdentityCourierAccounts } from './identity-courier-accounts';
 import { PrismaDispatchJobRepository } from './prisma-dispatch-job.repository';
@@ -47,5 +48,9 @@ export const dispatchProviders: Provider[] = [
     inject: [IDENTITY_FACADE],
     useFactory: (identity: IdentityFacade) => new IdentityCourierAccounts(identity),
   },
-  { provide: DELIVERY_FACTS, useValue: new PendingDeliveryFacts() },
+  {
+    provide: DELIVERY_FACTS,
+    inject: [DeliveryDispatchView],
+    useFactory: (view: DeliveryDispatchView) => new DeliveryDispatchFacts(view),
+  },
 ];

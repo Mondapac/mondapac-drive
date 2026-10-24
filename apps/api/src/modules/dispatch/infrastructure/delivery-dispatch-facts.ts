@@ -1,12 +1,21 @@
+import type { CallContext, Id } from '@mondapac-drive/shared-kernel';
+import type { DeliveryDispatchView } from '../../delivery';
 import type { DeliveryFacts, DeliveryForDispatch } from '../application/ports';
 
 /**
- * Stand-in for the {@link DeliveryFacts} over delivery's `DeliveryDispatchView` (wave 2,
- * handoff 21), which is not on main yet: it knows no delivery, so the booking subscriber
- * retries until the real binding replaces it before this module's routes merge.
+ * Dispatch's {@link DeliveryFacts} over delivery's `DeliveryDispatchView`, a `system` read: only
+ * the event subscribers call it, with the system context the dispatcher minted.
  */
-export class PendingDeliveryFacts implements DeliveryFacts {
-  forDispatch(): Promise<DeliveryForDispatch | undefined> {
-    return Promise.resolve(undefined);
+export class DeliveryDispatchFacts implements DeliveryFacts {
+  constructor(private readonly view: DeliveryDispatchView) {}
+
+  async forDispatch(
+    context: CallContext,
+    deliveryId: Id<'Delivery'>,
+  ): Promise<DeliveryForDispatch | undefined> {
+    const delivery = await this.view.forDispatch(context, deliveryId);
+    if (delivery === undefined) return undefined;
+    const { window, ...rest } = delivery;
+    return window === undefined ? rest : { ...rest, window };
   }
 }
