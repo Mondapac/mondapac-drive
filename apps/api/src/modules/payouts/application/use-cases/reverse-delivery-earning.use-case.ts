@@ -1,42 +1,49 @@
-import { Inject, Injectable } from '@nestjs/common';
-import {
-  ok,
-  type Clock,
-  type IdGenerator,
-  type MarketContext,
-  type Result,
-} from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { err, ok, type CallContext, type Result } from '@mondapac-drive/shared-kernel';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { reversalOf, type LedgerEntry } from '../../domain/ledger';
-import { refusingBrokenRules, type PayoutsFailure } from '../failure';
-import { LEDGER_REPOSITORY, type LedgerRepository } from '../ports';
+import { isSystem } from '../callers';
+import type { PayoutsDependencies } from '../dependencies';
+import { ACCESS_DENIED, refusingBrokenRules, type PayoutsFailure } from '../failure';
+
+export interface ReversedDelivery {
+  readonly deliveryId: string;
+}
 
 /**
  * Takes back what a delivery credited (its earning and tip), for a delivery that is reversed
  * after it was recorded, such as a confirmed fraud. Each entry is reversed once; entries paid
  * out already leave the courier's balance negative until later earnings cover it. Nothing is
- * reversed for a delivery with no entries.
+ * reversed for a delivery with no entries. Rule `system`.
  */
-@Injectable()
-export class ReverseDeliveryEarning {
-  constructor(
-    @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
-  ) {}
+export class ReverseDeliveryEarning extends UseCase<
+  ReversedDelivery,
+  { readonly reversals: readonly LedgerEntry[] },
+  PayoutsFailure
+> {
+  static override readonly access: AccessDeclaration = {
+    name: 'payouts.reverse-delivery-earning',
+    rule: { kind: 'system' },
+  };
 
-  run(
-    market: MarketContext,
-    deliveryId: string,
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: PayoutsDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected handle(
+    context: CallContext,
+    input: ReversedDelivery,
   ): Promise<Result<{ readonly reversals: readonly LedgerEntry[] }, PayoutsFailure>> {
+    if (!isSystem(context)) return Promise.resolve(err(ACCESS_DENIED));
+    const { market } = context;
+    const { ledger, unitOfWork, clock, ids } = this.deps;
     return refusingBrokenRules(() =>
-      this.unitOfWork.run(market, async () => {
-        const entries = await this.ledger.entriesOfDelivery(market, deliveryId);
+      unitOfWork.run(market, async () => {
+        const entries = await ledger.entriesOfDelivery(market, input.deliveryId);
         const reversed = new Set(entries.map((entry) => entry.reversesEntryId));
-        const now = this.clock.now();
+        const now = clock.now();
         const reversals = entries
           .filter(
             (entry) =>
@@ -44,14 +51,14 @@ export class ReverseDeliveryEarning {
           )
           .map((entry) =>
             reversalOf(entry, {
-              id: this.ids.next<'LedgerEntry'>(),
+              id: ids.next<'LedgerEntry'>(),
               reference: `reversal:${entry.id}`,
               reason: 'delivery-reversed',
               occurredAt: now,
               recordedAt: now,
             }),
           );
-        await this.ledger.append(market, reversals);
+        await ledger.append(market, reversals);
         return ok({ reversals });
       }),
     );

@@ -113,6 +113,8 @@ model PayoutsAccount {
   courierId         String   @map("courier_id") @db.VarChar(64)
   providerAccountId String   @map("provider_account_id") @db.VarChar(64)
   payoutsEnabled    Boolean  @map("payouts_enabled")
+  /// When the provider produced the stored state (its event's `created`); older reports lose.
+  providerStateAt   DateTime? @map("provider_state_at") @db.Timestamptz(6)
   createdAt         DateTime @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @map("updated_at") @db.Timestamptz(6)
 
@@ -132,5 +134,50 @@ model PayoutsProviderEvent {
 
   @@id([marketId, eventId])
   @@map("provider_events")
+  @@schema("payouts")
+}
+
+/// The events payouts publishes (platform persistence design 5): an envelope written in the unit
+/// of the change, never changed afterwards but for `published_at`.
+model PayoutsOutbox {
+  /// UUIDv7 stamped by the outbox writer.
+  eventId          String    @id @map("event_id") @db.Uuid
+  /// "payouts.<subject>-<verb>.v<N>"; the CHECK refuses another module's type.
+  type             String
+  /// The instant the use case took from Clock (UTC).
+  occurredAt       DateTime  @map("occurred_at") @db.Timestamptz(6)
+  /// Market of the unit that wrote the event; stamped by the writer.
+  marketId         String    @map("market_id") @db.VarChar(8)
+  /// Tenant seam; stamped by the writer, no database default.
+  tenantId         String    @map("tenant_id")
+  aggregateType    String    @map("aggregate_type")
+  aggregateId      String    @map("aggregate_id") @db.Uuid
+  /// The aggregate's version after the change; unique per aggregate.
+  aggregateVersion Int       @map("aggregate_version")
+  correlationId    String    @map("correlation_id")
+  /// The consumed event that caused this one, or null.
+  causationId      String?   @map("causation_id") @db.Uuid
+  payload          Json      @db.JsonB
+  /// Set by the relay when the event was handed to the bus; the only column that changes.
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@unique([marketId, aggregateId, aggregateVersion])
+  @@map("outbox")
+  @@schema("payouts")
+}
+
+/// The events a payouts subscriber has handled (platform persistence design 6.4): `runOnce`
+/// inserts (event_id, handler) in the handler's own unit and skips the work when the row exists.
+/// Written only by platform/persistence/outbox/.
+model PayoutsInbox {
+  eventId     String   @map("event_id") @db.Uuid
+  /// The subscriber's name, "payouts.<handler>".
+  handler     String
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@id([eventId, handler])
+  @@map("inbox")
   @@schema("payouts")
 }

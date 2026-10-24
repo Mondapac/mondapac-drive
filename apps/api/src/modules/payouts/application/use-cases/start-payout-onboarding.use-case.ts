@@ -1,26 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   err,
   ok,
-  type Clock,
-  type MarketContext,
+  type CallContext,
   type Result,
   type Temporal,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
-import { unknownCourier, type PayoutsFailure } from '../failure';
-import {
-  PAYEE_DIRECTORY,
-  PAYOUT_ACCOUNT_REPOSITORY,
-  PAYOUT_GATEWAY,
-  PAYOUT_SETTINGS,
-  type GatewayRefusal,
-  type PayeeDirectory,
-  type PayoutAccountRepository,
-  type PayoutGateway,
-  type PayoutSettingsProvider,
-} from '../ports';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import { ACCOUNT_ONBOARD } from '../../contracts/permissions';
+import { courierOf } from '../callers';
+import type { PayoutsDependencies } from '../dependencies';
+import { ACCESS_DENIED, unknownCourier, type PayoutsFailure } from '../failure';
+import type { GatewayRefusal } from '../ports';
 
 export interface OnboardingLink {
   readonly url: string;
@@ -33,35 +23,42 @@ const providerFailure = (refusal: GatewayRefusal): PayoutsFailure => ({
 });
 
 /**
- * Gives a contractor a link to the payment provider's hosted onboarding, where the provider
- * collects their identity and bank details. Drive stores only the connected account's id: it
- * creates the account on the first call (the idempotency key makes a retry answer the same
- * account) and a fresh short-lived link on every call. The courier route arrives with the
- * courier population (identity work package 2).
+ * Gives the signed-in contractor a link to the payment provider's hosted onboarding, where the
+ * provider collects their identity and bank details. Drive stores only the connected account's
+ * id: it creates the account on the first call (the idempotency key makes a retry answer the
+ * same account) and a fresh short-lived link on every call. Rule
+ * `permissions [payouts.account.onboard]`, couriers only; the courier is the session's account.
  */
-@Injectable()
-export class StartPayoutOnboarding {
-  constructor(
-    @Inject(PAYOUT_ACCOUNT_REPOSITORY) private readonly accounts: PayoutAccountRepository,
-    @Inject(PAYEE_DIRECTORY) private readonly payees: PayeeDirectory,
-    @Inject(PAYOUT_GATEWAY) private readonly gateway: PayoutGateway,
-    @Inject(PAYOUT_SETTINGS) private readonly settings: PayoutSettingsProvider,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-  ) {}
+export class StartPayoutOnboarding extends UseCase<
+  Record<string, never>,
+  OnboardingLink,
+  PayoutsFailure
+> {
+  static override readonly access: AccessDeclaration = {
+    name: 'payouts.start-payout-onboarding',
+    rule: { kind: 'permissions', allOf: [ACCOUNT_ONBOARD.key] },
+  };
 
-  async run(
-    market: MarketContext,
-    courierId: string,
-  ): Promise<Result<OnboardingLink, PayoutsFailure>> {
-    if (!this.gateway.enabled) {
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: PayoutsDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected async handle(context: CallContext): Promise<Result<OnboardingLink, PayoutsFailure>> {
+    const courierId = courierOf(context);
+    if (courierId === null) return err(ACCESS_DENIED);
+    const { market } = context;
+    const { accounts, payees, gateway, unitOfWork, clock } = this.deps;
+    if (!gateway.enabled) {
       return err({
         code: 'payouts.provider-unavailable',
         message: 'Payouts are not connected to a payment provider in this deployment',
       });
     }
-    const settings = this.settings.get(market.marketId);
-    const payee = (await this.payees.payees(market, [courierId])).get(courierId);
+    const settings = this.deps.settings.get(market.marketId);
+    const payee = (await payees.payees(context, [courierId])).get(courierId);
     if (payee === undefined) return err(unknownCourier(courierId));
     if (payee.engagement !== 'contractor') {
       return err({
@@ -70,23 +67,23 @@ export class StartPayoutOnboarding {
       });
     }
 
-    const stored = await this.unitOfWork.run(
+    const stored = await unitOfWork.run(
       market,
-      async () => ok(await this.accounts.find(market, courierId)),
+      async () => ok(await accounts.find(market, courierId)),
       { readOnly: true },
     );
     if (!stored.ok) return stored;
     let accountId = stored.value?.providerAccountId;
     if (accountId === undefined) {
-      const created = await this.gateway.createAccount({
+      const created = await gateway.createAccount({
         country: settings.provider.accountCountry,
         idempotencyKey: `payout-account-${market.marketId}-${market.tenantId}-${courierId}`,
         metadata: { marketId: market.marketId, courierId },
       });
       if (!created.ok) return err(providerFailure(created.error));
-      const saved = await this.unitOfWork.run(market, async () => {
-        const now = this.clock.now();
-        const inserted = await this.accounts.insert(market, {
+      const saved = await unitOfWork.run(market, async () => {
+        const now = clock.now();
+        const inserted = await accounts.insert(market, {
           courierId,
           providerAccountId: created.value.accountId,
           payoutsEnabled: false,
@@ -97,14 +94,14 @@ export class StartPayoutOnboarding {
         return ok(
           inserted
             ? created.value.accountId
-            : (await this.accounts.find(market, courierId))!.providerAccountId,
+            : (await accounts.find(market, courierId))!.providerAccountId,
         );
       });
       if (!saved.ok) return saved;
       accountId = saved.value;
     }
 
-    const link = await this.gateway.createOnboardingLink({
+    const link = await gateway.createOnboardingLink({
       accountId,
       returnUrl: settings.provider.onboardingReturnUrl,
       refreshUrl: settings.provider.onboardingRefreshUrl,

@@ -45,12 +45,14 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
  * this list only with the audited actions its approved design names: fleet (work package 05)
  * with its operator decisions on couriers and documents; identity with its access-management
  * actions (accounts, roles, sessions, merchants and API keys); notifications (package 25) with
- * merchants' webhook subscription changes and operators' re-sends.
+ * merchants' webhook subscription changes and operators' re-sends; payouts (work package 24) with
+ * an operator's ledger adjustment and the settling of an unresolved payout line.
  */
 const AUDITING_MODULES: readonly string[] = [
   'FleetModule',
   'IdentityModule',
   'NotificationsModule',
+  'PayoutsModule',
 ];
 const SRC = path.join(__dirname, '../../src');
 
@@ -136,7 +138,11 @@ const isAmountKind = (kind: AuditFieldKind): boolean =>
  * platform-audit 3.2). Pricing's regular-price and special-price rows carry the seller's own amounts, and sellers' minimum-order change the seller's own public minimum; Cost
  * never enters an audit row (ADR-0024), which `costLeakProblems` checks apart from this list.
  */
-const MONEY_FIELD_ALLOW_LIST: readonly string[] = [];
+const MONEY_FIELD_ALLOW_LIST: readonly string[] = [
+  // An operator's adjustment of a courier's own earnings: its amount and its tax (package 24).
+  'payouts.adjustment.recorded.after.amount',
+  'payouts.adjustment.recorded.after.tax',
+];
 
 /** Every field of every action, as `<action>.<side>.<field>` with its kind. */
 function auditFieldsOf(definitions: readonly AuditActionDefinition[]) {
@@ -374,6 +380,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ['FleetModule', 'fleet'],
       ['IdentityModule', 'identity'],
       ['NotificationsModule', 'notifications'],
+      ['PayoutsModule', 'payouts'],
     ]);
   });
 
@@ -401,6 +408,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ['IdentityModule', 'writer'],
       ['NotificationsModule', 'actions'],
       ['NotificationsModule', 'writer'],
+      ['PayoutsModule', 'actions'],
+      ['PayoutsModule', 'writer'],
     ]);
     expect(found.filter((entry) => entry.owner !== entry.allowed)).toEqual([]);
   });
@@ -485,6 +494,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       `${path.join('modules', 'identity', 'identity.module.ts')}: registerAuditActions('identity')`,
       `${path.join('modules', 'notifications', 'notifications.module.ts')}: auditWriterFor('notifications')`,
       `${path.join('modules', 'notifications', 'notifications.module.ts')}: registerAuditActions('notifications')`,
+      `${path.join('modules', 'payouts', 'payouts.module.ts')}: auditWriterFor('payouts')`,
+      `${path.join('modules', 'payouts', 'payouts.module.ts')}: registerAuditActions('payouts')`,
     ]);
   });
 });

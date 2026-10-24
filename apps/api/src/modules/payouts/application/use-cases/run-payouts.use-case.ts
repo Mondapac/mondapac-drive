@@ -1,39 +1,20 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { err, ok, type CallContext, type Result } from '@mondapac-drive/shared-kernel';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import { eventsOfLine } from '../../domain/events';
+import { payoutEntry } from '../../domain/ledger';
 import {
-  ok,
-  type Clock,
-  type IdGenerator,
-  type MarketContext,
-  type Result,
-} from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
-import { payoutEntry, reversalOf } from '../../domain/ledger';
-import {
+  lineHeldBeforeTransfer,
   lineRefused,
   lineTransferred,
   planPayoutRun,
   transferAmountOf,
-  type PayoutLine,
   type PayoutRun,
 } from '../../domain/payout-run';
 import { latestCutoff } from '../../domain/payout-schedule';
-import { refusingBrokenRules, type PayoutsFailure } from '../failure';
-import {
-  LEDGER_REPOSITORY,
-  PAYEE_DIRECTORY,
-  PAYOUT_ACCOUNT_REPOSITORY,
-  PAYOUT_GATEWAY,
-  PAYOUT_RUN_REPOSITORY,
-  PAYOUT_SETTINGS,
-  type LedgerRepository,
-  type PayeeDirectory,
-  type PayoutAccountRepository,
-  type PayoutGateway,
-  type PayoutRunRepository,
-  type PayoutSettingsProvider,
-} from '../ports';
+import { isSystem } from '../callers';
+import type { PayoutsDependencies } from '../dependencies';
+import { ACCESS_DENIED, refusingBrokenRules, type PayoutsFailure } from '../failure';
+import { reverseDebitOf } from '../line-debits';
 
 /** Pending lines sent per tick; the rest wait for the next one. */
 export const TRANSFER_BATCH = 50;
@@ -47,6 +28,8 @@ export interface PayoutTick {
   readonly retrying: number;
   /** Lines out of attempts on transient refusals, left for an operator to settle. */
   readonly unresolved: number;
+  /** Pending lines held at sending: their account could no longer be paid out (L5). */
+  readonly held: number;
 }
 
 /**
@@ -57,75 +40,79 @@ export interface PayoutTick {
  * idempotency key, and records the outcome; a line refused for good gets its debit reversed, so
  * the balance waits for the next run. A line out of attempts on transient refusals keeps its
  * debit: the provider may have made the transfer, and paying the balance again under a new line
- * (a new idempotency key) could pay the courier twice.
+ * (a new idempotency key) could pay the courier twice. Just before a line is sent, its account
+ * is read again: one that can no longer be paid out holds the line and reverses its debit
+ * (security review L5). Transfers and failures publish `payouts.line-*` events. Rule `system`.
  */
-@Injectable()
-export class RunPayouts {
-  constructor(
-    @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
-    @Inject(PAYOUT_RUN_REPOSITORY) private readonly runs: PayoutRunRepository,
-    @Inject(PAYOUT_ACCOUNT_REPOSITORY) private readonly accounts: PayoutAccountRepository,
-    @Inject(PAYEE_DIRECTORY) private readonly payees: PayeeDirectory,
-    @Inject(PAYOUT_GATEWAY) private readonly gateway: PayoutGateway,
-    @Inject(PAYOUT_SETTINGS) private readonly settings: PayoutSettingsProvider,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
-  ) {}
+export class RunPayouts extends UseCase<Record<string, never>, PayoutTick, PayoutsFailure> {
+  static override readonly access: AccessDeclaration = {
+    name: 'payouts.run-payouts',
+    rule: { kind: 'system' },
+  };
 
-  async run(market: MarketContext): Promise<Result<PayoutTick, PayoutsFailure>> {
-    const opened = await this.openDueRun(market);
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: PayoutsDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected async handle(context: CallContext): Promise<Result<PayoutTick, PayoutsFailure>> {
+    if (!isSystem(context)) return err(ACCESS_DENIED);
+    const opened = await this.openDueRun(context);
     if (!opened.ok) return opened;
-    const sent = await this.sendPendingLines(market);
+    const sent = await this.sendPendingLines(context);
     if (!sent.ok) return sent;
     return ok({ ...(opened.value === undefined ? {} : { opened: opened.value }), ...sent.value });
   }
 
   private async openDueRun(
-    market: MarketContext,
+    context: CallContext,
   ): Promise<Result<PayoutRun | undefined, PayoutsFailure>> {
-    const settings = this.settings.get(market.marketId);
+    const { market } = context;
+    const { ledger, runs, accounts, payees, unitOfWork, clock, ids } = this.deps;
+    const settings = this.deps.settings.get(market.marketId);
     return refusingBrokenRules(async () => {
-      const cutoff = latestCutoff(settings.schedule, settings.timezone, this.clock.now());
-      const seen = await this.unitOfWork.run(
+      const cutoff = latestCutoff(settings.schedule, settings.timezone, clock.now());
+      const seen = await unitOfWork.run(
         market,
         async () => {
-          if (await this.runs.findRunByCutoff(market, cutoff)) return ok(undefined);
-          const balances = await this.ledger.balancesBefore(market, cutoff, settings.currency);
+          if (await runs.findRunByCutoff(market, cutoff)) return ok(undefined);
+          const balances = await ledger.balancesBefore(market, cutoff, settings.currency);
           return ok(balances.filter((entry) => entry.balance.total.amount > 0n));
         },
         { readOnly: true },
       );
       if (!seen.ok || seen.value === undefined) return ok(undefined);
       // Fleet is asked before the read-write unit opens: no other module is called inside it.
-      const payees = await this.payees.payees(
-        market,
+      const found = await payees.payees(
+        context,
         seen.value.map((entry) => entry.courierId),
       );
 
-      return this.unitOfWork.run(market, async () => {
-        if (await this.runs.findRunByCutoff(market, cutoff)) return ok(undefined);
-        const now = this.clock.now();
-        const balances = await this.ledger.balancesBefore(market, cutoff, settings.currency);
-        const accounts = await this.accounts.findMany(
+      return unitOfWork.run(market, async () => {
+        if (await runs.findRunByCutoff(market, cutoff)) return ok(undefined);
+        const now = clock.now();
+        const balances = await ledger.balancesBefore(market, cutoff, settings.currency);
+        const stored = await accounts.findMany(
           market,
           balances.map((entry) => entry.courierId),
         );
         const { run, lines } = planPayoutRun(settings, {
-          runId: this.ids.next<'PayoutRun'>(),
+          runId: ids.next<'PayoutRun'>(),
           cutoff,
           now,
           balances,
-          payees,
-          accounts: new Map(accounts.map((account) => [account.courierId, account])),
-          newLineId: () => this.ids.next<'PayoutLine'>(),
+          payees: found,
+          accounts: new Map(stored.map((account) => [account.courierId, account])),
+          newLineId: () => ids.next<'PayoutLine'>(),
         });
-        if (!(await this.runs.insertRun(market, run, lines))) return ok(undefined);
+        if (!(await runs.insertRun(market, run, lines))) return ok(undefined);
         const debits = lines
           .filter((line) => line.status === 'pending')
           .map((line) =>
             payoutEntry({
-              id: this.ids.next<'LedgerEntry'>(),
+              id: ids.next<'LedgerEntry'>(),
               courierId: line.courierId,
               payoutLineId: line.id,
               paid: { amount: line.amount, tax: line.tax, total: transferAmountOf(line) },
@@ -133,42 +120,67 @@ export class RunPayouts {
               recordedAt: now,
             }),
           );
-        await this.ledger.append(market, debits);
+        await ledger.append(market, debits);
         return ok(run);
       });
     });
   }
 
   private async sendPendingLines(
-    market: MarketContext,
+    context: CallContext,
   ): Promise<Result<Omit<PayoutTick, 'opened'>, PayoutsFailure>> {
-    const tally = { transferred: 0, failed: 0, retrying: 0, unresolved: 0 };
-    if (!this.gateway.enabled) return ok(tally);
-    const pending = await this.unitOfWork.run(
+    const { market } = context;
+    const { ledger, runs, accounts, gateway, outbox, unitOfWork, clock, ids } = this.deps;
+    const tally = { transferred: 0, failed: 0, retrying: 0, unresolved: 0, held: 0 };
+    if (!gateway.enabled) return ok(tally);
+    const pending = await unitOfWork.run(
       market,
-      async () => ok(await this.runs.pendingLines(market, TRANSFER_BATCH)),
+      async () => ok(await runs.pendingLines(market, TRANSFER_BATCH)),
       { readOnly: true },
     );
     if (!pending.ok) return pending;
 
     for (const line of pending.value) {
-      const sent = await this.gateway.createTransfer({
-        amount: transferAmountOf(line),
-        destination: line.destination!,
-        idempotencyKey: `payout-line-${line.id}`,
-        metadata: { marketId: market.marketId, payoutLineId: line.id, runId: line.runId },
-      });
+      // L5: the account as it is now. Disabled since the run opened: hold, never send.
+      const account = await unitOfWork.run(
+        market,
+        async () => ok(await accounts.find(market, line.courierId)),
+        { readOnly: true },
+      );
+      if (!account.ok) return account;
+      const payable =
+        account.value?.payoutsEnabled === true &&
+        account.value.providerAccountId === line.destination;
+      const sent = payable
+        ? await gateway.createTransfer({
+            amount: transferAmountOf(line),
+            destination: line.destination,
+            idempotencyKey: `payout-line-${line.id}`,
+            metadata: { marketId: market.marketId, payoutLineId: line.id, runId: line.runId },
+          })
+        : undefined;
       const outcome = await refusingBrokenRules(() =>
-        this.unitOfWork.run(market, async () => {
-          const current = await this.runs.findLine(market, line.id);
+        unitOfWork.run(market, async () => {
+          const current = await runs.findLine(market, line.id);
           // Another tick recorded this line first: the same key answered it the same transfer.
           if (current?.status !== 'pending') return ok('skipped' as const);
-          const now = this.clock.now();
-          const next = sent.ok
-            ? lineTransferred(current, sent.value.transferId, now)
-            : lineRefused(current, sent.error, now);
-          await this.runs.updateLine(market, next);
-          if (next.status === 'failed') await this.reverseDebit(market, next, now);
+          const now = clock.now();
+          const next =
+            sent === undefined
+              ? lineHeldBeforeTransfer(current, 'payouts-disabled', now)
+              : sent.ok
+                ? lineTransferred(current, sent.value.transferId, now)
+                : lineRefused(current, sent.error, now);
+          await runs.updateLine(market, next);
+          if (next.status === 'failed' || next.status === 'held') {
+            const reversal = await reverseDebitOf(ledger, market, next, {
+              id: ids.next<'LedgerEntry'>(),
+              reason: next.status === 'held' ? 'payout-held' : 'transfer-failed',
+              at: now,
+            });
+            if (reversal !== undefined) await ledger.append(market, [reversal]);
+          }
+          await outbox.append(context, eventsOfLine(next));
           return ok(next.status);
         }),
       );
@@ -177,26 +189,8 @@ export class RunPayouts {
       else if (outcome.value === 'failed') tally.failed += 1;
       else if (outcome.value === 'pending') tally.retrying += 1;
       else if (outcome.value === 'unresolved') tally.unresolved += 1;
+      else if (outcome.value === 'held') tally.held += 1;
     }
     return ok(tally);
-  }
-
-  /** Credits back the debit of a line that will never be paid. */
-  private async reverseDebit(
-    market: MarketContext,
-    line: PayoutLine,
-    now: PayoutLine['updatedAt'],
-  ): Promise<void> {
-    const debit = await this.ledger.findByReference(market, `payout:${line.id}`);
-    if (debit === undefined) return;
-    await this.ledger.append(market, [
-      reversalOf(debit, {
-        id: this.ids.next<'LedgerEntry'>(),
-        reference: `reversal:${debit.id}`,
-        reason: 'transfer-failed',
-        occurredAt: now,
-        recordedAt: now,
-      }),
-    ]);
   }
 }
