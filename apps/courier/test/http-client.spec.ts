@@ -132,6 +132,38 @@ describe('HTTP adapter', () => {
     });
   });
 
+  it('uploads a proof photo as the multipart part `photo` and reads the 201 reference', async () => {
+    const { api, fetch } = setup({ status: 201, body: { photoRef: 'f1b0c7e2-photo' } });
+    const result = await api.uploadProofPhoto('d-1', {
+      uri: 'file:///compressed.jpg',
+      mimeType: 'image/jpeg',
+    });
+    expect(result).toEqual({ photoRef: 'f1b0c7e2-photo' });
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe(`https://api.example.test${ROUTES.proofPhotos('d-1')}`);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeInstanceOf(FormData);
+    // The boundary is fetch's to set: no JSON content type on a multipart body.
+    expect(init.headers).not.toHaveProperty('content-type');
+  });
+
+  it("reads dispatch's current offer, which has no pay until payouts quotes it", async () => {
+    const offer = {
+      id: 'o-1',
+      deliveryId: 'd-1',
+      expiresAt: '2026-10-24T09:00:30Z',
+      pickup: { address: 'a', point: { lat: 1, lng: 2 } },
+      dropoff: { address: 'b', point: { lat: 1, lng: 2 } },
+      distanceMetres: 2300,
+      temperature: 'chilled',
+    };
+    const { api, fetch } = setup({ body: { offer } });
+    expect(await api.currentOffer()).toEqual(offer);
+    expect(fetch.mock.calls[0]![0]).toBe(
+      'https://api.example.test/dispatch/courier/offers/current',
+    );
+  });
+
   it('joins the failure reason and the details into the reason text', async () => {
     const { api, fetch } = setup({ body: { ...job, status: 'DELIVERY_FAILED' } });
     await api.recordEvent('d-1', { type: 'delivery_failed', reason: 'refused', details: ' rude ' });

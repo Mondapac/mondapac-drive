@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
-import type { JobEvent, ProofInput } from '../api/client';
+import { ApiError, type JobEvent, type ProofInput } from '../api/client';
 import type { CourierSettings, FailureReason, Job, Stop } from '../api/schemas';
 import { checkReading } from '../domain/cold-chain';
 import { canReportFailure, currentStop, nextStep } from '../domain/job-flow';
@@ -63,6 +63,7 @@ function JobSteps({
   const [reading, setReading] = useState('');
   const [proof, setProof] = useState<ProofDraft>({ kind: 'pin', pin: '' });
   const [failing, setFailing] = useState<{ reason?: FailureReason } | null>(null);
+  const [pinLocked, setPinLocked] = useState(false);
   // The photo already uploaded: a retry after a refused event sends its reference again, since
   // the file itself is deleted once it is on the server.
   const uploaded = useRef<{ readonly uri: string; readonly photoRef: string } | null>(null);
@@ -122,6 +123,18 @@ function JobSteps({
         proof: input,
         ...(temperatureCelsius === undefined ? {} : { temperatureCelsius }),
       });
+    },
+    onError: (error) => {
+      if (!(error instanceof ApiError)) return;
+      if (error.code === 'delivery.pin-locked') {
+        // PIN entry is closed for this delivery: the photo is the only proof left.
+        setPinLocked(true);
+        changeProof({ kind: 'photo', photo: null });
+      } else if (error.code === 'delivery.proof-photo-unknown') {
+        // The server does not know the reference, and the file is gone: take the photo again.
+        uploaded.current = null;
+        changeProof({ kind: 'photo', photo: null });
+      }
     },
   });
 
@@ -214,7 +227,9 @@ function JobSteps({
                 value={reading}
                 onChange={setReading}
               />
-              {check.kind !== 'breach' && <ProofOfDelivery draft={proof} onChange={changeProof} />}
+              {check.kind !== 'breach' && (
+                <ProofOfDelivery draft={proof} onChange={changeProof} pinLocked={pinLocked} />
+              )}
               {deliver.isPending && proof.kind === 'photo' && <Text>{t('proof.uploading')}</Text>}
               <Button
                 label={t('job.deliver')}

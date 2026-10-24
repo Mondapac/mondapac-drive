@@ -44,6 +44,9 @@ const TO: Readonly<Record<JobEvent['type'], Job['status']>> = {
  * mock), and the screen tests drive it. It answers like the API: it refuses an event out of
  * order, a missing or out-of-limit cold-chain reading and a wrong PIN.
  */
+/** Wrong PINs the mock takes per delivery before it closes PIN entry (the API's is per Market). */
+export const MOCK_PIN_ATTEMPTS = 3;
+
 export function createMockCourierApi(options: MockOptions) {
   const settings = courierSettings.parse(options.settings ?? fixture.settings);
   const clock = options.clock;
@@ -54,6 +57,7 @@ export function createMockCourierApi(options: MockOptions) {
   const jobs = new Map<string, Job>();
   const pings: LocationPing[] = [];
   const events: { deliveryId: string; event: JobEvent }[] = [];
+  const pinAttempts = new Map<string, number>();
   let earnedToday = 0n;
   let deliveriesToday = 0;
 
@@ -181,11 +185,17 @@ export function createMockCourierApi(options: MockOptions) {
         if (check.kind === 'breach') return Promise.reject(new ApiError(422, 'cold-chain.breach'));
       }
       if (event.type === 'delivered' && event.proof.kind === 'pin') {
+        // As the API: a wrong PIN uses an attempt, and once they are used up PIN entry closes.
+        const used = pinAttempts.get(deliveryId) ?? 0;
+        if (used >= MOCK_PIN_ATTEMPTS) {
+          return Promise.reject(new ApiError(423, 'delivery.pin-locked'));
+        }
         if (
           !pinInput.safeParse(event.proof.pin).success ||
           event.proof.pin !== fixture.deliveryPin
         ) {
-          return Promise.reject(new ApiError(422, 'proof.pin-mismatch'));
+          pinAttempts.set(deliveryId, used + 1);
+          return Promise.reject(new ApiError(422, 'delivery.pin-wrong'));
         }
       }
       const updated: Job = { ...job, status: TO[event.type] };

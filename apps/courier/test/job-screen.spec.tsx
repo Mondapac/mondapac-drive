@@ -3,6 +3,7 @@ import * as Camera from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
 import { ImageManipulator } from 'expo-image-manipulator';
 import { Linking } from 'react-native';
+import { MOCK_PIN_ATTEMPTS } from '../src/api/mock/mock-client';
 import { JobScreen } from '../src/screens/JobScreen';
 import { MARKETS } from './markets';
 import { acceptNextOffer, createHarness, renderWith } from './render';
@@ -120,6 +121,28 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
     await press('Complete delivery');
     await screen.findByText('The PIN does not match. Ask the customer again.');
     expect(screen.getByText('At drop-off')).toBeOnTheScreen();
+  });
+
+  it('closes PIN entry when the server locks it and takes a photo instead', async () => {
+    const { harness } = await reachDropoff();
+    await typeInto(TEMPERATURE, String(max));
+    for (let attempt = 0; attempt < MOCK_PIN_ATTEMPTS; attempt += 1) {
+      await typeInto('PIN from the customer', '9999');
+      await press('Complete delivery');
+      await screen.findByText('The PIN does not match. Ask the customer again.');
+    }
+    await typeInto('PIN from the customer', '9999');
+    await press('Complete delivery');
+    await screen.findByText(
+      'Too many wrong PINs for this delivery. Take a photo as proof instead.',
+    );
+    expect(screen.queryByRole('button', { name: 'Customer PIN' })).toBeNull();
+
+    await press('Take photo');
+    await screen.findByText('Photo ready to upload.');
+    await press('Complete delivery');
+    await screen.findByText('Delivered');
+    expect(harness.mock.inspect.events().at(-1)?.event).toMatchObject({ proof: { kind: 'photo' } });
   });
 
   it('uploads a compressed photo as proof', async () => {
