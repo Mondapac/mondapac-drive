@@ -42,7 +42,9 @@
     "deliveries": "Follow every delivery of the Market, dispatch a courier or cancel.",
     "couriers": "Invite couriers and turn their accounts off and on.",
     "merchants": "Add the businesses that book deliveries, and issue their API keys.",
-    "team": "Admins, their roles and what each role may do."
+    "team": "Admins, their roles and what each role may do.",
+    "live-map": "See couriers on the road and the deliveries that need attention.",
+    "payouts": "Courier payouts that are held or need a decision, and each courier's balance."
   },
   "showcase": {
     "title": "Every delivery of the Market, in one place.",
