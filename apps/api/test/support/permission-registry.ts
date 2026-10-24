@@ -5,6 +5,7 @@ import {
 } from '../../src/modules/identity/application/access/effective-keys';
 import { DELIVERY_PERMISSIONS } from '../../src/modules/delivery/contracts/permissions';
 import { IDENTITY_PERMISSIONS } from '../../src/modules/identity/contracts/permissions';
+import { NOTIFICATIONS_PERMISSIONS } from '../../src/modules/notifications/contracts/permissions';
 import { TRACKING_PERMISSIONS } from '../../src/modules/tracking/contracts/permissions';
 import { PermissionRegistry } from '../../src/platform/authz/permission-registry';
 
@@ -19,6 +20,7 @@ export function realPermissionRegistry(): PermissionRegistry {
   registry.register('identity', IDENTITY_PERMISSIONS);
   registry.register('delivery', DELIVERY_PERMISSIONS);
   registry.register('tracking', TRACKING_PERMISSIONS);
+  registry.register('notifications', NOTIFICATIONS_PERMISSIONS);
   registry.seal();
   return registry;
 }

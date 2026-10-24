@@ -16,7 +16,17 @@ export interface CourierState {
   readonly status: CourierStatus;
   readonly serviceAreaCode: string;
   readonly coldChainCapable: boolean;
+  /**
+   * Registered for the Market's sales tax (GST in AU), as an operator recorded it from the
+   * courier's business registration. Payouts adds the tax to a registered contractor's earnings.
+   */
+  readonly taxRegistered: boolean;
   readonly shift: ShiftState;
+  /**
+   * When the courier last went online from offline or from a delivery: how long they have waited
+   * for work. Absent until their first shift.
+   */
+  readonly idleSince?: Temporal.Instant;
   readonly vehicles: readonly Vehicle[];
   readonly documents: readonly CourierDocument[];
   readonly createdAt: Temporal.Instant;

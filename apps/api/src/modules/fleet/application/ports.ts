@@ -9,6 +9,8 @@ import type { MarketFleetRules } from '../domain/fleet-rules';
 export interface CourierRepository {
   findById(market: MarketContext, id: Id<'Courier'>): Promise<CourierState | undefined>;
   findByActorId(market: MarketContext, actorId: string): Promise<CourierState | undefined>;
+  /** The couriers of these accounts in the Market, whatever their standing. */
+  findByActorIds(market: MarketContext, actorIds: readonly string[]): Promise<CourierState[]>;
   /**
    * Inserts a newly registered courier (version 1). Answers false, and writes nothing, when the
    * account already has a courier profile in this Market.

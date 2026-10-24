@@ -63,7 +63,12 @@ const TRACKING = {
 };
 
 const NOTIFICATIONS = {
-  webhooks: { maxAttempts: 8, firstRetrySeconds: 30, maxRetrySeconds: 3600 },
+  webhooks: {
+    maxAttempts: 8,
+    firstRetrySeconds: 30,
+    maxRetrySeconds: 3600,
+    rotationOverlapMinutes: 1440,
+  },
   sms: {
     senderId: 'Example',
     optOutText: 'Reply STOP to opt out',
@@ -75,6 +80,8 @@ const NOTIFICATIONS = {
       delivered: 'Delivered {reference}',
       failed: 'Not delivered {reference}',
     },
+    pinText: 'PIN {pin}.',
+    trackingPageUrl: 'https://track.example.com/t/{token}',
   },
 };
 
@@ -296,6 +303,21 @@ describe('loadMarketConfigs', () => {
       'an unknown employment type',
       { fleet: { documents: [{ ...FLEET.documents[0], employmentTypes: ['volunteer'] }] } },
       /fleet\.documents\.0\.employmentTypes/,
+    ],
+    [
+      'a business-id document the Market does not list',
+      { fleet: { ...FLEET, businessIdDocumentType: 'abn' } },
+      /fleet\.businessIdDocumentType/,
+    ],
+    [
+      'a business-id document of a vehicle',
+      {
+        fleet: {
+          documents: [{ ...FLEET.documents[0], perVehicle: true }],
+          businessIdDocumentType: 'licence',
+        },
+      },
+      /fleet\.businessIdDocumentType/,
     ],
   ])('rejects %s', (_case, overrides, message) => {
     const directory = directoryWith({ 'QQ.json': { ...VALID, ...overrides } });

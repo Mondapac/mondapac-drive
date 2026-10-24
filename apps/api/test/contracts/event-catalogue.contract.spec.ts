@@ -78,15 +78,20 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     expect(worker.get(SubscriptionRegistry).names()).toEqual(api.get(SubscriptionRegistry).names());
   });
 
-  it("registers identity's mail subscriptions and seals the registry (P 6.4)", () => {
+  it("registers identity's mail and notifications' delivery subscriptions and seals the registry (P 6.4)", () => {
     const subscriptions = graphs.get('worker')!.get(SubscriptionRegistry);
 
     expect(subscriptions.names()).toEqual([
+      'delivery.courier-assigned',
+      'delivery.dispatch-exhausted',
       'identity.invitation-mail',
       'identity.link-mail',
       'identity.other-sessions-signed-out-mail',
       'identity.password-changed-mail',
       'identity.second-factor-mail',
+      'notifications.delivery-booked',
+      'notifications.delivery-cancelled',
+      'notifications.delivery-status-changed',
     ]);
     expect(subscriptions.subscribersOf('identity.invitation-issued.v1')).toEqual([
       'identity.invitation-mail',
@@ -102,6 +107,12 @@ describe('event catalogue and registries of the booted application (P 5.3, 8)', 
     ]);
     expect(subscriptions.subscribersOf('identity.second-factor-changed.v1')).toEqual([
       'identity.second-factor-mail',
+    ]);
+    expect(subscriptions.subscribersOf('dispatch.courier-assigned.v1')).toEqual([
+      'delivery.courier-assigned',
+    ]);
+    expect(subscriptions.subscribersOf('dispatch.job-exhausted.v1')).toEqual([
+      'delivery.dispatch-exhausted',
     ]);
     expect(subscriptions.sealed).toBe(true);
   });

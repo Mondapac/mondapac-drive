@@ -5,7 +5,7 @@ import type {
   MarketContext,
   MarketId,
 } from '@mondapac-drive/shared-kernel';
-import type { DeliveryState } from '../domain/delivery';
+import type { DeliveryException, DeliveryState } from '../domain/delivery';
 import type { DeliveryStatus } from '../domain/delivery-status';
 import type { MarketDeliverySettings } from '../domain/market-settings';
 import type { ServiceArea } from '../domain/service-area';
@@ -28,10 +28,22 @@ export interface DeliveryRepository {
    */
   insert(market: MarketContext, delivery: DeliveryState): Promise<boolean>;
   /**
-   * Saves `delivery` (version n + 1) over version n and appends its new history entries.
-   * Throws `StaleAggregateError` when the stored version is no longer n.
+   * Saves `delivery` over version `fromVersion` (by default the one before it: one step) and
+   * appends its new history entries. Throws `StaleAggregateError` when the stored version is no
+   * longer `fromVersion`.
    */
-  update(market: MarketContext, delivery: DeliveryState): Promise<void>;
+  update(market: MarketContext, delivery: DeliveryState, fromVersion?: number): Promise<void>;
+  /**
+   * Flags the delivery for a dispatcher while it is still in `whileStatus`, without a new version
+   * (the flag is not a lifecycle step and publishes no event). Answers false, and writes nothing,
+   * when the delivery is missing or has moved on. An assignment or a cancel clears the flag.
+   */
+  raiseException(
+    market: MarketContext,
+    id: Id<'Delivery'>,
+    exception: DeliveryException,
+    whileStatus: DeliveryStatus,
+  ): Promise<boolean>;
   /**
    * Up to `limit` deliveries of the Market matching `filter`, newest first (by id: UUIDv7), whose
    * id is lower than `before` (all when absent). Summaries only: no stop contact or history.
@@ -62,12 +74,16 @@ export type DeliverySummary = Pick<
   | 'window'
   | 'status'
   | 'courierId'
+  | 'exception'
   | 'createdAt'
 > & {
   readonly vehicle: DeliveryState['quote']['vehicle'];
   readonly temperature: DeliveryState['parcel']['temperature'];
   readonly pickupPostcode: string;
   readonly dropoffPostcode: string;
+  /** The stops' points rounded to 4 decimals (about 11 m): enough to pin them on the live map. */
+  readonly pickupPoint: GeoPoint;
+  readonly dropoffPoint: GeoPoint;
   readonly total: DeliveryState['quote']['total'];
 };
 export const DELIVERY_REPOSITORY = Symbol('DeliveryRepository');

@@ -26,7 +26,9 @@ interface CourierRow {
   readonly status: string;
   readonly serviceAreaCode: string;
   readonly coldChainCapable: boolean;
+  readonly taxRegistered: boolean;
   readonly shift: string;
+  readonly idleSince: Date | null;
   readonly createdAt: Date;
   readonly version: number;
 }
@@ -63,7 +65,9 @@ const SELECT_COURIER = {
   status: true,
   serviceAreaCode: true,
   coldChainCapable: true,
+  taxRegistered: true,
   shift: true,
+  idleSince: true,
   createdAt: true,
   version: true,
 } as const;
@@ -136,7 +140,9 @@ function readCourier(
     status: row.status as CourierStatus,
     serviceAreaCode: row.serviceAreaCode,
     coldChainCapable: row.coldChainCapable,
+    taxRegistered: row.taxRegistered,
     shift: row.shift as ShiftState,
+    ...(row.idleSince === null ? {} : { idleSince: toInstant(row.idleSince) }),
     vehicles: vehicles.filter((v) => v.courierId === row.id).map(readVehicle),
     documents: documents.filter((d) => d.courierId === row.id).map(readDocument),
     createdAt: toInstant(row.createdAt),
@@ -170,6 +176,20 @@ export class PrismaCourierRepository implements CourierRepository {
     return row === null ? undefined : (await this.withChildren(market, [row]))[0];
   }
 
+  async findByActorIds(market: MarketContext, actorIds: readonly string[]) {
+    if (actorIds.length === 0) return [];
+    const rows = await this.prisma.tx(market).fleetCourier.findMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        actorId: { in: [...actorIds] },
+      },
+      orderBy: { id: 'asc' },
+      select: SELECT_COURIER,
+    });
+    return this.withChildren(market, rows);
+  }
+
   async findOnlineInArea(market: MarketContext, serviceAreaCode: string) {
     const rows = await this.prisma.tx(market).fleetCourier.findMany({
       where: {
@@ -197,7 +217,9 @@ export class PrismaCourierRepository implements CourierRepository {
           status: courier.status,
           serviceAreaCode: courier.serviceAreaCode,
           coldChainCapable: courier.coldChainCapable,
+          taxRegistered: courier.taxRegistered,
           shift: courier.shift,
+          idleSince: toOptionalDate(courier.idleSince),
           createdAt: toDate(courier.createdAt),
           version: courier.version,
         },
@@ -222,6 +244,8 @@ export class PrismaCourierRepository implements CourierRepository {
         shift: courier.shift,
         employmentType: courier.employmentType,
         coldChainCapable: courier.coldChainCapable,
+        taxRegistered: courier.taxRegistered,
+        idleSince: toOptionalDate(courier.idleSince),
         version: courier.version,
       },
     });
@@ -236,7 +260,7 @@ export class PrismaCourierRepository implements CourierRepository {
     const [vehicles, documents] = await Promise.all([
       tx.fleetVehicle.findMany({
         where: { ...scope, courierId: courier.id },
-        select: { id: true, active: true },
+        select: { id: true, active: true, maxWeightGrams: true, maxVolumeLitres: true },
       }),
       tx.fleetDocument.findMany({
         where: { ...scope, courierId: courier.id },
@@ -264,10 +288,21 @@ export class PrismaCourierRepository implements CourierRepository {
     }
     for (const vehicle of courier.vehicles) {
       const stored = storedVehicles.get(vehicle.id);
-      if (stored === undefined || stored.active === vehicle.active) continue;
+      if (
+        stored === undefined ||
+        (stored.active === vehicle.active &&
+          stored.maxWeightGrams === vehicle.maxWeightGrams &&
+          stored.maxVolumeLitres === vehicle.maxVolumeLitres)
+      ) {
+        continue;
+      }
       await tx.fleetVehicle.updateMany({
         where: { ...scope, courierId: courier.id, id: vehicle.id },
-        data: { active: vehicle.active },
+        data: {
+          active: vehicle.active,
+          maxWeightGrams: vehicle.maxWeightGrams,
+          maxVolumeLitres: vehicle.maxVolumeLitres,
+        },
       });
     }
 

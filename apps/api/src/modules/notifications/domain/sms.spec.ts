@@ -6,6 +6,7 @@ import {
   parsePhoneNumber,
   renderSms,
   safeReference,
+  trackingUrlFor,
   type PhoneNumber,
 } from './sms';
 
@@ -31,6 +32,33 @@ describe.each(TEST_MARKET_IDS)('recipient SMS in %s', (marketId) => {
       ok: false,
       error: 'sms.tracking-link-missing',
     });
+  });
+
+  it('adds the PIN to the booked message only, and only as 4 to 8 digits', () => {
+    const booked = renderSms(settings, 'booked', {
+      reference: 'ORD-1',
+      trackingUrl: link,
+      pin: '4821',
+    });
+    const pinText = settings.pinText.replace('{pin}', '4821');
+    expect(booked.ok && booked.value).toContain(` ${pinText} ${settings.optOutText}`);
+    const delivered = renderSms(settings, 'delivered', { reference: 'ORD-1', pin: '4821' });
+    expect(delivered.ok && delivered.value).not.toContain('4821');
+    const without = renderSms(settings, 'booked', { reference: 'ORD-1', trackingUrl: link });
+    expect(without.ok && without.value).not.toContain(settings.pinText.split('{pin}')[0]!.trim());
+    for (const pin of ['12', '123456789', '12a4', 'http://x']) {
+      expect(renderSms(settings, 'booked', { reference: 'R', trackingUrl: link, pin })).toEqual({
+        ok: false,
+        error: 'sms.pin-invalid',
+      });
+    }
+  });
+
+  it("puts a link token into the Market's tracking page", () => {
+    const url = trackingUrlFor(settings, 'abc_DEF-123');
+    expect(url).toBe(settings.trackingPageUrl.replace('{token}', 'abc_DEF-123'));
+    expect(url.startsWith('https://')).toBe(true);
+    expect(trackingUrlFor(settings, 'a/b?c')).not.toContain('a/b?c');
   });
 
   it('turns a domain-shaped reference into text no phone makes a link of', () => {

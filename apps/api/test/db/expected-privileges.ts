@@ -79,10 +79,11 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: ['wrapped_key', 'wrapping_key_id', 'rewrapped_at', 'destroyed_at'],
     },
     // The delivery module: deliveries keep their identity, market and money columns; history
-    // and the outbox envelope are append-only (20261024150000, 20261024160000).
+    // and the outbox envelope are append-only (20261024150000, 20261024160000); the exception
+    // flag is set outside the version (20261026010000).
     'delivery.deliveries': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['courier_id', 'status', 'version'],
+      columnUpdate: ['courier_id', 'exception', 'status', 'version'],
     },
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
@@ -174,11 +175,19 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and
-    // the status and secret version of a subscription change.
+    // the status, event types, secret version and rotation overlap of a subscription change
+    // (20261026050000); the inbox is append-only.
     'notifications.webhook_subscriptions': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['secret_version', 'status', 'version'],
+      columnUpdate: [
+        'event_types',
+        'previous_secret_valid_until',
+        'secret_version',
+        'status',
+        'version',
+      ],
     },
+    'notifications.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'notifications.webhook_calls': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [
@@ -205,12 +214,24 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     // The fleet module (20261025050000): no row is deleted; a courier changes its standing, shift
     // and the terms an operator confirms, a vehicle its active flag, a document its review and
-    // the expiry the operator confirmed; the outbox envelope is immutable.
+    // the expiry the operator confirmed; the outbox envelope is immutable. 20261026030000: a
+    // courier's idle time and tax registration, and a vehicle's capacity an operator overrides.
     'fleet.couriers': {
       table: ['INSERT', 'SELECT'],
-      columnUpdate: ['cold_chain_capable', 'employment_type', 'shift', 'status', 'version'],
+      columnUpdate: [
+        'cold_chain_capable',
+        'employment_type',
+        'idle_since',
+        'shift',
+        'status',
+        'tax_registered',
+        'version',
+      ],
     },
-    'fleet.vehicles': { table: ['INSERT', 'SELECT'], columnUpdate: ['active'] },
+    'fleet.vehicles': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['active', 'max_volume_litres', 'max_weight_grams'],
+    },
     'fleet.documents': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],

@@ -13,7 +13,12 @@ import type { PanelConfig, PanelHost } from './config.ts';
 
 /** The paths this panel may reach, by method (its own population's routes). */
 const ALLOWED: Readonly<Record<string, ReadonlySet<string>>> = {
-  GET: new Set(['identity/admin/session']),
+  GET: new Set([
+    'identity/admin/session',
+    // Drive live map: couriers near a point, once and as a server-sent event stream.
+    'tracking/admin/couriers/nearest',
+    'tracking/admin/map/stream',
+  ]),
   PUT: new Set([
     // The signed-in admin's own display name (profile).
     'identity/admin/profile/display-name',
@@ -66,17 +71,34 @@ const ALLOWED_WITH_ID: Readonly<Record<string, readonly string[]>> = {
   ],
   PUT: ['identity/admin/roles/:id'],
   DELETE: ['identity/admin/roles/:id'],
-  GET: [],
+  GET: [
+    // Drive live map: a delivery's breadcrumb trail.
+    'tracking/admin/deliveries/:id/trail',
+  ],
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
  * The only GET paths whose query string crosses to the API, and the keys that may cross. The
- * panel's lists are read by its page server, so no browser GET carries a query yet.
+ * panel's lists are read by its page server; the live map asks for couriers near a point.
  */
-const QUERY_KEYS: Readonly<Record<string, readonly string[]>> = {};
+const NEAR_POINT = ['lat', 'lng', 'radiusM', 'limit'] as const;
+const QUERY_KEYS: Readonly<Record<string, readonly string[]>> = {
+  'tracking/admin/couriers/nearest': NEAR_POINT,
+  'tracking/admin/map/stream': NEAR_POINT,
+};
+/** The live map rounds a point to 4 decimals (about 11 m); a radius and a limit are whole numbers. */
+const NEAR_POINT_SHAPES: Readonly<Record<string, RegExp>> = {
+  lat: /^-?\d{1,2}(\.\d{1,4})?$/,
+  lng: /^-?\d{1,3}(\.\d{1,4})?$/,
+  radiusM: /^\d{1,6}$/,
+  limit: /^\d{1,3}$/,
+};
 /** Query values that must have a shape to cross; a value of another shape is dropped. */
-const QUERY_SHAPES: Readonly<Record<string, Readonly<Record<string, RegExp>>>> = {};
+const QUERY_SHAPES: Readonly<Record<string, Readonly<Record<string, RegExp>>>> = {
+  'tracking/admin/couriers/nearest': NEAR_POINT_SHAPES,
+  'tracking/admin/map/stream': NEAR_POINT_SHAPES,
+};
 /** GET templates with a resource id whose query crosses, and the keys that may cross. */
 const QUERY_KEYS_WITH_ID: Readonly<Record<string, readonly string[]>> = {};
 const QUERY_VALUE_MAX = 512;
@@ -139,6 +161,9 @@ export type RelayLog = (line: Record<string, string | number>) => void;
 const stdoutLog: RelayLog = (line) => console.log(JSON.stringify(line));
 
 const MAX_BODY_BYTES = 16 * 1024;
+
+/** A server-sent event stream crosses as a stream: the relay never buffers it. */
+const EVENT_STREAM = /^text\/event-stream\b/i;
 
 /** Lower case, no trailing dot on the host name; the port stays. */
 export function normaliseHost(raw: string | null): string | null {
@@ -263,6 +288,8 @@ export async function relay(
         ...(body === undefined ? {} : { body }),
         redirect: 'manual',
         cache: 'no-store',
+        // The browser leaving ends the API request too, so a map stream frees its slot.
+        signal: request.signal,
       },
     );
   } catch {
@@ -292,6 +319,11 @@ export async function relay(
   // Session answers must never be cached; the API sets no-store itself, this is the default.
   headers.set('cache-control', upstream.headers.get('cache-control') ?? 'private, no-store');
   for (const cookie of upstream.headers.getSetCookie()) headers.append('set-cookie', cookie);
+  if (upstream.ok && EVENT_STREAM.test(upstream.headers.get('content-type') ?? '')) {
+    headers.set('cache-control', 'no-store, no-transform');
+    headers.set('x-accel-buffering', 'no');
+    return new Response(upstream.body, { status: upstream.status, headers });
+  }
   return new Response(upstream.status === 204 ? null : await upstream.arrayBuffer(), {
     status: upstream.status,
     headers,

@@ -18,3 +18,21 @@ describe('security headers', () => {
     expect(securityHeaders('n', true)['strict-transport-security']).toBeUndefined();
   });
 });
+
+describe('live map origins', () => {
+  it('adds nothing for a panel without a base map', () => {
+    const csp = contentSecurityPolicy('abc', false);
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).toContain("img-src 'self' data:;");
+    expect(csp).not.toContain('worker-src');
+    expect(csp).not.toContain('blob:');
+  });
+
+  it("allows the tile origins for fetches and images, and the panel's own worker", () => {
+    const csp = contentSecurityPolicy('abc', false, ['https://tiles.example.com']);
+    expect(csp).toContain("connect-src 'self' https://tiles.example.com");
+    expect(csp).toContain("img-src 'self' data: blob: https://tiles.example.com");
+    expect(csp).toContain("worker-src 'self';");
+    expect(csp).toContain("script-src 'self' 'nonce-abc' 'strict-dynamic'");
+  });
+});
