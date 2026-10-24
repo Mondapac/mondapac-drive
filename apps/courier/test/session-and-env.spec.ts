@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { readEnv } from '../src/platform/env';
 import {
+  activeJobMemory,
   clearSession,
   isOnlineFlagSet,
   loadSession,
@@ -40,6 +41,16 @@ describe('session store', () => {
     expect(sessionSource.current()).toBeNull();
     await expect(isOnlineFlagSet()).resolves.toBe(false);
     await expect(loadSession()).resolves.toBeNull();
+  });
+
+  it('keeps the accepted delivery across a restart, and drops it with the session', async () => {
+    await saveSession(session);
+    await activeJobMemory.remember('d-1');
+    await loadSession();
+    expect(activeJobMemory.current()).toBe('d-1');
+    await clearSession();
+    expect(activeJobMemory.current()).toBeNull();
+    await expect(SecureStore.getItemAsync('mondapac.courier.active-job')).resolves.toBeNull();
   });
 });
 

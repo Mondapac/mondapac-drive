@@ -205,3 +205,78 @@ describe('HTTP adapter', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+describe('the accepted delivery while fleet reports none', () => {
+  function memory(initial: string | null = null) {
+    let stored = initial;
+    return {
+      current: () => stored,
+      remember: jest.fn((id: string) => {
+        stored = id;
+        return Promise.resolve();
+      }),
+      forget: jest.fn(() => {
+        stored = null;
+        return Promise.resolve();
+      }),
+    };
+  }
+
+  function respond(...bodies: { status?: number; body?: unknown }[]) {
+    const fetch = jest.fn<Promise<Response>, [string, RequestInit]>();
+    for (const { status, body } of bodies) {
+      fetch.mockResolvedValueOnce(
+        new Response(body === undefined ? '' : JSON.stringify(body), { status: status ?? 200 }),
+      );
+    }
+    return fetch;
+  }
+
+  function api(fetch: ReturnType<typeof respond>, activeJob: ReturnType<typeof memory>) {
+    return createHttpCourierApi({
+      baseUrl: 'https://api.example.test',
+      session: { current: () => session },
+      marketId: 'ZZ',
+      fetch,
+      activeJob,
+    });
+  }
+
+  it('remembers the accepted delivery and reports it as the active one', async () => {
+    const activeJob = memory();
+    const fetch = respond(
+      { body: { deliveryId: 'd-1' } },
+      { body: { shift: 'on_delivery', activeDeliveryId: null } },
+    );
+    const courier = api(fetch, activeJob);
+    await courier.acceptOffer('o-1');
+    expect(activeJob.remember).toHaveBeenCalledWith('d-1');
+    await expect(courier.status()).resolves.toEqual({
+      shift: 'on_delivery',
+      activeDeliveryId: 'd-1',
+    });
+  });
+
+  it("takes the server's active delivery over the remembered one", async () => {
+    const fetch = respond({ body: { shift: 'on_delivery', activeDeliveryId: 'd-2' } });
+    await expect(api(fetch, memory('d-1')).status()).resolves.toMatchObject({
+      activeDeliveryId: 'd-2',
+    });
+  });
+
+  it('forgets the delivery once it is finished or no longer the courier’s', async () => {
+    const finished = memory('d-1');
+    await api(respond({ body: { ...job, status: 'DELIVERED' } }), finished).job('d-1');
+    expect(finished.forget).toHaveBeenCalled();
+
+    const taken = memory('d-1');
+    await expect(
+      api(respond({ status: 404, body: { code: 'delivery.not-found' } }), taken).job('d-1'),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(taken.forget).toHaveBeenCalled();
+
+    const ongoing = memory('d-1');
+    await api(respond({ body: job }), ongoing).job('d-1');
+    expect(ongoing.forget).not.toHaveBeenCalled();
+  });
+});

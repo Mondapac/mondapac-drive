@@ -95,7 +95,9 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 - Fleet: `GET /fleet/courier/me` (`{ shift, activeDeliveryId, … }`; 404 `fleet.courier.not-found`
   before an operator sets up the profile), `PUT …/me/shift { state }` (409
   `fleet.shift.transition-not-allowed` mid-delivery, 422 `fleet.courier.*` when the courier may
-  not work) and `GET …/me/settings` (the Market's courier settings).
+  not work) and `GET …/me/settings` (the Market's courier settings). Fleet reports
+  `activeDeliveryId: null` for now, so the app keeps the delivery it accepted in the secure
+  store (with the session) and returns to it after a restart, until the job ends or answers 404.
 - Payouts: `GET /payouts/courier/me/summary` (`{ today, week, deliveriesToday }` in the
   Market's time zone, the week from Monday).
 
