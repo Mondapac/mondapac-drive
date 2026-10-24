@@ -1,0 +1,106 @@
+// The fleet module's tables: couriers, their vehicles and documents. Every model carries marketId
+// and tenantId, which the platform's market guard pins on every query. A courier references its
+// identity account by id only (actor_id). A document keeps the object-store key of its file and
+// never a document number.
+
+/// One courier of one Market. (market_id, actor_id): one profile per account and Market.
+model FleetCourier {
+  id               String   @id @db.Uuid
+  marketId         String   @map("market_id") @db.VarChar(8)
+  tenantId         String   @map("tenant_id")
+  actorId          String   @map("actor_id") @db.VarChar(64)
+  employmentType   String   @map("employment_type") @db.VarChar(16)
+  status           String   @db.VarChar(16)
+  serviceAreaCode  String   @map("service_area_code") @db.VarChar(64)
+  coldChainCapable Boolean  @map("cold_chain_capable")
+  shift            String   @db.VarChar(16)
+  createdAt        DateTime @map("created_at") @db.Timestamptz(6)
+  version          Int
+
+  vehicles  FleetVehicle[]
+  documents FleetDocument[]
+
+  @@unique([marketId, id])
+  @@unique([marketId, actorId])
+  /// Dispatch's question: the online couriers of an area.
+  @@index([marketId, serviceAreaCode, status, shift])
+  @@map("couriers")
+  @@schema("fleet")
+}
+
+/// A vehicle a courier delivers with. Never deleted: a vehicle out of use is inactive.
+model FleetVehicle {
+  id              String  @id @db.Uuid
+  marketId        String  @map("market_id") @db.VarChar(8)
+  tenantId        String  @map("tenant_id")
+  courierId       String  @map("courier_id") @db.Uuid
+  type            String  @db.VarChar(16)
+  plate           String? @db.VarChar(10)
+  maxWeightGrams  Int     @map("max_weight_grams")
+  maxVolumeLitres Int     @map("max_volume_litres")
+  coldBox         String  @map("cold_box") @db.VarChar(16)
+  active          Boolean
+
+  courier   FleetCourier    @relation(fields: [marketId, courierId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  documents FleetDocument[]
+
+  /// A document names a vehicle of its own courier (the documents foreign key).
+  @@unique([marketId, courierId, id])
+  @@index([marketId, courierId])
+  @@map("vehicles")
+  @@schema("fleet")
+}
+
+/// A document a courier submitted, and its review. The file is in private object storage.
+model FleetDocument {
+  id              String    @id @db.Uuid
+  marketId        String    @map("market_id") @db.VarChar(8)
+  tenantId        String    @map("tenant_id")
+  courierId       String    @map("courier_id") @db.Uuid
+  /// The Market's code of the document (config/markets/<CODE>.json, fleet.documents).
+  type            String    @db.VarChar(40)
+  vehicleId       String?   @map("vehicle_id") @db.Uuid
+  fileKey         String    @map("file_key") @db.VarChar(255)
+  mediaType       String    @map("media_type") @db.VarChar(32)
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  status          String    @db.VarChar(16)
+  submittedAt     DateTime  @map("submitted_at") @db.Timestamptz(6)
+  reviewedAt      DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(16)
+
+  courier FleetCourier  @relation(fields: [marketId, courierId], references: [marketId, id], onDelete: Restrict, onUpdate: Restrict)
+  vehicle FleetVehicle? @relation(fields: [marketId, courierId, vehicleId], references: [marketId, courierId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([marketId, courierId])
+  @@map("documents")
+  @@schema("fleet")
+}
+
+/// Events of the fleet module, appended in the transaction of the change and published by the
+/// relay (platform persistence design 5). The columns are the platform's outbox contract.
+model FleetOutbox {
+  /// UUIDv7 stamped by the outbox writer.
+  eventId          String    @id @map("event_id") @db.Uuid
+  /// "fleet.<subject>-<verb>.v<N>"; the CHECK refuses another module's type.
+  type             String
+  /// The instant the use case took from Clock (UTC).
+  occurredAt       DateTime  @map("occurred_at") @db.Timestamptz(6)
+  /// Market of the unit that wrote the event; stamped by the writer.
+  marketId         String    @map("market_id") @db.VarChar(8)
+  /// Tenant seam; stamped by the writer, no database default.
+  tenantId         String    @map("tenant_id")
+  aggregateType    String    @map("aggregate_type")
+  aggregateId      String    @map("aggregate_id") @db.Uuid
+  /// The aggregate's version after the change; unique per aggregate.
+  aggregateVersion Int       @map("aggregate_version")
+  correlationId    String    @map("correlation_id")
+  /// The consumed event that caused this one, or null.
+  causationId      String?   @map("causation_id") @db.Uuid
+  payload          Json      @db.JsonB
+  /// Set by the relay when the event was handed to the bus; the only column that changes.
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@unique([marketId, aggregateId, aggregateVersion])
+  @@map("outbox")
+  @@schema("fleet")
+}

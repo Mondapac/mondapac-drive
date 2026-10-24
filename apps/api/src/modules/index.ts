@@ -2,5 +2,6 @@
 // its public entry point only.
 import { DeliveryModule } from './delivery';
 import { NotificationsModule } from './notifications';
+import { FleetModule } from './fleet';
 
-export const CORE_MODULES = [DeliveryModule, NotificationsModule];
+export const CORE_MODULES = [DeliveryModule, NotificationsModule, FleetModule];

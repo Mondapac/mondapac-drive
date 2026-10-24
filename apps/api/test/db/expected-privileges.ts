@@ -41,6 +41,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     delivery: ['USAGE'],
     notifications: ['USAGE'],
     platform: ['USAGE'],
+    fleet: ['USAGE'],
   },
   tables: {
     'platform.audit_log': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
@@ -112,6 +113,19 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
         'status',
       ],
     },
+    // The fleet module (20261025050000): no row is deleted; a courier changes its standing, shift
+    // and the terms an operator confirms, a vehicle its active flag, a document its review and
+    // the expiry the operator confirmed; the outbox envelope is immutable.
+    'fleet.couriers': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['cold_chain_capable', 'employment_type', 'shift', 'status', 'version'],
+    },
+    'fleet.vehicles': { table: ['INSERT', 'SELECT'], columnUpdate: ['active'] },
+    'fleet.documents': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
+    },
+    'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

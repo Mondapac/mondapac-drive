@@ -103,5 +103,36 @@
         "failed": "ZZ failed {reference}"
       }
     }
+  },
+  "fleet": {
+    "documents": [
+      {
+        "type": "business_number",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driving_permit",
+        "vehicleTypes": ["motorbike", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_inspection",
+        "vehicleTypes": ["van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "cold_chain_training",
+        "coldChainOnly": true,
+        "perVehicle": false,
+        "expires": true
+      }
+    ]
   }
 }
