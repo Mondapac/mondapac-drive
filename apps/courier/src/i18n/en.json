@@ -1,0 +1,153 @@
+{
+  "app": {
+    "name": "Mondapac Courier"
+  },
+  "common": {
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "back": "Back",
+    "loading": "Loading…",
+    "error": "Something went wrong. {{message}}",
+    "callSupport": "Call support"
+  },
+  "signIn": {
+    "title": "Sign in",
+    "placeholderNotice": "Courier accounts are not live yet. This sign-in is a placeholder.",
+    "phone": "Mobile number",
+    "code": "One-time code",
+    "submit": "Sign in",
+    "invalid": "Enter your mobile number and the 6-digit code.",
+    "failed": "Sign-in failed. Check the code and try again."
+  },
+  "home": {
+    "title": "Today",
+    "offline": "You are offline",
+    "online": "You are online",
+    "onDelivery": "On a delivery",
+    "paused": "Paused",
+    "goOnline": "Go online",
+    "goOffline": "Go offline",
+    "waiting": "Waiting for delivery offers…",
+    "activeJob": "Continue active delivery",
+    "earnings": "Earnings",
+    "signOut": "Sign out",
+    "needsLocation": "Location access is needed before you can go online."
+  },
+  "offer": {
+    "title": "New delivery offer",
+    "pickup": "Pickup",
+    "dropoff": "Drop-off",
+    "distance": "Trip distance: {{distance}}",
+    "pay": "You earn {{amount}}",
+    "expiresIn": "{{seconds}} s to respond",
+    "expired": "This offer has expired.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "coldChain": "Cold chain: {{temperature}}"
+  },
+  "temperature": {
+    "ambient": "Ambient",
+    "chilled": "Chilled",
+    "frozen": "Frozen"
+  },
+  "job": {
+    "title": "Active delivery",
+    "status": {
+      "SCHEDULED": "Scheduled",
+      "DISPATCHING": "Finding a courier",
+      "ASSIGNED": "Head to pickup",
+      "AT_PICKUP": "At pickup",
+      "PICKED_UP": "Head to drop-off",
+      "AT_DROPOFF": "At drop-off",
+      "DELIVERED": "Delivered",
+      "DELIVERY_FAILED": "Delivery failed",
+      "RETURNING": "Returning to the merchant",
+      "RETURNED": "Returned",
+      "CANCELLED": "Cancelled"
+    },
+    "navigate": "Navigate",
+    "callContact": "Call {{name}}",
+    "arrivedAtPickup": "I have arrived at pickup",
+    "pickedUp": "Picked up",
+    "arrivedAtDropoff": "I have arrived at drop-off",
+    "deliver": "Complete delivery",
+    "reportFailure": "Can't deliver",
+    "notes": "Notes: {{notes}}",
+    "finished": "This delivery is finished.",
+    "backHome": "Back to home"
+  },
+  "coldChain": {
+    "title": "Cold-chain reading",
+    "label": "Box temperature (°C)",
+    "limit": "{{temperature}} goods must be at or below {{max}} °C.",
+    "outOfRange": "Enter a temperature between -40 and 60 °C.",
+    "breach": "{{reading}} °C is above the {{max}} °C limit. Do not hand over the goods.",
+    "breachAtPickup": "Do not pick up these goods. Call support so the merchant can be told.",
+    "breachAtDropoff": "Report the delivery as failed with the cold-chain reason."
+  },
+  "proof": {
+    "title": "Proof of delivery",
+    "byPin": "Customer PIN",
+    "byPhoto": "Photo",
+    "pinLabel": "PIN from the customer",
+    "pinInvalid": "The PIN has 4 to 6 digits.",
+    "takePhoto": "Take photo",
+    "retakePhoto": "Retake",
+    "photoReady": "Photo ready to upload.",
+    "cameraDenied": "Camera access is off. Use the customer PIN or allow the camera in Settings.",
+    "allowCamera": "Allow camera",
+    "uploading": "Uploading photo…",
+    "required": "Add a PIN or a photo first."
+  },
+  "failure": {
+    "title": "Why can't the delivery be completed?",
+    "details": "Details (optional)",
+    "submit": "Report failed delivery",
+    "reasons": {
+      "customer_unavailable": "Customer not available",
+      "address_not_found": "Address not found",
+      "access_issue": "Cannot access the building",
+      "refused": "Customer refused the goods",
+      "damaged": "Goods damaged",
+      "cold_chain_breach": "Temperature out of range",
+      "other": "Other"
+    },
+    "chooseReason": "Choose a reason."
+  },
+  "earnings": {
+    "title": "Earnings",
+    "today": "Today",
+    "week": "This week",
+    "deliveries": "{{count}} deliveries today",
+    "stubNotice": "Payouts are not live yet; figures are an estimate."
+  },
+  "permissions": {
+    "location": {
+      "title": "Location while you are online",
+      "body": "While you are online, Mondapac Courier shares your location with dispatch so we can offer you nearby deliveries and show customers where their order is. It keeps doing this when the app is in the background or the screen is off. Sharing stops as soon as you go offline.",
+      "android": "On the next screens choose \"While using the app\", then \"Allow all the time\". A notification shows while your location is being shared.",
+      "ios": "On the next screens choose \"Allow While Using App\", then \"Change to Always Allow\".",
+      "continue": "Continue",
+      "denied": "Location access is off. Open Settings and allow location \"All the time\" to go online.",
+      "openSettings": "Open Settings",
+      "iosAlways": "While you are online, your location is shared with dispatch to offer you nearby deliveries and show customers their order's progress, also in the background. Sharing stops when you go offline.",
+      "iosWhenInUse": "Your location is used to offer you nearby deliveries and to navigate to pickups and drop-offs.",
+      "notificationTitle": "You are online",
+      "notificationBody": "Sharing your location with Mondapac dispatch."
+    },
+    "camera": {
+      "ios": "The camera is used to take a photo as proof of delivery."
+    }
+  },
+  "errors": {
+    "pinMismatch": "The PIN does not match. Ask the customer again.",
+    "coldChainBreach": "The temperature is above the limit, so the hand-over was refused.",
+    "coldChainMissing": "Enter the box temperature first.",
+    "offerExpired": "This offer has expired.",
+    "offerGone": "This offer is no longer available.",
+    "network": "No connection. Check your mobile data and try again.",
+    "session": "Your session has ended. Sign in again.",
+    "deliveryInProgress": "Finish your active delivery before you go offline.",
+    "generic": "Something went wrong. Try again."
+  }
+}

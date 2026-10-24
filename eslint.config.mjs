@@ -64,6 +64,8 @@ const TS = '{ts,mts,cts}';
 const SPEC_FILES = [`**/*.spec.${TS}`];
 // The panel apps also hold .tsx; none is in this repository yet.
 const PANEL_TSX = [];
+// The courier app (React Native, Expo) is written in .ts and .tsx.
+const COURIER_TSX = ['apps/courier/**/*.tsx'];
 // The fixture tree is outside the globs below, so each block names its fixture files too.
 const FIXTURES = 'apps/api/test/boundary-fixtures';
 
@@ -339,6 +341,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       '**/generated/**',
+      // Files the Expo CLI generates in the courier app.
+      '**/.expo/**',
       // Deliberate violations used by apps/api/test/boundaries.spec.ts.
       '**/test/boundary-fixtures/**',
     ],
@@ -356,7 +360,7 @@ export default tseslint.config(
     linterOptions: { noInlineConfig: true },
   },
   {
-    files: [`**/*.${TS}`, ...PANEL_TSX],
+    files: [`**/*.${TS}`, ...PANEL_TSX, ...COURIER_TSX],
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       globals: { ...globals.node },
@@ -526,6 +530,20 @@ export default tseslint.config(
   },
   {
     files: [...SPEC_FILES, `**/test/**/*.${TS}`],
+    languageOptions: { globals: { ...globals.jest } },
+  },
+  {
+    // The courier app: the wall-clock and Market-literal rules hold there too. Its Clock lives
+    // in src/platform/clock/ (the block for that directory above), and Market values come from
+    // the API.
+    files: [`apps/courier/src/**/*.${TS}`, ...COURIER_TSX],
+    ignores: ['apps/courier/src/platform/clock/**', 'apps/courier/test/**'],
+    rules: {
+      'no-restricted-syntax': ['error', ...noMarketOrVerticalLiterals, ...noWallClock],
+    },
+  },
+  {
+    files: ['apps/courier/test/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.jest } },
   },
   {

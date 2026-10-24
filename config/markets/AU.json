@@ -101,6 +101,69 @@
       }
     }
   },
+  "notifications": {
+    "webhooks": {
+      "maxAttempts": 8,
+      "firstRetrySeconds": 30,
+      "maxRetrySeconds": 3600
+    },
+    "sms": {
+      "senderId": "Mondapac",
+      "optOutText": "Reply STOP to opt out",
+      "maxAttempts": 5,
+      "allowedCallingCodes": ["61"],
+      "templates": {
+        "booked": "Your order {reference} is booked for delivery. Track it: {trackingUrl}",
+        "on_the_way": "Your order {reference} is on the way. Track it: {trackingUrl}",
+        "delivered": "Your order {reference} has been delivered.",
+        "failed": "We could not deliver your order {reference}. The sender will contact you."
+      }
+    }
+  },
+  "fleet": {
+    "documents": [
+      {
+        "type": "abn",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driver_licence",
+        "vehicleTypes": ["motorbike", "car", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_registration",
+        "vehicleTypes": ["motorbike", "car", "van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "insurance",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "police_check",
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "food_handling",
+        "coldChainOnly": true,
+        "perVehicle": false,
+        "expires": false
+      }
+    ]
+  },
   "tracking": {
     "ping": {
       "maxAgeSeconds": 120,

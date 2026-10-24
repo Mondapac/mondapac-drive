@@ -85,6 +85,56 @@
       }
     }
   },
+  "notifications": {
+    "webhooks": {
+      "maxAttempts": 4,
+      "firstRetrySeconds": 10,
+      "maxRetrySeconds": 120
+    },
+    "sms": {
+      "senderId": "ZZDrive",
+      "optOutText": "STOP to end",
+      "maxAttempts": 3,
+      "allowedCallingCodes": ["999"],
+      "templates": {
+        "booked": "ZZ booked {reference} {trackingUrl}",
+        "on_the_way": "ZZ on the way {trackingUrl}",
+        "delivered": "ZZ delivered {reference}",
+        "failed": "ZZ failed {reference}"
+      }
+    }
+  },
+  "fleet": {
+    "documents": [
+      {
+        "type": "business_number",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driving_permit",
+        "vehicleTypes": ["motorbike", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_inspection",
+        "vehicleTypes": ["van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "cold_chain_training",
+        "coldChainOnly": true,
+        "perVehicle": false,
+        "expires": true
+      }
+    ]
+  },
   "tracking": {
     "ping": {
       "maxAgeSeconds": 60,

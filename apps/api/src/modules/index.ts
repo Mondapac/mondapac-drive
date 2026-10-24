@@ -1,6 +1,8 @@
 // Bounded-context modules of the core (marketplace ADR-0008 decision 3), each imported through
 // its public entry point only.
 import { DeliveryModule } from './delivery';
+import { NotificationsModule } from './notifications';
+import { FleetModule } from './fleet';
 import { TrackingModule } from './tracking';
 
-export const CORE_MODULES = [DeliveryModule, TrackingModule];
+export const CORE_MODULES = [DeliveryModule, NotificationsModule, FleetModule, TrackingModule];
