@@ -282,7 +282,7 @@ describe.each(TEST_MARKETS)('merchants and API keys in market %s', (code) => {
 
       if (!issued.ok) throw new Error(`issue: ${issued.error.code}`);
       const { key, keyId, expiresAt } = issued.value;
-      expect(key).toMatch(/^ms1_[A-Za-z0-9_-]{43}$/);
+      expect(key).toMatch(/^mk1_[A-Za-z0-9_-]{43}$/);
       expect(expiresAt).toEqual(START.add({ hours: 24 * KEY_DAYS[code]! }));
       const stored = fakes.sessions.get(keyId)!;
       expect(stored.session).toMatchObject({
