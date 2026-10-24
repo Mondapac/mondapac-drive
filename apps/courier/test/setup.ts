@@ -3,6 +3,11 @@ import type * as ReactNative from 'react-native';
 
 // Native modules have no implementation under Jest; each is replaced by a small fake.
 
+/** The fake device's files (see the expo-file-system mock). */
+function mockDeviceFiles(): Set<string> {
+  return jest.requireMock<{ __files: Set<string> }>('expo-file-system').__files;
+}
+
 jest.mock('expo-secure-store', () => {
   const store = new Map<string, string>();
   return {
@@ -39,7 +44,10 @@ jest.mock('expo-image-manipulator', () => {
     resize: jest.fn((): unknown => context),
     renderAsync: jest.fn(() =>
       Promise.resolve({
-        saveAsync: jest.fn(() => Promise.resolve({ uri: 'file:///compressed.jpg', width: 1280 })),
+        saveAsync: jest.fn(() => {
+          mockDeviceFiles().add('file:///compressed.jpg');
+          return Promise.resolve({ uri: 'file:///compressed.jpg', width: 1280 });
+        }),
       }),
     ),
   };
@@ -49,12 +57,51 @@ jest.mock('expo-image-manipulator', () => {
   };
 });
 
+// Files on the device: `__files` holds the URIs that exist, and a delete removes one.
+jest.mock('expo-file-system', () => {
+  const files = new Set<string>();
+  const folders = new Set<string>();
+  class File {
+    readonly uri: string;
+    constructor(uri: string) {
+      this.uri = uri;
+    }
+    get exists() {
+      return files.has(this.uri);
+    }
+    delete() {
+      if (!files.delete(this.uri)) throw new Error('file missing');
+    }
+  }
+  class Directory {
+    readonly uri: string;
+    constructor(...parts: (string | Directory)[]) {
+      this.uri = parts.map((part) => (typeof part === 'string' ? part : part.uri)).join('/');
+    }
+    get exists() {
+      return folders.has(this.uri);
+    }
+    delete() {
+      folders.delete(this.uri);
+      for (const uri of files) if (uri.startsWith(`${this.uri}/`)) files.delete(uri);
+    }
+  }
+  return {
+    File,
+    Directory,
+    Paths: { cache: new Directory('file:///cache') },
+    __files: files,
+    __folders: folders,
+  };
+});
+
 jest.mock('expo-camera', () => {
   const React = jest.requireActual<typeof ReactModule>('react');
   const { View } = jest.requireActual<typeof ReactNative>('react-native');
-  const takePictureAsync = jest.fn(() =>
-    Promise.resolve({ uri: 'file:///camera.jpg', width: 4032, height: 3024 }),
-  );
+  const takePictureAsync = jest.fn(() => {
+    mockDeviceFiles().add('file:///camera.jpg');
+    return Promise.resolve({ uri: 'file:///camera.jpg', width: 4032, height: 3024 });
+  });
   const CameraView = React.forwardRef((_props: object, ref: React.Ref<unknown>) => {
     React.useImperativeHandle(ref, () => ({ takePictureAsync }));
     return React.createElement(View, { testID: 'camera' });
