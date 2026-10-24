@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Temporal, type Id, type MarketContext } from '@mondapac-drive/shared-kernel';
-import { startTracking, updateTracking } from '../../src/modules/tracking/domain/tracked-delivery';
+import {
+  followDelivery,
+  startTracking,
+  updateTracking,
+} from '../../src/modules/tracking/domain/tracked-delivery';
 import { PrismaTrackingRepository } from '../../src/modules/tracking/infrastructure/prisma-tracking.repository';
 import { ok } from '@mondapac-drive/shared-kernel';
 import { StaleAggregateError } from '../../src/platform/unit-of-work/errors';
@@ -74,6 +78,31 @@ describe('tracking repository (database integration)', () => {
       ).rejects.toThrow(StaleAggregateError);
       await expect(inUnit(market, () => repository.saveDelivery(market, started))).rejects.toThrow(
         StaleAggregateError,
+      );
+    });
+
+    it('round-trips the delivery version a lifecycle event applied (handoff 26)', async () => {
+      const deliveryId = newDeliveryId();
+      const booked = followDelivery(
+        undefined,
+        deliveryId,
+        { deliveryVersion: 1, status: 'DISPATCHING' },
+        { ...route, vehicle: 'van' },
+        at,
+      );
+      if (!booked.ok) throw new Error('not started');
+      await inUnit(market, () => repository.saveDelivery(market, booked.value));
+      const assigned = followDelivery(
+        booked.value,
+        deliveryId,
+        { deliveryVersion: 2, status: 'ASSIGNED', courierId: 'c-2' },
+        undefined,
+        at.add({ minutes: 1 }),
+      );
+      if (!assigned.ok) throw new Error('refused');
+      await inUnit(market, () => repository.saveDelivery(market, assigned.value));
+      expect(await inUnit(market, () => repository.findDelivery(market, deliveryId), true)).toEqual(
+        assigned.value,
       );
     });
 

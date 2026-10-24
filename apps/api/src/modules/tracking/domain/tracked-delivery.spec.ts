@@ -1,5 +1,6 @@
 import { Temporal, type Id } from '@mondapac-drive/shared-kernel';
 import {
+  followDelivery,
   phaseOf,
   recordsTrail,
   showsCourierToCustomer,
@@ -80,5 +81,157 @@ describe('tracked delivery', () => {
     expect(recordsTrail(carried, 'c-1')).toBe(true);
     expect(recordsTrail(carried, 'c-2')).toBe(false);
     expect(recordsTrail(ended, 'c-1')).toBe(false);
+  });
+});
+
+describe('following the delivery lifecycle (handoff 26)', () => {
+  const courier = '01990000-0000-7000-8000-0000000000c1';
+  const other = '01990000-0000-7000-8000-0000000000c2';
+  const where = { pickup: route.pickup, dropoff: route.dropoff, vehicle: 'car' as const };
+  const booked = () => {
+    const started = followDelivery(
+      undefined,
+      deliveryId,
+      { deliveryVersion: 1, status: 'DISPATCHING' },
+      where,
+      now,
+    );
+    if (!started.ok) throw new Error('not started');
+    return started.value;
+  };
+
+  it('starts from the first event and the route delivery gives', () => {
+    expect(booked()).toMatchObject({
+      status: 'DISPATCHING',
+      vehicle: 'car',
+      version: 1,
+      deliveryVersion: 1,
+    });
+    expect(booked().courierId).toBeUndefined();
+  });
+
+  it('cannot start without a route', () => {
+    expect(
+      followDelivery(
+        undefined,
+        deliveryId,
+        { deliveryVersion: 1, status: 'SCHEDULED' },
+        undefined,
+        now,
+      ),
+    ).toEqual({ ok: false, error: { code: 'tracking.route-unknown' } });
+  });
+
+  it('moves the phase and the courier, keeps the vehicle, and records each version', () => {
+    const assigned = followDelivery(
+      booked(),
+      deliveryId,
+      { deliveryVersion: 2, status: 'ASSIGNED', courierId: courier },
+      undefined,
+      later,
+    );
+    expect(assigned).toMatchObject({
+      ok: true,
+      value: {
+        status: 'ASSIGNED',
+        courierId: courier,
+        vehicle: 'car',
+        version: 2,
+        deliveryVersion: 2,
+      },
+    });
+    if (!assigned.ok) return;
+    const unassigned = followDelivery(
+      assigned.value,
+      deliveryId,
+      { deliveryVersion: 3, status: 'DISPATCHING', courierId: null },
+      undefined,
+      later,
+    );
+    expect(unassigned.ok && unassigned.value.courierId).toBeUndefined();
+    expect(unassigned.ok && unassigned.value.status).toBe('DISPATCHING');
+  });
+
+  it('keeps the courier when the event says nothing of it', () => {
+    const assigned = followDelivery(
+      booked(),
+      deliveryId,
+      { deliveryVersion: 2, status: 'PICKED_UP', courierId: courier },
+      undefined,
+      later,
+    );
+    if (!assigned.ok) throw new Error('refused');
+    const cancelled = followDelivery(
+      assigned.value,
+      deliveryId,
+      { deliveryVersion: 3, status: 'CANCELLED' },
+      undefined,
+      later,
+    );
+    expect(cancelled).toMatchObject({ ok: true, value: { courierId: courier, endedAt: later } });
+  });
+
+  it('ignores a late or repeated event, and every event after the end', () => {
+    const state = booked();
+    const reassigned = followDelivery(
+      state,
+      deliveryId,
+      { deliveryVersion: 3, status: 'ASSIGNED', courierId: other },
+      undefined,
+      later,
+    );
+    if (!reassigned.ok) throw new Error('refused');
+    const late = followDelivery(
+      reassigned.value,
+      deliveryId,
+      { deliveryVersion: 2, status: 'ASSIGNED', courierId: courier },
+      undefined,
+      later,
+    );
+    expect(late).toEqual({ ok: true, value: reassigned.value });
+    const delivered = followDelivery(
+      reassigned.value,
+      deliveryId,
+      { deliveryVersion: 4, status: 'DELIVERED', courierId: other },
+      undefined,
+      later,
+    );
+    if (!delivered.ok) throw new Error('refused');
+    expect(delivered.value.endedAt).toEqual(later);
+    const afterEnd = followDelivery(
+      delivered.value,
+      deliveryId,
+      { deliveryVersion: 5, status: 'RETURNING', courierId: other },
+      undefined,
+      later,
+    );
+    expect(afterEnd).toEqual({ ok: true, value: delivered.value });
+  });
+
+  it('records the version of an event that changes nothing else', () => {
+    const state = booked();
+    const same = followDelivery(
+      state,
+      deliveryId,
+      { deliveryVersion: 2, status: 'DISPATCHING', courierId: null },
+      undefined,
+      later,
+    );
+    expect(same).toMatchObject({ ok: true, value: { version: 2, deliveryVersion: 2 } });
+  });
+
+  it('starts a delivery first heard of after a direct report, then follows versions', () => {
+    const direct = startTracking({ ...route, status: 'ASSIGNED', courierId: courier }, now);
+    const next = followDelivery(
+      direct,
+      deliveryId,
+      { deliveryVersion: 4, status: 'AT_PICKUP' },
+      undefined,
+      later,
+    );
+    expect(next).toMatchObject({
+      ok: true,
+      value: { status: 'AT_PICKUP', courierId: courier, deliveryVersion: 4, version: 2 },
+    });
   });
 });

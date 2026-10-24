@@ -29,6 +29,12 @@ const APPROVED_SELLER_ZONES_CONTRACT_FILE =
 // inventory's ordering port: importable by ordering only (rule inventory-ordering-port-is-for-ordering).
 const INVENTORY_ORDERING_PORT_FILE = '^src/modules/inventory/contracts/ordering-port\\.ts$';
 
+// tracking's CourierPositions: live positions without the UseCaseGate, for dispatch's matching
+// only (rule courier-positions-are-for-dispatch; security review of tracking 06b, L2). It is not
+// exported by tracking's index.ts.
+const COURIER_POSITIONS_CONTRACT_FILE =
+  '^src/modules/tracking/contracts/courier-positions\\.contract\\.ts$';
+
 const MARKET_EXEMPTION_FILE = '^src/platform/market-context/no-market-context\\.decorator\\.ts$';
 const MARKET_EXEMPTION_IMPORTERS = [
   '^src/platform/market-context/market-context\\.guard\\.ts$',
@@ -345,6 +351,7 @@ module.exports = {
           SELLER_ACCESS_CONTRACT_FILE,
           APPROVED_SELLER_ZONES_CONTRACT_FILE,
           INVENTORY_ORDERING_PORT_FILE,
+          COURIER_POSITIONS_CONTRACT_FILE,
         ],
       },
     },
@@ -368,6 +375,18 @@ module.exports = {
       severity: 'error',
       from: { pathNot: ['^src/modules/inventory/', '^src/modules/ordering/'] },
       to: { path: '^src/modules/inventory/contracts/ordering-port\\.ts$' },
+    },
+    {
+      name: 'courier-positions-are-for-dispatch',
+      comment:
+        "Only dispatch's infrastructure imports tracking's CourierPositions (contracts/courier-positions.contract.ts): " +
+        "it reads couriers' live positions, personal data, without the UseCaseGate, so every " +
+        'other reader goes through the gated tracking.map.view use cases (security review of ' +
+        "tracking 06b, L2). Not dispatch's index.ts, so no re-export carries it further (review " +
+        "of PR #18, L1). tracking's index.ts does not export the contract file.",
+      severity: 'error',
+      from: { pathNot: ['^src/modules/tracking/', '^src/modules/dispatch/infrastructure/'] },
+      to: { path: COURIER_POSITIONS_CONTRACT_FILE },
     },
     {
       name: 'approved-seller-zones-contract-is-for-certification',

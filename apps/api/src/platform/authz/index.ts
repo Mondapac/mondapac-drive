@@ -8,6 +8,7 @@
 export { ACCESS_DENIED_STATUS, type AccessDenied } from './access-denied';
 export {
   AUTHENTICATOR,
+  type AuthenticateOptions,
   type Authenticator,
   type CredentialRejected,
   type SessionCredential,

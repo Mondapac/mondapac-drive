@@ -9,6 +9,7 @@ import type {
 import { authenticatedActor } from '@mondapac-drive/shared-kernel/authenticated-actor';
 import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import type {
+  AuthenticateOptions,
   Authenticator,
   CredentialRejected,
   SessionCredential,
@@ -40,7 +41,8 @@ export interface SessionAuthenticatorDependencies {
  * cause is the same `credential.rejected`; nothing is cached; the token is never logged.
  *
  * The once-a-minute `lastSeenAt` write runs afterwards in its own short read-write unit; a
- * failure there is logged and does not refuse the request (the read already decided).
+ * failure there is logged and does not refuse the request (the read already decided). A re-check
+ * with `touch: false` (a live stream) never writes it, so it cannot keep an idle session alive.
  */
 export class SessionAuthenticator implements Authenticator {
   readonly #logger = new Logger('SessionAuthenticator');
@@ -50,6 +52,7 @@ export class SessionAuthenticator implements Authenticator {
   async authenticate(
     market: MarketContext,
     credential: SessionCredential,
+    options: AuthenticateOptions = {},
   ): Promise<Result<AuthenticatedActor, CredentialRejected>> {
     const tokenHash = this.deps.tokens.hashOf(credential.token);
     if (tokenHash === null) return err(REJECTED);
@@ -84,7 +87,7 @@ export class SessionAuthenticator implements Authenticator {
       sessionId: session.id,
       merchantId: session.merchantId,
     });
-    if (lastSeenIsDue(session, now)) {
+    if (options.touch !== false && lastSeenIsDue(session, now)) {
       try {
         await this.deps.unitOfWork.run(market, async () => {
           await this.deps.sessions.touch(

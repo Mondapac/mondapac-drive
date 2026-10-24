@@ -1,7 +1,17 @@
-import { Controller, Get, Header, type MessageEvent, Param, Sse } from '@nestjs/common';
+import { Controller, Get, Header, type MessageEvent, Param, Sse, SseSignal } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { CallContext, Result } from '@mondapac-drive/shared-kernel';
-import { concatMap, finalize, from, map, take, takeWhile, timer, type Observable } from 'rxjs';
+import {
+  concatMap,
+  EMPTY,
+  finalize,
+  from,
+  map,
+  take,
+  takeWhile,
+  timer,
+  type Observable,
+} from 'rxjs';
 import { Call } from '../../../platform/call-context/call-context.decorator';
 import { RoutePopulation } from '../../../platform/call-context/route-population.decorator';
 import { ViewTrackingLink } from '../application/use-cases/view-tracking-link.use-case';
@@ -59,11 +69,22 @@ export class TrackingLinkController {
       'delivery ends; then one `end` event with the code, and the stream closes. At most three ' +
       'streams of one link are open at once (429 `tracking.too-many-streams`).',
   })
-  stream(@Call() context: CallContext, @Param('token') token: string): Observable<MessageEvent> {
+  stream(
+    @Call() context: CallContext,
+    @Param('token') token: string,
+    @SseSignal() signal: AbortSignal,
+  ): Observable<MessageEvent> {
     if (!TOKEN_PARAM.test(token)) throw fail(404, 'tracking.link-not-found');
     const release = this.#streams.acquire(token);
     if (release === undefined) {
       throw fail(429, 'tracking.too-many-streams', { retryAfterSeconds: 60 });
+    }
+    // The slot goes back when the request closes, however it closes, as on the dispatcher map
+    // (handoff 26), and not only when Nest unsubscribes.
+    signal.addEventListener('abort', release, { once: true });
+    if (signal.aborted) {
+      release();
+      return EMPTY;
     }
     const everyMs = this.viewLink.refreshIntervalSeconds(context.market) * 1000;
     return timer(0, everyMs).pipe(
