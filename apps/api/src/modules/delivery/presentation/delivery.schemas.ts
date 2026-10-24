@@ -1,7 +1,8 @@
+import { Temporal } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
-import { DELIVERY_EVENT_TYPES } from '../domain/delivery-status.js';
-import { TEMPERATURES } from '../domain/parcel.js';
-import { VEHICLE_TYPES } from '../domain/vehicle.js';
+import { DELIVERY_EVENT_TYPES } from '../domain/delivery-status';
+import { TEMPERATURES } from '../domain/parcel';
+import { VEHICLE_TYPES } from '../domain/vehicle';
 
 const point = z.strictObject({
   lat: z.number().min(-90).max(90),
@@ -12,7 +13,10 @@ const postcode = z.string().regex(/^[0-9A-Za-z -]{3,10}$/);
 
 const window = z
   .strictObject({ start: z.iso.datetime({ offset: true }), end: z.iso.datetime({ offset: true }) })
-  .transform((w) => ({ start: new Date(w.start), end: new Date(w.end) }));
+  .transform((w) => ({
+    start: Temporal.Instant.from(w.start),
+    end: Temporal.Instant.from(w.end),
+  }));
 
 const parcel = z.strictObject({
   weightGrams: z.number().int().positive(),
@@ -47,7 +51,12 @@ export const createDeliveryBody = z.strictObject({
   externalReference: z.string().min(1).max(128),
   pickup: stop,
   dropoff: stop,
-  expectedTotal: z.number().int().nonnegative().optional(),
+  /** Minor units as decimal text, as every amount in this API (JSON has no 64-bit integer). */
+  expectedTotal: z
+    .string()
+    .regex(/^(0|[1-9][0-9]{0,15})$/)
+    .transform((value) => BigInt(value))
+    .optional(),
   ...shared,
 });
 

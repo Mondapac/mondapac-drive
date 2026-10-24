@@ -1,4 +1,4 @@
-import { DeliveryDomainError } from './errors.js';
+import { DeliveryDomainError } from './errors';
 
 export const TEMPERATURES = ['ambient', 'chilled', 'frozen'] as const;
 export type Temperature = (typeof TEMPERATURES)[number];

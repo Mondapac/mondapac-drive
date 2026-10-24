@@ -1,0 +1,10 @@
+{
+  "market": "AU",
+  "areas": [
+    {
+      "code": "greater-brisbane",
+      "postcodes": ["4000-4179", "4205-4207", "4300-4306", "4500-4521"],
+      "deliveryEnabled": true
+    }
+  ]
+}

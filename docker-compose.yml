@@ -1,6 +1,13 @@
 # Local development dependencies only: PostgreSQL with PostGIS and Redis. Ports differ from the
 # marketplace's (5432, 6379) so both stacks can run side by side. Credentials are local-only
 # defaults and every port is bound to 127.0.0.1.
+#
+# PostgreSQL roles (marketplace docs/design/data/platform.md section 10): `postgres` is the
+# bootstrap superuser and nothing else; no URL names it. On a fresh volume the image runs
+# scripts/db/init-drive-database.sh once: it creates the `drive` database and runs
+# scripts/db/bootstrap-dev.sql in it, which creates the migration role `drive_migrator` (owner of
+# the database), the application login `drive_api` (group `drive_app`) and installs PostGIS. On an
+# existing volume, run it again with `pnpm db:bootstrap`.
 name: mondapac-drive
 
 services:
@@ -9,12 +16,30 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: drive
+      # The image installs its PostGIS extensions here; init-drive-database.sh creates `drive`.
+      POSTGRES_DB: postgres
+      BOOTSTRAP_SQL: /drive-bootstrap/bootstrap-dev.sql
     ports:
       - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # Run once, on an empty data directory, after the image's own PostGIS script. A checkout
+      # without the files fails instead of mounting an empty directory.
+      - type: bind
+        source: ./scripts/db/init-drive-database.sh
+        target: /docker-entrypoint-initdb.d/20-init-drive-database.sh
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./scripts/db/bootstrap-dev.sql
+        target: /drive-bootstrap/bootstrap-dev.sql
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
+      # Over TCP: during the first initialisation the image runs a socket-only server, which a
+      # socket check would report healthy before the real server is up.
       test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d drive']
       interval: 5s
       timeout: 3s

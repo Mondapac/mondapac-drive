@@ -9,15 +9,22 @@
     "node": ">=24.20.0"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "pnpm --filter @mondapac-drive/shared-kernel build && pnpm --filter @mondapac-drive/api dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "dev:worker": "node scripts/dev-worker.mjs",
+    "build": "pnpm db:generate && pnpm -r build && node scripts/check-built-kernel.mjs && node scripts/check-built-parser.mjs",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "pnpm -r test",
-    "db:validate": "prisma validate",
+    "test:db": "pnpm --filter @mondapac-drive/api test:db",
+    "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "verify": "pnpm db:validate && pnpm typecheck && pnpm lint && pnpm test"
+    "db:migrate:dev": "node scripts/migrate-dev.mjs",
+    "db:check-reversible": "node scripts/check-migrations-reversible.mjs",
+    "db:bootstrap": "docker compose exec -T postgres sh /docker-entrypoint-initdb.d/20-init-drive-database.sh",
+    "verify": "pnpm db:generate && pnpm typecheck && pnpm lint && pnpm boundaries && pnpm test && pnpm test:db && pnpm db:check-reversible",
+    "boundaries": "pnpm --filter @mondapac-drive/api boundaries && node scripts/check-prisma-boundaries.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

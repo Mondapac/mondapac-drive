@@ -1,0 +1,15 @@
+{
+  "market": "ZZ",
+  "areas": [
+    {
+      "code": "zz-central",
+      "postcodes": ["1000001-1000002", "ZZ1 9AA", "1000-1999"],
+      "deliveryEnabled": true
+    },
+    {
+      "code": "zz-coast",
+      "postcodes": ["2000000-2000999", "2000-2999"],
+      "deliveryEnabled": false
+    }
+  ]
+}

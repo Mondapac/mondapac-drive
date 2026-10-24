@@ -1,11 +1,11 @@
-import type { GeoPoint, MarketId } from '@mondapac-drive/shared-kernel';
-import { TRANSITIONS, type DeliveryEventType, type DeliveryStatus } from './delivery-status.js';
-import { DeliveryDomainError } from './errors.js';
-import type { MarketDeliverySettings } from './market-settings.js';
-import { needsColdChain, type Parcel } from './parcel.js';
-import type { DeliveryQuote } from './pricing.js';
-import type { DeliveryMode, DeliveryWindow } from './schedule.js';
-import type { VehicleType } from './vehicle.js';
+import type { GeoPoint, Id, MarketId, Temporal } from '@mondapac-drive/shared-kernel';
+import { TRANSITIONS, type DeliveryEventType, type DeliveryStatus } from './delivery-status';
+import { DeliveryDomainError } from './errors';
+import type { MarketDeliverySettings } from './market-settings';
+import { needsColdChain, type Parcel } from './parcel';
+import type { DeliveryQuote } from './pricing';
+import type { DeliveryMode, DeliveryWindow } from './schedule';
+import type { VehicleType } from './vehicle';
 
 export interface Stop {
   readonly address: string;
@@ -33,11 +33,11 @@ export interface DeliveryEventInput {
 
 export interface DeliveryHistoryEntry extends DeliveryEventInput {
   readonly status: DeliveryStatus;
-  readonly at: Date;
+  readonly at: Temporal.Instant;
 }
 
 export interface DeliveryState {
-  readonly id: string;
+  readonly id: Id<'Delivery'>;
   readonly marketId: MarketId;
   readonly merchantId: string;
   /** The merchant's own reference, such as a marketplace sub-order id. Unique per merchant. */
@@ -52,7 +52,7 @@ export interface DeliveryState {
   readonly status: DeliveryStatus;
   readonly courierId?: string;
   readonly history: readonly DeliveryHistoryEntry[];
-  readonly createdAt: Date;
+  readonly createdAt: Temporal.Instant;
   /** Optimistic-concurrency version, bumped on every change. */
   readonly version: number;
 }
@@ -86,7 +86,7 @@ export function createDelivery(input: NewDelivery): DeliveryState {
 export function applyDeliveryEvent(
   delivery: DeliveryState,
   event: DeliveryEventInput,
-  at: Date,
+  at: Temporal.Instant,
   settings: Pick<MarketDeliverySettings, 'coldChain'>,
 ): DeliveryState {
   const transition = TRANSITIONS[event.type];

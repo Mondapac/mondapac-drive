@@ -1,0 +1,11 @@
+// Fixture: a schema the boundaries check rejects (apps/api/test/boundaries.spec.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["platform", "alpha", "beta"]
+}

@@ -1,52 +1,58 @@
 {
   "code": "ZZ",
-  "currency": "XTS",
-  "timezone": "Pacific/Auckland",
+  "status": "active",
+  "defaultLocale": "en-ZZ",
+  "supportedLocales": ["en-ZZ"],
+  "defaultCurrency": "JPY",
+  "settlementCurrency": "JPY",
   "pricesIncludeTax": false,
-  "taxRateBps": 1500,
-  "serviceAreas": [
-    {
-      "code": "test-city",
-      "timezone": "Pacific/Auckland",
-      "postcodes": ["1000-1999"],
-      "deliveryEnabled": true
-    },
-    {
-      "code": "closed-city",
-      "timezone": "Pacific/Auckland",
-      "postcodes": ["2000-2999"],
-      "deliveryEnabled": false
-    }
-  ],
-  "rateCard": {
-    "vehicles": {
-      "motorbike": {
-        "baseFee": 500,
-        "perKm": 100,
-        "maxDistanceMetres": 20000,
-        "maxWeightGrams": 10000,
-        "maxVolumeLitres": 50,
-        "temperatures": ["ambient"]
+  "timezone": "Pacific/Auckland",
+  "requestLimits": {
+    "anonymousIdentityPerMinute": 10,
+    "defaultPerMinute": 60
+  },
+  "tax": {
+    "defaultRateBps": 1500
+  },
+  "delivery": {
+    "rateCard": {
+      "vehicles": {
+        "motorbike": {
+          "baseFee": 500,
+          "perKm": 100,
+          "maxDistanceMetres": 20000,
+          "maxWeightGrams": 10000,
+          "maxVolumeLitres": 50,
+          "temperatures": ["ambient"]
+        },
+        "van": {
+          "baseFee": 2000,
+          "perKm": 200,
+          "maxDistanceMetres": 80000,
+          "maxWeightGrams": 400000,
+          "maxVolumeLitres": 2000,
+          "temperatures": ["ambient", "chilled", "frozen"]
+        }
       },
-      "van": {
-        "baseFee": 2000,
-        "perKm": 200,
-        "maxDistanceMetres": 80000,
-        "maxWeightGrams": 400000,
-        "maxVolumeLitres": 2000,
-        "temperatures": ["ambient", "chilled", "frozen"]
+      "coldChainSurcharge": {
+        "ambient": 0,
+        "chilled": 250,
+        "frozen": 400
+      },
+      "scheduledDiscountBps": 0
+    },
+    "coldChain": {
+      "chilled": {
+        "maxCelsius": 4
+      },
+      "frozen": {
+        "maxCelsius": -18
       }
     },
-    "coldChainSurcharge": { "ambient": 0, "chilled": 250, "frozen": 400 },
-    "scheduledDiscountBps": 0
-  },
-  "coldChain": {
-    "chilled": { "maxCelsius": 4 },
-    "frozen": { "maxCelsius": -18 }
-  },
-  "scheduling": {
-    "minLeadMinutes": 30,
-    "maxDaysAhead": 3,
-    "minWindowMinutes": 30
+    "scheduling": {
+      "minLeadMinutes": 30,
+      "maxDaysAhead": 3,
+      "minWindowMinutes": 30
+    }
   }
 }

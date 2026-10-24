@@ -8,7 +8,14 @@ generator client {
   importFileExtension = ""
 }
 
+// The model map of the market guard and the "model to owning module" rule (marketplace platform
+// persistence design, section 9): written on every `prisma generate`, beside the client.
+generator modelMap {
+  provider = "node scripts/generate-model-map.mjs"
+  output   = "../../apps/api/src/generated/model-map.ts"
+}
+
 datasource db {
   provider = "postgresql"
-  schemas  = ["delivery"]
+  schemas  = ["delivery", "platform"]
 }

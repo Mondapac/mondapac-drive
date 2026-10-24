@@ -1,4 +1,4 @@
-import { AU, markets, ZZ } from '../../../../test/support/markets';
+import { AU, markets, ZZ } from '../../../../test/support/delivery-markets';
 import { parcel } from './parcel';
 import { priceDelivery } from './pricing';
 
@@ -13,8 +13,8 @@ describe('priceDelivery', () => {
       mode: 'on_demand',
     });
     expect(quote.vehicle).toBe('bicycle');
-    expect(quote.total).toEqual({ amount: 1180, currency: 'AUD' });
-    expect(quote.tax).toEqual({ amount: 107, currency: 'AUD' });
+    expect(quote.total).toEqual({ amount: 1180n, currency: 'AUD' });
+    expect(quote.tax).toEqual({ amount: 107n, currency: 'AUD' });
   });
 
   it('only offers vehicles that can keep a frozen parcel frozen', () => {
@@ -24,8 +24,8 @@ describe('priceDelivery', () => {
       mode: 'on_demand',
     });
     expect(quote.vehicle).toBe('car');
-    expect(quote.breakdown.coldChain.amount).toBe(500);
-    expect(quote.total.amount).toBe(2100);
+    expect(quote.breakdown.coldChain.amount).toBe(500n);
+    expect(quote.total.amount).toBe(2100n);
   });
 
   it('discounts scheduled deliveries', () => {
@@ -34,9 +34,9 @@ describe('priceDelivery', () => {
       distanceMetres: 4000,
       mode: 'scheduled',
     });
-    expect(quote.breakdown.scheduledDiscount.amount).toBe(-148);
-    expect(quote.total.amount).toBe(1332);
-    expect(quote.tax.amount).toBe(121);
+    expect(quote.breakdown.scheduledDiscount.amount).toBe(-148n);
+    expect(quote.total.amount).toBe(1332n);
+    expect(quote.tax.amount).toBe(121n);
   });
 
   it('honours a requested vehicle', () => {
@@ -47,7 +47,7 @@ describe('priceDelivery', () => {
       vehicle: 'van',
     });
     expect(quote.vehicle).toBe('van');
-    expect(quote.total.amount).toBe(3380);
+    expect(quote.total.amount).toBe(3380n);
   });
 
   it('adds tax on top in a Market that quotes prices without tax', () => {
@@ -57,8 +57,8 @@ describe('priceDelivery', () => {
       mode: 'on_demand',
     });
     expect(quote.vehicle).toBe('motorbike');
-    expect(quote.tax).toEqual({ amount: 135, currency: 'XTS' });
-    expect(quote.total).toEqual({ amount: 1035, currency: 'XTS' });
+    expect(quote.tax).toEqual({ amount: 135n, currency: 'JPY' });
+    expect(quote.total).toEqual({ amount: 1035n, currency: 'JPY' });
   });
 
   it('uses each Market’s own vehicles and surcharges', () => {
@@ -68,7 +68,7 @@ describe('priceDelivery', () => {
       mode: 'scheduled',
     });
     expect(quote.vehicle).toBe('van');
-    expect(quote.total.amount).toBe(3050 + 458);
+    expect(quote.total.amount).toBe(3050n + 458n);
   });
 
   it('refuses a parcel no vehicle can carry', () => {
@@ -78,6 +78,6 @@ describe('priceDelivery', () => {
         distanceMetres: 4000,
         mode: 'on_demand',
       }),
-    ).toThrow(expect.objectContaining({ code: 'quote.no-vehicle' }));
+    ).toThrow(expect.objectContaining({ code: 'quote.no-vehicle' }) as Error);
   });
 });

@@ -7,8 +7,14 @@
     "experimentalDecorators": true,
     "types": ["node", "jest"],
     "paths": {
-      "@mondapac-drive/shared-kernel": ["../../packages/shared-kernel/src/index.ts"]
+      "@mondapac-drive/shared-kernel": ["../../packages/shared-kernel/src/index.ts"],
+      "@mondapac-drive/shared-kernel/testing": ["../../packages/shared-kernel/src/testing.ts"],
+      "@mondapac-drive/shared-kernel/contexts": ["../../packages/shared-kernel/src/contexts.ts"],
+      "@mondapac-drive/shared-kernel/authenticated-actor": [
+        "../../packages/shared-kernel/src/authenticated-actor.ts"
+      ]
     }
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "exclude": ["test/boundary-fixtures"]
 }

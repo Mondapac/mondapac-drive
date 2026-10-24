@@ -1,5 +1,5 @@
-import { geoPoint } from '@mondapac-drive/shared-kernel';
-import { AU, markets, ZZ } from '../../../../test/support/markets';
+import { geoPoint, Temporal, type Id } from '@mondapac-drive/shared-kernel';
+import { AU, markets, ZZ } from '../../../../test/support/delivery-markets';
 import {
   applyDeliveryEvent,
   createDelivery,
@@ -9,7 +9,7 @@ import {
 import { parcel, type Temperature } from './parcel';
 import { priceDelivery } from './pricing';
 
-const at = new Date('2026-11-02T00:00:00Z');
+const at = Temporal.Instant.from('2026-11-02T00:00:00Z');
 const stop = {
   address: '1 Example St',
   postcode: '4000',
@@ -24,7 +24,7 @@ function newDelivery(
 ): DeliveryState {
   const p = parcel(5000, 20, temperature);
   return createDelivery({
-    id: 'd1',
+    id: '0190a000-0000-7000-8000-000000000001' as Id<'Delivery'>,
     marketId: AU,
     merchantId: 'm1',
     externalReference: 'order-1',
@@ -58,7 +58,10 @@ describe('delivery lifecycle', () => {
     expect(newDelivery('ambient').status).toBe('DISPATCHING');
     const scheduled = newDelivery('ambient', {
       mode: 'scheduled',
-      window: { start: new Date('2026-11-02T03:00:00Z'), end: new Date('2026-11-02T04:00:00Z') },
+      window: {
+        start: Temporal.Instant.from('2026-11-02T03:00:00Z'),
+        end: Temporal.Instant.from('2026-11-02T04:00:00Z'),
+      },
     });
     expect(scheduled.status).toBe('SCHEDULED');
     expect(run(scheduled, { type: 'dispatch_opened' }).status).toBe('DISPATCHING');
@@ -84,26 +87,26 @@ describe('delivery lifecycle', () => {
 
   it('rejects events out of order', () => {
     expect(() => run(newDelivery('ambient'), { type: 'picked_up' })).toThrow(
-      expect.objectContaining({ code: 'delivery.invalid-transition' }),
+      expect.objectContaining({ code: 'delivery.invalid-transition' }) as Error,
     );
   });
 
   it('needs proof of delivery', () => {
     expect(() => run(newDelivery('ambient'), ...toDropoff, { type: 'delivered' })).toThrow(
-      expect.objectContaining({ code: 'delivery.proof-required' }),
+      expect.objectContaining({ code: 'delivery.proof-required' }) as Error,
     );
   });
 
   it('cannot cancel once the parcel is picked up, and needs a reason', () => {
     expect(() => run(newDelivery('ambient'), { type: 'cancelled' })).toThrow(
-      expect.objectContaining({ code: 'delivery.reason-required' }),
+      expect.objectContaining({ code: 'delivery.reason-required' }) as Error,
     );
     expect(() =>
       run(newDelivery('ambient'), ...toDropoff.slice(0, 3), {
         type: 'cancelled',
         reason: 'merchant',
       }),
-    ).toThrow(expect.objectContaining({ code: 'delivery.invalid-transition' }));
+    ).toThrow(expect.objectContaining({ code: 'delivery.invalid-transition' }) as Error);
   });
 
   it('returns a failed delivery to the sender', () => {
@@ -129,14 +132,14 @@ describe('cold chain', () => {
 
   it('requires a reading at pickup and at drop-off', () => {
     expect(() => run(newDelivery('chilled'), ...chilledToPickup, { type: 'picked_up' })).toThrow(
-      expect.objectContaining({ code: 'cold-chain.reading-required' }),
+      expect.objectContaining({ code: 'cold-chain.reading-required' }) as Error,
     );
   });
 
   it('refuses a reading above the Market’s limit', () => {
     expect(() =>
       run(newDelivery('chilled'), ...chilledToPickup, { type: 'picked_up', temperatureCelsius: 7 }),
-    ).toThrow(expect.objectContaining({ code: 'cold-chain.breach' }));
+    ).toThrow(expect.objectContaining({ code: 'cold-chain.breach' }) as Error);
   });
 
   it('accepts readings within the limit', () => {
@@ -155,6 +158,6 @@ describe('cold chain', () => {
     // 4.5°C passes the AU limit of 5°C but not ZZ's 4°C.
     expect(() =>
       run(zz, ...chilledToPickup, { type: 'picked_up', temperatureCelsius: 4.5 }),
-    ).toThrow(expect.objectContaining({ code: 'cold-chain.breach' }));
+    ).toThrow(expect.objectContaining({ code: 'cold-chain.breach' }) as Error);
   });
 });

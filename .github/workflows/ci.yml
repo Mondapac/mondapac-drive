@@ -14,63 +14,151 @@ permissions:
 
 jobs:
   verify:
-    name: Verify (Node ${{ matrix.node.label }})
+    name: Verify (region ${{ matrix.region.name }}, Node ${{ matrix.node.label }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+
     strategy:
       fail-fast: false
       matrix:
+        # One pipeline, region matrix (marketplace ADR-0003 decision 8). A Region Stack is added
+        # here together with its config/markets/<CODE>.json.
+        region:
+          - name: au
+            hosted_markets: AU
         # The exact minimum of `engines` in package.json, and the version in .nvmrc.
         node:
           - label: minimum
             version: 24.20.0
           - label: .nvmrc
             version-file: .nvmrc
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node.version }}
-          node-version-file: ${{ matrix.node.version-file }}
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm verify
 
-  migrations:
-    name: Migrations apply and reverse
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
     services:
+      # Same image as docker-compose.yml. The image installs its PostGIS extensions into
+      # POSTGRES_DB (`postgres`); the bootstrap step creates `drive` from template1.
       postgres:
         image: postgis/postgis:17-3.5-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drive
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d drive"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+
+    # Job level holds only what the application may see. MIGRATION_DATABASE_URL is set on the
+    # steps that need it, never here, so the boot probe runs without it.
     env:
-      MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drive
+      DATABASE_URL: postgresql://drive_api:drive_api@localhost:5432/drive
+      HOSTED_MARKETS: ${{ matrix.region.hosted_markets }}
+      NODE_ENV: test
+
     steps:
       - uses: actions/checkout@v4
+
+      # A service container cannot mount a repository file, so the bootstrap runs here. The
+      # second run is the existing-database path: the files must converge, not fail.
+      - name: Create the database and its roles (cluster bootstrap)
+        run: |
+          container="${{ job.services.postgres.id }}"
+          docker cp scripts/db/init-drive-database.sh "$container":/tmp/init-drive-database.sh
+          docker cp scripts/db/bootstrap-dev.sql "$container":/tmp/bootstrap-dev.sql
+          for run in 1 2; do
+            docker exec "$container" sh /tmp/init-drive-database.sh
+          done
+
       - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          # One of the two is set per matrix entry; node-version wins when both are set.
+          node-version: ${{ matrix.node.version }}
+          node-version-file: ${{ matrix.node.version-file }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Apply all migrations
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+      # Typecheck, lint, architecture boundaries, tests, database tests and the
+      # up -> down -> up migration check: the same command developers run locally.
+      - name: Verify
+        run: pnpm verify
+        env:
+          MIGRATION_DATABASE_URL: postgresql://drive_migrator:drive_migrator@localhost:5432/drive
+          # Fewer database spec files at once than Jest's default (cores - 1), as in the
+          # marketplace: under full parallel load a unit sometimes could not start in time.
+          TEST_DB_MAX_WORKERS: '2'
+
+      - name: Build
+        run: pnpm build
+
+      - name: Apply migrations
         run: pnpm db:migrate
-      - name: Reverse them newest first, then apply again
+        env:
+          MIGRATION_DATABASE_URL: postgresql://drive_migrator:drive_migrator@localhost:5432/drive
+
+      # Job environment only: this process has no migration URL, and its start-up self-check
+      # refuses any role but the application login.
+      - name: Boot the API for this region, probe readiness and the security headers
         run: |
-          for dir in $(ls -d prisma/migrations/*/ | sort -r); do
-            psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$dir/down.sql"
+          APP_ROLE=api PORT=3100 node apps/api/dist/main &
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://localhost:3100/health/ready; then
+              node scripts/check-http-headers.mjs http://localhost:3100
+              exit $?
+            fi
+            sleep 1
           done
-          psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'TRUNCATE "_prisma_migrations"'
-          pnpm db:migrate
+          echo "API did not become ready" >&2
+          exit 1
+
+      # The worker role opens no port and exits 0 on SIGTERM (main.ts handles the signal itself;
+      # exit 143 would mean no handler ran).
+      - name: Boot the worker role, check it opens no port and stops on SIGTERM
+        run: |
+          APP_ROLE=worker PORT=3101 node apps/api/dist/main &
+          worker=$!
+          sleep 8
+          kill -0 "$worker" || { echo "Worker exited early" >&2; exit 1; }
+          if ss -ltnp | grep -q "pid=$worker,"; then
+            echo "Worker opened a listening port" >&2
+            ss -ltnp | grep "pid=$worker," >&2
+            exit 1
+          fi
+          kill -TERM "$worker"
+          wait "$worker" || { echo "Worker did not stop cleanly on SIGTERM" >&2; exit 1; }
+
+      # The only step that runs docker-compose.yml's PostgreSQL: the init-directory path of the
+      # bootstrap and `pnpm db:bootstrap`. Port 5434 keeps it apart from the service container.
+      - name: Compose smoke (PostgreSQL only)
+        env:
+          POSTGRES_PORT: '5434'
+        run: |
+          docker compose up -d --wait postgres
+          state=$(docker compose exec -T postgres psql -U postgres -d drive -Atc "
+            SELECT (SELECT count(*) FROM pg_roles
+                     WHERE rolname IN ('drive_app', 'drive_api', 'drive_migrator')
+                       AND NOT rolsuper)
+                   || ' ' || pg_get_userbyid(datdba)
+                   || ' ' || (SELECT count(*) FROM pg_extension WHERE extname = 'postgis')
+              FROM pg_database WHERE datname = current_database()")
+          if [ "$state" != "3 drive_migrator 1" ]; then
+            echo "The Compose bootstrap left roles, owner and PostGIS as: $state" >&2
+            exit 1
+          fi
+          pnpm db:bootstrap
+
+      - name: Compose smoke clean-up
+        if: always()
+        env:
+          POSTGRES_PORT: '5434'
+        run: |
+          if [ "${{ job.status }}" != "success" ]; then docker compose logs postgres || true; fi
+          docker compose down -v
