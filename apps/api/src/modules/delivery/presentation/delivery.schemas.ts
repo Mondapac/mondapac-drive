@@ -82,7 +82,7 @@ export const createDeliveryBody = z.strictObject({
 
 const proof = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('pin'), pinMatched: z.literal(true) }),
-  z.strictObject({ kind: z.literal('photo'), photoRef: z.string().min(1).max(300) }),
+  z.strictObject({ kind: z.literal('photo'), photoRef: plainText(z.string().min(1).max(300)) }),
 ]);
 
 const reason = plainText(z.string().max(500));

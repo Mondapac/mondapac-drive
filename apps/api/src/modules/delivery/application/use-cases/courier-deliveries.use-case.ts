@@ -99,7 +99,7 @@ export class ReportAssignmentEvent extends UseCase<ReportInput, DeliveryState, D
       context.market,
       input.deliveryId,
       report,
-      (delivery) => delivery.courierId === courierId,
+      (delivery) => delivery.courierId === courierId && !isFinal(delivery.status),
       COURIER_EVENT_TYPES,
     );
   }
