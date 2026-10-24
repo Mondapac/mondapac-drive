@@ -28,6 +28,23 @@ Native Testing Library). Both run in `pnpm verify` and CI through `pnpm -r`, and
 `pnpm lint` lints the app. Rule tests run on AU and the synthetic ZZ Market, built from
 `config/markets/AU.json` and `test/fixtures/markets/ZZ.json`.
 
+### Smoke run against a real API
+
+`pnpm --filter courier smoke` takes one courier through a day on a running API with the HTTP
+adapter: sign-in, Market settings, online, a ping, the current offer (or `SMOKE_DELIVERY_ID`),
+the lifecycle to delivered with the customer's PIN, earnings, offline, sign-out, and the old
+token refused. It is not part of `pnpm verify`. It needs a seeded test courier and a delivery
+the courier can take:
+
+```sh
+SMOKE_API_URL=http://localhost:3000 SMOKE_MARKET_ID=AU \
+SMOKE_COURIER_EMAIL=… SMOKE_COURIER_PASSWORD=… SMOKE_DELIVERY_PIN=… \
+pnpm --filter courier smoke
+```
+
+It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
+`SMOKE_ALLOW_REMOTE=1`; a failed run still sets the courier offline and signs out.
+
 ## Layout
 
 - `src/app/`: routes (expo-router). Thin: each wires a screen to the router.
