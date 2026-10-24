@@ -71,14 +71,35 @@ const ALLOWED_WITH_ID: Readonly<Record<string, readonly string[]>> = {
     // Drive payouts: a balance adjustment (idempotency key in the body) and the settle tool.
     'payouts/admin/couriers/:id/adjustments',
     'payouts/admin/lines/:id/settle',
+    // Drive fleet: decisions about a courier, their documents and their vehicles (audited).
+    'fleet/admin/couriers/:id/approve',
+    'fleet/admin/couriers/:id/suspend',
+    'fleet/admin/couriers/:id/reinstate',
+    'fleet/admin/couriers/:id/offboard',
+    'fleet/admin/couriers/:id/documents/:id/verify',
+    'fleet/admin/couriers/:id/documents/:id/reject',
+    'fleet/admin/couriers/:id/documents/:id/revoke',
+    'fleet/admin/couriers/:id/vehicles/:id/deactivate',
   ],
-  PUT: ['identity/admin/roles/:id'],
+  PUT: [
+    'identity/admin/roles/:id',
+    'fleet/admin/couriers/:id/tax-registration',
+    'fleet/admin/couriers/:id/vehicles/:id/capacity',
+  ],
   DELETE: ['identity/admin/roles/:id'],
   GET: [
     // Drive live map: a delivery's breadcrumb trail.
     'tracking/admin/deliveries/:id/trail',
+    // Drive fleet: a courier's document file (audited by the API; same-origin only, below).
+    'fleet/admin/couriers/:id/documents/:id/file',
   ],
 };
+
+/**
+ * GET templates with a side effect (an audited download): a page of another site must not make
+ * the admin's browser ask for them, so they need the same-origin header like an unsafe method.
+ */
+const SAME_ORIGIN_GET: readonly string[] = ['fleet/admin/couriers/:id/documents/:id/file'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
@@ -107,13 +128,19 @@ const QUERY_KEYS_WITH_ID: Readonly<Record<string, readonly string[]>> = {};
 const QUERY_VALUE_MAX = 512;
 
 /** The allowed keys of the request's query, capped in length; everything else is dropped. */
-function upstreamQuery(method: string, target: string, requestUrl: string): string {
-  // The relay allows an id segment only when it is a UUID, so the template is the path with
-  // each UUID segment named `:id`.
-  const template = target
+/**
+ * The relay allows an id segment only when it is a UUID, so the template is the path with each
+ * UUID segment named `:id`.
+ */
+function templateOf(target: string): string {
+  return target
     .split('/')
     .map((part) => (UUID.test(part) ? ':id' : part))
     .join('/');
+}
+
+function upstreamQuery(method: string, target: string, requestUrl: string): string {
+  const template = templateOf(target);
   const keys = method === 'GET' ? (QUERY_KEYS[target] ?? QUERY_KEYS_WITH_ID[template]) : undefined;
   if (keys === undefined) return '';
   const source = new URL(requestUrl).searchParams;
@@ -263,6 +290,12 @@ export async function relay(
     if (request.headers.get('sec-fetch-site') !== 'same-origin')
       return jsonError(403, 'request.csrf');
     if (request.headers.get('origin') !== host.origin) return jsonError(403, 'request.csrf');
+  } else if (
+    SAME_ORIGIN_GET.includes(templateOf(target)) &&
+    request.headers.get('sec-fetch-site') !== 'same-origin'
+  ) {
+    // A browser sends no Origin on a same-origin GET; Sec-Fetch-Site is set by it alone.
+    return jsonError(403, 'request.csrf');
   }
   const declared = Number(request.headers.get('content-length') ?? 0);
   if (declared > MAX_BODY_BYTES) return jsonError(413, 'request.too-large');
@@ -319,12 +352,25 @@ export async function relay(
     const value = upstream.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
+  // No relay answer is a page: whatever the API sends, the browser renders nothing of it here
+  // (security review of the fleet screens, L1).
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('content-security-policy', "sandbox; default-src 'none'");
+  const download = SAME_ORIGIN_GET.includes(templateOf(target));
+  if (download) {
+    const disposition = upstream.headers.get('content-disposition');
+    if (disposition !== null) headers.set('content-disposition', disposition);
+  }
   // Session answers must never be cached; the API sets no-store itself, this is the default.
   headers.set('cache-control', upstream.headers.get('cache-control') ?? 'private, no-store');
   for (const cookie of upstream.headers.getSetCookie()) headers.append('set-cookie', cookie);
   if (upstream.ok && EVENT_STREAM.test(upstream.headers.get('content-type') ?? '')) {
     headers.set('cache-control', 'no-store, no-transform');
     headers.set('x-accel-buffering', 'no');
+    return new Response(upstream.body, { status: upstream.status, headers });
+  }
+  if (upstream.ok && download) {
+    // A document file (up to 10 MB) crosses as a stream, never held whole in memory (L3).
     return new Response(upstream.body, { status: upstream.status, headers });
   }
   return new Response(upstream.status === 204 ? null : await upstream.arrayBuffer(), {

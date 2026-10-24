@@ -33,7 +33,8 @@
     "couriers": "Couriers",
     "merchants": "Merchants",
     "live-map": "Live map",
-    "payouts": "Payouts"
+    "payouts": "Payouts",
+    "fleet": "Fleet"
   },
   "home": {
     "title": "Home",
@@ -44,7 +45,8 @@
     "merchants": "Add the businesses that book deliveries, and issue their API keys.",
     "team": "Admins, their roles and what each role may do.",
     "live-map": "See couriers on the road and the deliveries that need attention.",
-    "payouts": "Courier payouts that are held or need a decision, and each courier's balance."
+    "payouts": "Courier payouts that are held or need a decision, and each courier's balance.",
+    "fleet": "Approve applicants, review courier documents and look after their vehicles."
   },
   "showcase": {
     "title": "Every delivery of the Market, in one place.",
@@ -940,6 +942,250 @@
     "no-access": {
       "title": "You don't have access to the live map",
       "body": "Your role doesn't include it."
+    }
+  },
+  "fleet": {
+    "title": "Fleet",
+    "intro": "Couriers on the fleet: approve applicants, review their documents and look after their vehicles. Every decision is recorded.",
+    "no-access": {
+      "title": "You don't have access to the fleet",
+      "body": "Your role doesn't include it."
+    },
+    "back": "Fleet",
+    "table-caption": "Fleet couriers",
+    "filter": {
+      "label": "Show couriers",
+      "applicant": "Applicants",
+      "active": "Active",
+      "suspended": "Suspended",
+      "offboarded": "Offboarded",
+      "all": "All"
+    },
+    "empty": {
+      "title": "No couriers here",
+      "body": "Couriers appear once they apply in the courier app.",
+      "page": "No more couriers."
+    },
+    "first-page": "First page",
+    "next-page": "Next page",
+    "courier-ref": "Courier {id}",
+    "courier": {
+      "title": "Courier {id}"
+    },
+    "label": {
+      "courier": "Courier",
+      "status": "Status",
+      "terms": "Employment",
+      "shift": "Shift",
+      "vehicles": "Active vehicles",
+      "to-review": "To review",
+      "joined": "Joined",
+      "cold-chain": "Cold chain",
+      "tax": "Sales tax",
+      "service-area": "Service area",
+      "actions": "Actions"
+    },
+    "status": {
+      "applicant": "Applicant",
+      "active": "Active",
+      "suspended": "Suspended",
+      "offboarded": "Offboarded"
+    },
+    "employment": {
+      "employee": "Employee",
+      "contractor": "Contractor"
+    },
+    "shift": {
+      "offline": "Offline",
+      "online": "Online",
+      "on_delivery": "On a delivery",
+      "paused": "On a break"
+    },
+    "cold-chain": "Cold chain",
+    "to-review": "{count, plural, one {# document} other {# documents}}",
+    "yes": "Yes",
+    "no": "No",
+    "idle-since": "Idle since {when}",
+    "profile": {
+      "title": "Standing and terms"
+    },
+    "reason": "Reason",
+    "choose-reason": "Choose a reason",
+    "field-invalid": "Check this value.",
+    "suspension": {
+      "documents": "Documents",
+      "conduct": "Conduct",
+      "safety": "Safety",
+      "other": "Other"
+    },
+    "rejection": {
+      "illegible": "Illegible",
+      "expired": "Expired",
+      "mismatch": "Doesn't match the courier",
+      "incomplete": "Incomplete",
+      "cancelled": "Cancelled by the issuer",
+      "fraudulent": "Not genuine",
+      "other": "Other"
+    },
+    "approve": {
+      "button": "Approve…",
+      "title": "Approve this applicant?",
+      "body": "Confirm the terms they work on. They can go online once their documents for a vehicle are verified.",
+      "action": "Approve",
+      "done": "Courier approved.",
+      "cold-chain": "May carry cold-chain deliveries",
+      "cold-chain-help": "Chilled and frozen goods, with a vehicle box that keeps them cold."
+    },
+    "suspend": {
+      "button": "Suspend…",
+      "title": "Suspend this courier?",
+      "body": "Their shift ends now and they get no new work until reinstated.",
+      "action": "Suspend",
+      "done": "Courier suspended."
+    },
+    "reinstate": {
+      "button": "Reinstate…",
+      "title": "Reinstate this courier?",
+      "body": "They can go online again if they are still eligible.",
+      "action": "Reinstate",
+      "done": "Courier reinstated."
+    },
+    "offboard": {
+      "button": "Offboard…",
+      "title": "Offboard this courier for good?",
+      "body": "Their work with the fleet ends. This can't be undone; they would apply again.",
+      "action": "Offboard",
+      "done": "Courier offboarded."
+    },
+    "tax": {
+      "button": "Sales tax…",
+      "title": "Sales tax registration",
+      "body": "A registered contractor is paid the Market's sales tax on top of their earnings.",
+      "action": "Save",
+      "done": "Sales tax registration saved.",
+      "registered": "Registered for sales tax",
+      "not-registered": "Not registered"
+    },
+    "vehicles": {
+      "title": "Vehicles",
+      "empty": "No vehicles yet.",
+      "vehicle": "Vehicle",
+      "state": "State",
+      "capacity": "Capacity",
+      "cold-box": "Cold box",
+      "no-plate": "No plate",
+      "active": "In use",
+      "inactive": "Out of use",
+      "capacity-value": "{grams} g · {litres} L"
+    },
+    "vehicle-type": {
+      "bicycle": "Bicycle",
+      "motorbike": "Motorbike",
+      "car": "Car",
+      "van": "Van"
+    },
+    "cold-box": {
+      "none": "None",
+      "insulated": "Insulated",
+      "refrigerated": "Refrigerated"
+    },
+    "capacity": {
+      "button": "Capacity…",
+      "title": "Set the vehicle's capacity",
+      "body": "Dispatch offers this vehicle only deliveries that fit.",
+      "action": "Save",
+      "done": "Capacity saved.",
+      "grams": "Maximum weight (grams)",
+      "grams-help": "For example 25000 for 25 kg.",
+      "litres": "Maximum volume (litres)"
+    },
+    "deactivate": {
+      "button": "Take out of use…",
+      "title": "Take this vehicle out of use?",
+      "body": "Dispatch stops offering it work. The courier adds it again to use it.",
+      "action": "Take out of use",
+      "done": "Vehicle taken out of use."
+    },
+    "documents": {
+      "title": "Documents",
+      "empty": "No documents yet.",
+      "document": "Document",
+      "state": "Review",
+      "expires": "Expires",
+      "submitted": "Submitted",
+      "no-expiry": "No expiry",
+      "for-vehicle": "For vehicle {plate}",
+      "download": "Download"
+    },
+    "document-type": {
+      "abn": "Business number (ABN)",
+      "business_number": "Business number",
+      "cold_chain_training": "Cold-chain training",
+      "driver_licence": "Driver licence",
+      "driving_permit": "Driving permit",
+      "food_handling": "Food handling certificate",
+      "insurance": "Insurance",
+      "police_check": "Police check",
+      "vehicle_inspection": "Vehicle inspection",
+      "vehicle_registration": "Vehicle registration"
+    },
+    "document-status": {
+      "submitted": "To review",
+      "verified": "Verified",
+      "rejected": "Rejected",
+      "revoked": "Revoked"
+    },
+    "verify": {
+      "button": "Verify…",
+      "title": "Verify this document?",
+      "body": "Check the file first. If the document expires, enter the expiry date printed on it.",
+      "action": "Verify",
+      "done": "Document verified.",
+      "expiry": "Expiry date",
+      "expiry-help": "Leave empty for a document that doesn't expire."
+    },
+    "reject": {
+      "button": "Reject…",
+      "title": "Reject this document?",
+      "body": "The courier is told the reason and submits a new one.",
+      "action": "Reject",
+      "done": "Document rejected."
+    },
+    "revoke": {
+      "button": "Revoke…",
+      "title": "Revoke this verified document?",
+      "body": "The courier may lose their eligibility until they submit a new one.",
+      "action": "Revoke",
+      "done": "Document revoked."
+    },
+    "error": {
+      "fleet": {
+        "conflict": "Someone changed this courier at the same time. Reload and try again.",
+        "courier": {
+          "not-found": "This courier no longer exists.",
+          "not-an-applicant": "Only an applicant can be approved.",
+          "not-active": "Only an active courier can be suspended.",
+          "not-suspended": "Only a suspended courier can be reinstated.",
+          "not-eligible": "The courier isn't eligible yet: check their documents and vehicles.",
+          "offboarded": "This courier is offboarded."
+        },
+        "document": {
+          "not-found": "This document no longer exists.",
+          "already-reviewed": "This document was already reviewed.",
+          "not-verified": "Only a verified document can be revoked.",
+          "expiry-required": "This document expires: enter its expiry date.",
+          "expiry-not-allowed": "This kind of document has no expiry date.",
+          "expired": "The expiry date has passed.",
+          "rejection-reason-unknown": "Choose a reason."
+        },
+        "vehicle": {
+          "not-found": "This vehicle no longer exists.",
+          "inactive": "This vehicle is already out of use.",
+          "in-use": "The vehicle is on a delivery. Try again when it's done.",
+          "capacity-invalid": "Enter a capacity within the allowed range."
+        },
+        "storage-unavailable": "Document storage isn't available right now. Try again shortly."
+      }
     }
   },
   "payouts": {
