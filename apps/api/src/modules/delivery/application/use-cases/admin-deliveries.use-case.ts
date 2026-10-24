@@ -1,9 +1,9 @@
-import { err } from '@mondapac-drive/shared-kernel';
-import type { CallContext, Result } from '@mondapac-drive/shared-kernel';
+import { err, ok } from '@mondapac-drive/shared-kernel';
+import type { CallContext, Id, Result } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { DELIVERY_CANCEL, DELIVERY_DISPATCH, DELIVERY_VIEW } from '../../contracts/permissions';
 import type { DeliveryEventInput, DeliveryState } from '../../domain/delivery';
-import type { DeliveryEventType } from '../../domain/delivery-status';
+import type { DeliveryEventType, DeliveryStatus } from '../../domain/delivery-status';
 import {
   ACCESS_DENIED,
   isAdmin,
@@ -12,6 +12,7 @@ import {
   type DeliveryAccessDependencies,
 } from '../deliveries';
 import type { DeliveryFailure } from '../failure';
+import type { DeliverySummary } from '../ports';
 import type { CancelInput, DeliveryRef } from './merchant-deliveries.use-case';
 
 /** The events of dispatch. */
@@ -26,6 +27,64 @@ export interface DispatchInput extends DeliveryRef {
 }
 
 const anyDelivery = (): boolean => true;
+
+/** The largest page of the delivery list; the route's default page is smaller. */
+export const MAX_DELIVERY_PAGE = 100;
+
+export interface ListDeliveriesInput {
+  readonly statuses?: readonly DeliveryStatus[];
+  readonly merchantId?: string;
+  readonly courierId?: string;
+  /** `next` of the previous page; absent for the first page. */
+  readonly before?: Id<'Delivery'>;
+  readonly limit: number;
+}
+
+export interface DeliveryPage {
+  /** Newest first. */
+  readonly items: readonly DeliverySummary[];
+  /** The `before` of the next page, or null when this page was the last. */
+  readonly next: Id<'Delivery'> | null;
+}
+
+/**
+ * The deliveries of the Market, newest first, filtered by status, merchant or courier, for the
+ * operations panel's list. Rule `permissions [delivery.delivery.view]`. Summaries only: the
+ * stops' addresses and contacts are read on one delivery's detail.
+ */
+export class ListDeliveries extends UseCase<ListDeliveriesInput, DeliveryPage, DeliveryFailure> {
+  static override readonly access: AccessDeclaration = {
+    name: 'delivery.list-deliveries',
+    rule: { kind: 'permissions', allOf: [DELIVERY_VIEW.key] },
+  };
+
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: DeliveryAccessDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected handle(
+    context: CallContext,
+    input: ListDeliveriesInput,
+  ): Promise<Result<DeliveryPage, DeliveryFailure>> {
+    if (!isAdmin(context)) return Promise.resolve(err(ACCESS_DENIED));
+    const limit = Math.min(Math.max(Math.trunc(input.limit), 1), MAX_DELIVERY_PAGE);
+    const { market } = context;
+    return this.deps.unitOfWork.run(
+      market,
+      async () => {
+        // One row more than the page tells whether another page exists.
+        const rows = await this.deps.deliveries.list(market, { ...input, limit: limit + 1 });
+        const items = rows.slice(0, limit);
+        const next = rows.length > limit ? items[items.length - 1]!.id : null;
+        return ok({ items, next });
+      },
+      { readOnly: true },
+    );
+  }
+}
 
 /** Any delivery of the Market, with its history. Rule `permissions [delivery.delivery.view]`. */
 export class ViewDelivery extends UseCase<DeliveryRef, DeliveryState, DeliveryFailure> {

@@ -89,9 +89,9 @@ export class TestActors {
     if (!seeded.ok) throw new Error(`seed roles: ${seeded.error.code}`);
   }
 
-  /** An admin holding the Platform Administrator role, with a cookie session. */
-  async admin(origin: string): Promise<AdminActor> {
-    const accountId = await this.#account('admin', 'platform', 'platform-administrator');
+  /** An admin holding a seeded platform role (Platform Administrator by default), with a cookie session. */
+  async admin(origin: string, seedCode = 'platform-administrator'): Promise<AdminActor> {
+    const accountId = await this.#account('admin', 'platform', seedCode);
     const token = await this.#session(accountId, 'admin', 'cookie');
     return {
       accountId,

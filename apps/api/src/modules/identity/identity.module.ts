@@ -88,6 +88,7 @@ import { InviteAdmin } from './application/use-cases/invite-admin.use-case';
 import { InviteCourier } from './application/use-cases/invite-courier.use-case';
 import { IssueFirstAdminInvitation } from './application/use-cases/issue-first-admin-invitation.use-case';
 import { ListAdminTeam } from './application/use-cases/list-admin-team.use-case';
+import { ListCouriers } from './application/use-cases/list-couriers.use-case';
 import { ListMerchants } from './application/use-cases/list-merchants.use-case';
 import { ListOwnSessions } from './application/use-cases/list-own-sessions.use-case';
 import { ListPlatformRoles } from './application/use-cases/list-platform-roles.use-case';
@@ -841,6 +842,11 @@ function useCaseProvider<D, U>(
       hasher: true,
     }),
     useCaseProvider(ListMerchants, MERCHANT_ADMIN_PORTS),
+    useCaseProvider(ListCouriers, {
+      ...MERCHANT_ADMIN_PORTS,
+      adminAccounts: true,
+      invitations: true,
+    }),
     useCaseProvider(SuspendMerchant, MERCHANT_ADMIN_PORTS),
     useCaseProvider(ReinstateMerchant, MERCHANT_ADMIN_PORTS),
     useCaseProvider(IssueMerchantApiKey, MERCHANT_ADMIN_PORTS),

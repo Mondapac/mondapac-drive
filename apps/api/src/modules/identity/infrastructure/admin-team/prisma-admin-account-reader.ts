@@ -12,20 +12,38 @@ import {
  * through `PrismaService.tx(market)` with `marketId` at the top level of `where` (P 4). It reads
  * the id, the address, the name and the status: never the credential. The `(market_id,
  * population, email_normalized)` unique index serves the Market and population prefix and a
- * Market holds 10² admin rows or fewer, so, as for the reviewer read, no index of its own.
+ * Market holds 10² admin rows or fewer, so, as for the reviewer read, no index of its own. The
+ * courier list reads the `courier` population the same way.
  */
 export class PrismaAdminAccountReader implements AdminAccountReader {
   constructor(private readonly prisma: PrismaService) {}
 
-  async adminAccounts(
+  adminAccounts(
     market: MarketContext,
+    after: Id<'Account'> | null,
+    limit: number,
+  ): Promise<AdminAccountSummary[]> {
+    return this.accountsOf(market, 'admin', after, limit);
+  }
+
+  courierAccounts(
+    market: MarketContext,
+    after: Id<'Account'> | null,
+    limit: number,
+  ): Promise<AdminAccountSummary[]> {
+    return this.accountsOf(market, 'courier', after, limit);
+  }
+
+  private async accountsOf(
+    market: MarketContext,
+    population: 'admin' | 'courier',
     after: Id<'Account'> | null,
     limit: number,
   ): Promise<AdminAccountSummary[]> {
     const rows = await this.prisma.tx(market).identityAccount.findMany({
       where: {
         marketId: market.marketId,
-        population: 'admin',
+        population,
         ...(after === null ? {} : { id: { gt: after } }),
       },
       select: { id: true, email: true, displayName: true, status: true },

@@ -1,5 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpException, Param, Post, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpException,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   parseId,
   type CallContext,
@@ -19,6 +29,7 @@ import {
 import {
   CancelDelivery,
   DispatchDelivery,
+  ListDeliveries,
   ViewDelivery,
 } from '../application/use-cases/admin-deliveries.use-case';
 import { BookDelivery } from '../application/use-cases/book-delivery.use-case';
@@ -31,12 +42,14 @@ import {
   QuoteDelivery,
   type DeliveryFailure,
 } from '../application/use-cases/quote-delivery.use-case';
+import type { DeliverySummary } from '../application/ports';
 import type { DeliveryState } from '../domain/delivery';
 import type { DeliveryQuote } from '../domain/pricing';
 import {
   cancelBody,
   courierReportBody,
   createDeliveryBody,
+  deliveryListQuery,
   dispatchBody,
   quoteBody,
 } from './delivery.schemas';
@@ -83,6 +96,15 @@ function deliveryIdOf(raw: string): Id<'Delivery'> {
   return parsedId.value;
 }
 
+/** The `before` cursor of the list: a malformed one is a bad query, not a missing delivery. */
+function cursorOf(raw: string): Id<'Delivery'> {
+  const parsedId = parseId<'Delivery'>(raw.toLowerCase());
+  if (!parsedId.ok) {
+    throw fail(400, 'validation.failed', { fields: [{ path: 'before', code: 'format' }] });
+  }
+  return parsedId.value;
+}
+
 const moneyBody = (value: Money) => ({ amount: value.amount.toString(), currency: value.currency });
 
 function quoteBodyOf(quote: DeliveryQuote) {
@@ -112,6 +134,21 @@ function present(delivery: DeliveryState) {
     history: delivery.history.map((entry) => ({ ...entry, at: entry.at.toString() })),
   };
 }
+
+function presentSummary(delivery: DeliverySummary) {
+  return {
+    ...delivery,
+    total: moneyBody(delivery.total),
+    window: delivery.window && {
+      start: delivery.window.start.toString(),
+      end: delivery.window.end.toString(),
+    },
+    createdAt: delivery.createdAt.toString(),
+  };
+}
+
+/** Rows of the delivery list when the query names no limit. */
+const DEFAULT_DELIVERY_PAGE = 50;
 
 const CSRF = { name: CSRF_HEADER, required: true, description: 'The CSRF token of the session' };
 
@@ -228,10 +265,46 @@ export class CourierDeliveryController {
 @Controller('delivery/admin')
 export class AdminDeliveryController {
   constructor(
+    private readonly listDeliveries: ListDeliveries,
     private readonly viewDelivery: ViewDelivery,
     private readonly dispatchDelivery: DispatchDelivery,
     private readonly cancelDelivery: CancelDelivery,
   ) {}
+
+  @Get('deliveries')
+  @ReadsSession()
+  @ApiOperation({
+    summary: 'The deliveries of the Market, newest first',
+    description:
+      'Summaries without the stops\' addresses or contacts. Filters: `status` (comma-separated), ' +
+      '`merchantId`, `courierId`; paged with `before` (the `next` of the previous page) and ' +
+      `\`limit\` (1 to 100, default ${DEFAULT_DELIVERY_PAGE}). Not cached.`,
+  })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'merchantId', required: false })
+  @ApiQuery({ name: 'courierId', required: false })
+  @ApiQuery({ name: 'before', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async list(
+    @Call() context: CallContext,
+    @Query() query: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { status, merchantId, courierId, before, limit } = parsed(() =>
+      deliveryListQuery.parse(query),
+    );
+    const page = answer(
+      await this.listDeliveries.execute(context, {
+        ...(status === undefined ? {} : { statuses: status }),
+        ...(merchantId === undefined ? {} : { merchantId: merchantId.toLowerCase() }),
+        ...(courierId === undefined ? {} : { courierId: courierId.toLowerCase() }),
+        ...(before === undefined ? {} : { before: cursorOf(before) }),
+        limit: limit ?? DEFAULT_DELIVERY_PAGE,
+      }),
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    return { items: page.items.map(presentSummary), next: page.next };
+  }
 
   @Get('deliveries/:id')
   @ReadsSession()

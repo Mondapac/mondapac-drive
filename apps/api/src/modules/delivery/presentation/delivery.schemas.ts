@@ -1,5 +1,6 @@
 import { Temporal } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
+import { DELIVERY_STATUSES } from '../domain/delivery-status';
 import { TEMPERATURES } from '../domain/parcel';
 import { VEHICLE_TYPES } from '../domain/vehicle';
 
@@ -92,3 +93,26 @@ export const dispatchBody = z.strictObject({
 
 /** A cancellation always has a reason. */
 export const cancelBody = z.strictObject({ reason: reason.min(1) });
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const queryText = (max: number) => z.string().min(1).max(max);
+
+/**
+ * The operations panel's delivery list query: `status` (comma-separated, each a status),
+ * `merchantId`, `courierId`, `before` (the `next` of the previous page) and `limit`. A query
+ * value arrives as text; a repeated key arrives as an array and is refused.
+ */
+export const deliveryListQuery = z.strictObject({
+  status: queryText(200)
+    .transform((value) => value.split(','))
+    .pipe(z.array(z.enum(DELIVERY_STATUSES)).min(1).max(DELIVERY_STATUSES.length))
+    .optional(),
+  merchantId: queryText(64).regex(UUID).optional(),
+  courierId: queryText(64).regex(UUID).optional(),
+  before: queryText(36).regex(UUID).optional(),
+  limit: queryText(3)
+    .regex(/^[1-9][0-9]{0,2}$/)
+    .transform(Number)
+    .pipe(z.number().max(100))
+    .optional(),
+});

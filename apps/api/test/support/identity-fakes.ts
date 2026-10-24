@@ -268,7 +268,7 @@ export class IdentityFakes {
     },
   };
 
-  /** The admin team list's account read (slice 8c), over the fake accounts. */
+  /** The admin team and courier lists' account read (slice 8c), over the fake accounts. */
   readonly adminAccountReader: AdminAccountReader = {
     adminAccounts: (market, after, limit) =>
       Promise.resolve(
@@ -277,6 +277,24 @@ export class IdentityFakes {
             (a) =>
               a.marketId === market.marketId &&
               a.population === 'admin' &&
+              (after === null || a.id > after),
+          )
+          .sort((a, b) => (a.id < b.id ? -1 : 1))
+          .slice(0, limit)
+          .map((a) => ({
+            accountId: a.id,
+            email: a.email.typed,
+            displayName: a.displayName,
+            status: a.status,
+          })),
+      ),
+    courierAccounts: (market, after, limit) =>
+      Promise.resolve(
+        [...this.accounts.values()]
+          .filter(
+            (a) =>
+              a.marketId === market.marketId &&
+              a.population === 'courier' &&
               (after === null || a.id > after),
           )
           .sort((a, b) => (a.id < b.id ? -1 : 1))
