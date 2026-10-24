@@ -39,8 +39,10 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     // No privilege for the application on `extensions` (see `extensions` below).
     extensions: [],
     delivery: ['USAGE'],
+    notifications: ['USAGE'],
     payouts: ['USAGE'],
     platform: ['USAGE'],
+    fleet: ['USAGE'],
   },
   tables: {
     'platform.audit_log': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
@@ -82,6 +84,49 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The notifications module (20261025110000): only the retry state of a queued message and
+    // the status and secret version of a subscription change.
+    'notifications.webhook_subscriptions': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['secret_version', 'status', 'version'],
+    },
+    'notifications.webhook_calls': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'dead_at',
+        'last_error_code',
+        'last_status_code',
+        'next_attempt_at',
+        'sent_at',
+        'status',
+      ],
+    },
+    'notifications.sms_messages': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'dead_at',
+        'last_error_code',
+        'next_attempt_at',
+        'provider_message_id',
+        'sent_at',
+        'status',
+      ],
+    },
+    // The fleet module (20261025050000): no row is deleted; a courier changes its standing, shift
+    // and the terms an operator confirms, a vehicle its active flag, a document its review and
+    // the expiry the operator confirmed; the outbox envelope is immutable.
+    'fleet.couriers': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['cold_chain_capable', 'employment_type', 'shift', 'status', 'version'],
+    },
+    'fleet.vehicles': { table: ['INSERT', 'SELECT'], columnUpdate: ['active'] },
+    'fleet.documents': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
+    },
+    'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     // The payouts module (20261025100000): the ledger, delivery records, runs and handled
     // provider events are append-only; a line changes only its transfer state, an account only
     // whether it can be paid out.

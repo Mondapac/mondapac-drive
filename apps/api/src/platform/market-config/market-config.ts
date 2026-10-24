@@ -3,6 +3,8 @@ import path from 'node:path';
 import { parseMarketId } from '@mondapac-drive/shared-kernel';
 import type { MarketId } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
+import { routingConfigSchema } from '../routing/routing-config';
+import { notificationsSchema } from './notifications-section';
 import { payoutsSchema } from './payouts-config';
 
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
@@ -88,6 +90,31 @@ const deliverySchema = z.strictObject({
   }),
 });
 
+/** Employment types of the hybrid fleet (fleet domain). */
+export const EMPLOYMENT_TYPES = ['employee', 'contractor'] as const;
+
+/**
+ * The `fleet` section, owned by the fleet module: the documents the Market requires of its
+ * couriers. A document type is the Market's own code (`abn` in AU), never a list in core code.
+ */
+const fleetSchema = z.strictObject({
+  documents: z
+    .array(
+      z.strictObject({
+        type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, 'must be a lower-case code'),
+        employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).min(1).optional(),
+        vehicleTypes: z.array(z.enum(VEHICLE_TYPES)).min(1).optional(),
+        coldChainOnly: z.boolean(),
+        perVehicle: z.boolean(),
+        expires: z.boolean(),
+      }),
+    )
+    .max(50)
+    .refine((documents) => new Set(documents.map((d) => d.type)).size === documents.length, {
+      message: 'each document type is listed once',
+    }),
+});
+
 const marketSchema = z
   .strictObject({
     code: marketCode,
@@ -107,6 +134,10 @@ const marketSchema = z
     /** `defaultRateBps`: the tax rate inside or on top of a delivery fee (AU GST 1000 = 10 %). */
     tax: z.strictObject({ defaultRateBps: z.number().int().min(0).max(5000) }),
     delivery: deliverySchema,
+    /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
+    routing: routingConfigSchema.optional(),
+    notifications: notificationsSchema,
+    fleet: fleetSchema,
     /** Courier earnings and payouts (payouts-config.ts). */
     payouts: payoutsSchema,
   })

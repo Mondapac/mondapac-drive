@@ -55,6 +55,86 @@
       "minWindowMinutes": 30
     }
   },
+  "routing": {
+    "provider": "google",
+    "google": {
+      "apiKeyEnv": "ZZ_ROUTING_API_KEY",
+      "regionCode": "zz",
+      "travelModes": {
+        "bicycle": "BICYCLE",
+        "motorbike": "DRIVE",
+        "car": "DRIVE",
+        "van": "DRIVE"
+      },
+      "trafficAware": false
+    },
+    "timeoutMs": 1000,
+    "cacheTtlSeconds": 300,
+    "cacheCoordinateDecimals": 3,
+    "circuitBreaker": {
+      "failureThreshold": 3,
+      "openSeconds": 60
+    },
+    "straightLine": {
+      "roadFactor": 1.5,
+      "speedsKmh": {
+        "bicycle": 12,
+        "motorbike": 25,
+        "car": 20,
+        "van": 18
+      }
+    }
+  },
+  "notifications": {
+    "webhooks": {
+      "maxAttempts": 4,
+      "firstRetrySeconds": 10,
+      "maxRetrySeconds": 120
+    },
+    "sms": {
+      "senderId": "ZZDrive",
+      "optOutText": "STOP to end",
+      "maxAttempts": 3,
+      "allowedCallingCodes": ["999"],
+      "templates": {
+        "booked": "ZZ booked {reference} {trackingUrl}",
+        "on_the_way": "ZZ on the way {trackingUrl}",
+        "delivered": "ZZ delivered {reference}",
+        "failed": "ZZ failed {reference}"
+      }
+    }
+  },
+  "fleet": {
+    "documents": [
+      {
+        "type": "business_number",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driving_permit",
+        "vehicleTypes": ["motorbike", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_inspection",
+        "vehicleTypes": ["van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "cold_chain_training",
+        "coldChainOnly": true,
+        "perVehicle": false,
+        "expires": true
+      }
+    ]
+  },
   "payouts": {
     "earnings": {
       "vehicles": {

@@ -71,6 +71,99 @@
       "minWindowMinutes": 60
     }
   },
+  "routing": {
+    "provider": "google",
+    "google": {
+      "apiKeyEnv": "GOOGLE_MAPS_API_KEY",
+      "regionCode": "au",
+      "travelModes": {
+        "bicycle": "BICYCLE",
+        "motorbike": "TWO_WHEELER",
+        "car": "DRIVE",
+        "van": "DRIVE"
+      },
+      "trafficAware": true
+    },
+    "timeoutMs": 2000,
+    "cacheTtlSeconds": 900,
+    "cacheCoordinateDecimals": 4,
+    "circuitBreaker": {
+      "failureThreshold": 5,
+      "openSeconds": 30
+    },
+    "straightLine": {
+      "roadFactor": 1.3,
+      "speedsKmh": {
+        "bicycle": 15,
+        "motorbike": 30,
+        "car": 30,
+        "van": 25
+      }
+    }
+  },
+  "notifications": {
+    "webhooks": {
+      "maxAttempts": 8,
+      "firstRetrySeconds": 30,
+      "maxRetrySeconds": 3600
+    },
+    "sms": {
+      "senderId": "Mondapac",
+      "optOutText": "Reply STOP to opt out",
+      "maxAttempts": 5,
+      "allowedCallingCodes": ["61"],
+      "templates": {
+        "booked": "Your order {reference} is booked for delivery. Track it: {trackingUrl}",
+        "on_the_way": "Your order {reference} is on the way. Track it: {trackingUrl}",
+        "delivered": "Your order {reference} has been delivered.",
+        "failed": "We could not deliver your order {reference}. The sender will contact you."
+      }
+    }
+  },
+  "fleet": {
+    "documents": [
+      {
+        "type": "abn",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driver_licence",
+        "vehicleTypes": ["motorbike", "car", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_registration",
+        "vehicleTypes": ["motorbike", "car", "van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "insurance",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "police_check",
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "food_handling",
+        "coldChainOnly": true,
+        "perVehicle": false,
+        "expires": false
+      }
+    ]
+  },
   "payouts": {
     "earnings": {
       "vehicles": {

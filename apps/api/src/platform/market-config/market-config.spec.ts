@@ -33,6 +33,34 @@ const DELIVERY = {
   scheduling: { minLeadMinutes: 60, maxDaysAhead: 7, minWindowMinutes: 60 },
 };
 
+const NOTIFICATIONS = {
+  webhooks: { maxAttempts: 8, firstRetrySeconds: 30, maxRetrySeconds: 3600 },
+  sms: {
+    senderId: 'Example',
+    optOutText: 'Reply STOP to opt out',
+    maxAttempts: 5,
+    allowedCallingCodes: ['64'],
+    templates: {
+      booked: 'Booked {reference}: {trackingUrl}',
+      on_the_way: 'On the way: {trackingUrl}',
+      delivered: 'Delivered {reference}',
+      failed: 'Not delivered {reference}',
+    },
+  },
+};
+
+const FLEET = {
+  documents: [
+    {
+      type: 'licence',
+      vehicleTypes: ['car'],
+      coldChainOnly: false,
+      perVehicle: false,
+      expires: true,
+    },
+  ],
+};
+
 /** A complete `payouts` section (its own rules: payouts-config.spec.ts). */
 const PAYOUTS = {
   earnings: {
@@ -62,6 +90,8 @@ const VALID = {
   requestLimits: { anonymousIdentityPerMinute: 20, defaultPerMinute: 300 },
   tax: { defaultRateBps: 1500 },
   delivery: DELIVERY,
+  notifications: NOTIFICATIONS,
+  fleet: FLEET,
   payouts: PAYOUTS,
 };
 
@@ -200,6 +230,22 @@ describe('loadMarketConfigs', () => {
       /delivery\.rateCard\.scheduledDiscountBps/,
     ],
     ['no scheduling rules', delivery({ scheduling: undefined }), /delivery\.scheduling/],
+    ['no fleet section', { fleet: undefined }, /fleet/],
+    [
+      'a document type that is not a code',
+      { fleet: { documents: [{ ...FLEET.documents[0], type: 'Driver Licence' }] } },
+      /fleet\.documents\.0\.type/,
+    ],
+    [
+      'a document listed twice',
+      { fleet: { documents: [FLEET.documents[0], FLEET.documents[0]] } },
+      /each document type is listed once/,
+    ],
+    [
+      'an unknown employment type',
+      { fleet: { documents: [{ ...FLEET.documents[0], employmentTypes: ['volunteer'] }] } },
+      /fleet\.documents\.0\.employmentTypes/,
+    ],
   ])('rejects %s', (_case, overrides, message) => {
     const directory = directoryWith({ 'QQ.json': { ...VALID, ...overrides } });
 

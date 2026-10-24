@@ -27,6 +27,7 @@ describe('loadAppConfig', () => {
       mailCatcherUrl: null,
       objectStoreDir: null,
       clientAddressTrust: null,
+      redisUrl: null,
       paymentProvider: null,
     });
   });
