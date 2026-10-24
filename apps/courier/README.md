@@ -92,12 +92,12 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 - Dispatch: `GET /dispatch/courier/offers/current`, `POST …/:id/accept` (`{ deliveryId }`) and
   `…/:id/decline` (204). The offer has no pay until payouts quotes it; the card then hides it.
 
-Still proposals, owned by their packages and changed in `ROUTES` when they land:
-
-| Port                           | Owner      | Proposed route                             |
-| ------------------------------ | ---------- | ------------------------------------------ |
-| Market settings, status, shift | fleet 23   | `GET /fleet/courier/me…`, `PUT …/me/shift` |
-| Earnings summary               | payouts 24 | `GET /payouts/courier/me/summary`          |
+- Fleet: `GET /fleet/courier/me` (`{ shift, activeDeliveryId, … }`; 404 `fleet.courier.not-found`
+  before an operator sets up the profile), `PUT …/me/shift { state }` (409
+  `fleet.shift.transition-not-allowed` mid-delivery, 422 `fleet.courier.*` when the courier may
+  not work) and `GET …/me/settings` (the Market's courier settings).
+- Payouts: `GET /payouts/courier/me/summary` (`{ today, week, deliveriesToday }` in the
+  Market's time zone, the week from Monday).
 
 Offers are polled every 5 s while online until dispatch pushes them. A stop without a point
 (not geocoded) is navigated to by its address.

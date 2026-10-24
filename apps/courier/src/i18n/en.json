@@ -154,6 +154,8 @@
     "network": "No connection. Check your mobile data and try again.",
     "session": "Your session has ended. Sign in again.",
     "deliveryInProgress": "Finish your active delivery before you go offline.",
+    "noProfile": "Your courier profile is not set up yet. Contact support.",
+    "notEligible": "Your account cannot take shifts right now. Contact support.",
     "generic": "Something went wrong. Try again."
   }
 }

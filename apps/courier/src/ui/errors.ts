@@ -17,7 +17,12 @@ const MESSAGES: Readonly<Record<string, TranslationKey>> = {
   'dispatch.conflict': 'errors.offerGone',
   'network.unavailable': 'errors.network',
   'session.missing': 'errors.session',
-  'shift.delivery-in-progress': 'errors.deliveryInProgress',
+  'fleet.shift.transition-not-allowed': 'errors.deliveryInProgress',
+  'fleet.courier.not-found': 'errors.noProfile',
+  'fleet.courier.not-eligible': 'errors.notEligible',
+  'fleet.courier.not-active': 'errors.notEligible',
+  'fleet.courier.suspended': 'errors.notEligible',
+  'fleet.courier.offboarded': 'errors.notEligible',
 };
 
 /** The courier-facing message for a failed call; never the raw server text. */

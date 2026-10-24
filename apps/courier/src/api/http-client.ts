@@ -25,11 +25,7 @@ function segment(id: string): string {
   return id;
 }
 
-/**
- * The routes the app calls. Identity, delivery (with the proof-photo upload), tracking and
- * dispatch are the API's; fleet and payouts are proposals for the packages that own them and
- * change here, in one place, when those routes land.
- */
+/** The routes the app calls, in one place: identity, fleet, dispatch, delivery, tracking, payouts. */
 export const ROUTES = {
   signIn: '/identity/courier/sign-in',
   signOut: '/identity/courier/sign-out',

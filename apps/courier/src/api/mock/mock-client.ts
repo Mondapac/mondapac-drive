@@ -126,7 +126,7 @@ export function createMockCourierApi(options: MockOptions) {
     setShift(state) {
       requireSession();
       if (state === 'offline' && status.activeDeliveryId) {
-        return Promise.reject(new ApiError(409, 'shift.delivery-in-progress'));
+        return Promise.reject(new ApiError(409, 'fleet.shift.transition-not-allowed'));
       }
       status = state === 'online' && status.activeDeliveryId ? status : { ...status, shift: state };
       if (state === 'offline') pending = null;
