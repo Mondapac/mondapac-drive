@@ -20,6 +20,7 @@ import { StartPayoutOnboarding } from '../../src/modules/payouts/application/use
 import type { CompletedDelivery } from '../../src/modules/payouts/domain/earnings';
 import type { Payee } from '../../src/modules/payouts/domain/payee';
 import { latestCutoff } from '../../src/modules/payouts/domain/payout-schedule';
+import { MAX_TRANSFER_ATTEMPTS } from '../../src/modules/payouts/domain/payout-run';
 import { InMemoryPayeeDirectory } from '../../src/modules/payouts/infrastructure/in-memory-payee-directory';
 import { PrismaLedgerRepository } from '../../src/modules/payouts/infrastructure/prisma-ledger.repository';
 import { PrismaPayoutAccountRepository } from '../../src/modules/payouts/infrastructure/prisma-payout-accounts.repository';
@@ -169,7 +170,7 @@ describe('courier pay and payouts (database integration)', () => {
         ids,
       ),
       onboard: new StartPayoutOnboarding(accounts, payees, gateway, payoutMarkets, uow, clock),
-      webhook: new HandleProviderWebhook(verifier, accounts, runs, ledger, uow, clock, ids),
+      webhook: new HandleProviderWebhook(verifier, accounts, runs, uow, clock),
       lineOf: async (courierId: string) => {
         const found = await uow.run(
           market,
@@ -216,7 +217,7 @@ describe('courier pay and payouts (database integration)', () => {
   };
 
   describe.each(TEST_MARKETS)('in market %s', (code) => {
-    const index = TEST_MARKETS.indexOf(code) * 10;
+    const index = TEST_MARKETS.indexOf(code) * 20;
 
     it('records an earning once per delivery, with tax for a registered contractor', async () => {
       const w = world(code, index + 1);
@@ -349,7 +350,34 @@ describe('courier pay and payouts (database integration)', () => {
       ]);
     });
 
-    it('credits a reversed transfer back once, however often the webhook arrives', async () => {
+    it('keeps the debit of a line out of transient attempts, and never pays it again', async () => {
+      const w = world(code, index + 10);
+      const courierId = w.courier('unresolved');
+      const account = await readyAccount(w, courierId);
+      await w.earn.run(w.market, w.delivered(courierId));
+      w.gateway.refusals.set(
+        account,
+        Array.from({ length: MAX_TRANSFER_ATTEMPTS }, () => ({
+          code: 'stripe.unreachable',
+          transient: true,
+        })),
+      );
+
+      for (let tick = 0; tick < MAX_TRANSFER_ATTEMPTS; tick += 1) await w.payouts.run(w.market);
+      expect(await w.lineOf(courierId)).toEqual([
+        expect.objectContaining({ status: 'unresolved', attempts: MAX_TRANSFER_ATTEMPTS }),
+      ]);
+      expect(await balanceOf(w, courierId)).toEqual(w.m(0n));
+
+      w.clock.advance(Temporal.Duration.from({ hours: 24 * 7 }));
+      await w.payouts.run(w.market);
+      expect(await w.lineOf(courierId)).toHaveLength(1);
+      expect(w.gateway.transfers.filter((t) => t.destination === account)).toHaveLength(
+        MAX_TRANSFER_ATTEMPTS,
+      );
+    });
+
+    it('marks a reversed transfer once, and credits no balance with it (an operator clawback)', async () => {
       const w = world(code, index + 6);
       const courierId = w.courier('reversed');
       await readyAccount(w, courierId);
@@ -371,8 +399,11 @@ describe('courier pay and payouts (database integration)', () => {
 
       expect(await w.webhook.run(w.market, raw, header)).toEqual({ ok: true, value: 'applied' });
       expect(await w.webhook.run(w.market, raw, header)).toEqual({ ok: true, value: 'duplicate' });
-      expect(await balanceOf(w, courierId)).toEqual(w.m(300n));
+      expect(await balanceOf(w, courierId)).toEqual(w.m(0n));
       expect(await w.lineOf(courierId)).toEqual([expect.objectContaining({ status: 'reversed' })]);
+      w.clock.advance(Temporal.Duration.from({ hours: 24 * 7 }));
+      await w.payouts.run(w.market);
+      expect(await w.lineOf(courierId)).toHaveLength(1);
     });
 
     it('refuses a webhook that was not signed with the endpoint secret', async () => {
@@ -402,7 +433,7 @@ describe('courier pay and payouts (database integration)', () => {
       expect(w.gateway.accounts).toEqual([
         {
           country: w.settings.provider.accountCountry,
-          idempotencyKey: `payout-account-${code}-${courierId}`,
+          idempotencyKey: `payout-account-${code}-${w.market.tenantId}-${courierId}`,
           metadata: expect.anything() as unknown,
         },
       ]);
@@ -448,8 +479,8 @@ describe('courier pay and payouts (database integration)', () => {
   });
 
   it('keeps each Market to its own ledger', async () => {
-    const au = world('AU', 30);
-    const zz = world('ZZ', 30);
+    const au = world('AU', 50);
+    const zz = world('ZZ', 50);
     const courierId = au.courier('shared');
     zz.courier('shared');
     await au.earn.run(au.market, { ...au.delivered(courierId) });

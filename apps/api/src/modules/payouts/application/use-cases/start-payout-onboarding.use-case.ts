@@ -80,7 +80,7 @@ export class StartPayoutOnboarding {
     if (accountId === undefined) {
       const created = await this.gateway.createAccount({
         country: settings.provider.accountCountry,
-        idempotencyKey: `payout-account-${market.marketId}-${courierId}`,
+        idempotencyKey: `payout-account-${market.marketId}-${market.tenantId}-${courierId}`,
         metadata: { marketId: market.marketId, courierId },
       });
       if (!created.ok) return err(providerFailure(created.error));

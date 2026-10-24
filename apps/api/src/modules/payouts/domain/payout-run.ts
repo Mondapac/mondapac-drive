@@ -7,15 +7,19 @@ import type { MarketPayoutSettings } from './payout-settings';
 
 /**
  * A payout line's life. `pending` waits for its transfer; `transferred` reached the courier's
- * connected account; `failed` was refused, and its ledger debit is reversed; `reversed` was taken
- * back after the transfer, wholly or in part. `held` was never paid (see {@link HoldReason}):
- * nothing was debited, so the balance waits for a later run.
+ * connected account; `failed` was refused for good, and its ledger debit is reversed; `reversed`
+ * was taken back after the transfer, wholly or in part. `unresolved` ran out of attempts on
+ * transient refusals: the provider may have made the transfer all the same, so its debit stands
+ * until an operator settles it against the provider's records (never paid again blindly). `held`
+ * was never paid (see {@link HoldReason}): nothing was debited, so the balance waits for a later
+ * run.
  */
 export const PAYOUT_LINE_STATUSES = [
   'pending',
   'held',
   'transferred',
   'failed',
+  'unresolved',
   'reversed',
 ] as const;
 export type PayoutLineStatus = (typeof PAYOUT_LINE_STATUSES)[number];
@@ -190,9 +194,10 @@ export function lineTransferred(
 }
 
 /**
- * The provider refused the transfer. A transient refusal keeps the line pending for a later tick
- * until {@link MAX_TRANSFER_ATTEMPTS}; a permanent one, or the last attempt, fails it. A failed
- * line's ledger debit must then be reversed in the same unit.
+ * The provider refused the transfer. A permanent refusal fails the line, and its ledger debit
+ * must then be reversed in the same unit. A transient refusal keeps it pending for a later tick;
+ * the last of {@link MAX_TRANSFER_ATTEMPTS} makes it `unresolved` instead, its debit kept: a
+ * timeout or a lost answer does not say the transfer was not made.
  */
 export function lineRefused(
   line: PayoutLine,
@@ -201,9 +206,13 @@ export function lineRefused(
 ): PayoutLine {
   requireStatus(line, ['pending']);
   const attempts = line.attempts + 1;
-  const failed = !refusal.transient || attempts >= MAX_TRANSFER_ATTEMPTS;
+  const status = !refusal.transient
+    ? 'failed'
+    : attempts >= MAX_TRANSFER_ATTEMPTS
+      ? 'unresolved'
+      : 'pending';
   return next(line, at, {
-    status: failed ? 'failed' : 'pending',
+    status,
     attempts,
     lastErrorCode: refusal.code,
   });

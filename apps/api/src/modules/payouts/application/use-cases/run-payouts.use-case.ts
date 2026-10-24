@@ -45,6 +45,8 @@ export interface PayoutTick {
   readonly transferred: number;
   readonly failed: number;
   readonly retrying: number;
+  /** Lines out of attempts on transient refusals, left for an operator to settle. */
+  readonly unresolved: number;
 }
 
 /**
@@ -53,7 +55,9 @@ export interface PayoutTick {
  * line, and each payable line's amount is debited from the ledger in the same unit. Then it
  * sends up to {@link TRANSFER_BATCH} pending lines to the provider, each with its own
  * idempotency key, and records the outcome; a line refused for good gets its debit reversed, so
- * the balance waits for the next run.
+ * the balance waits for the next run. A line out of attempts on transient refusals keeps its
+ * debit: the provider may have made the transfer, and paying the balance again under a new line
+ * (a new idempotency key) could pay the courier twice.
  */
 @Injectable()
 export class RunPayouts {
@@ -138,7 +142,7 @@ export class RunPayouts {
   private async sendPendingLines(
     market: MarketContext,
   ): Promise<Result<Omit<PayoutTick, 'opened'>, PayoutsFailure>> {
-    const tally = { transferred: 0, failed: 0, retrying: 0 };
+    const tally = { transferred: 0, failed: 0, retrying: 0, unresolved: 0 };
     if (!this.gateway.enabled) return ok(tally);
     const pending = await this.unitOfWork.run(
       market,
@@ -172,6 +176,7 @@ export class RunPayouts {
       if (outcome.value === 'transferred') tally.transferred += 1;
       else if (outcome.value === 'failed') tally.failed += 1;
       else if (outcome.value === 'pending') tally.retrying += 1;
+      else if (outcome.value === 'unresolved') tally.unresolved += 1;
     }
     return ok(tally);
   }

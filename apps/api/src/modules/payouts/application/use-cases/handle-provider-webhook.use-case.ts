@@ -4,22 +4,17 @@ import {
   money,
   ok,
   type Clock,
-  type IdGenerator,
   type MarketContext,
   type Result,
 } from '@mondapac-drive/shared-kernel';
 import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
-import { reversalOf } from '../../domain/ledger';
 import { lineReversed } from '../../domain/payout-run';
 import { refusingBrokenRules, type PayoutsFailure } from '../failure';
 import {
-  LEDGER_REPOSITORY,
   PAYOUT_ACCOUNT_REPOSITORY,
   PAYOUT_RUN_REPOSITORY,
   PROVIDER_WEBHOOK_VERIFIER,
-  type LedgerRepository,
   type PayoutAccountRepository,
   type PayoutRunRepository,
   type ProviderEvent,
@@ -33,8 +28,11 @@ export type WebhookOutcome = 'applied' | 'ignored' | 'duplicate';
  * Handles one payment-provider webhook for a Market: verifies its signature over the raw body,
  * records the event id once (a redelivery does nothing), and applies what payouts acts on. An
  * account update sets whether the courier's account can be paid out; a transfer reversal marks
- * its line and credits the reversed portion back to the courier's balance. Events for accounts or
- * transfers this Market does not hold are recorded and ignored.
+ * its line with the reversed total. A reversal is credited to no balance: payouts never reverses
+ * a transfer itself, so one comes from an operator at the provider, usually a clawback, and
+ * crediting it would pay it out again in the next run. An operator who means the courier to be
+ * paid again records an adjustment. Events for accounts or transfers this Market does not hold
+ * are recorded and ignored.
  */
 @Injectable()
 export class HandleProviderWebhook {
@@ -42,10 +40,8 @@ export class HandleProviderWebhook {
     @Inject(PROVIDER_WEBHOOK_VERIFIER) private readonly verifier: ProviderWebhookVerifier,
     @Inject(PAYOUT_ACCOUNT_REPOSITORY) private readonly accounts: PayoutAccountRepository,
     @Inject(PAYOUT_RUN_REPOSITORY) private readonly runs: PayoutRunRepository,
-    @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
     @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
   ) {}
 
   run(
@@ -95,21 +91,7 @@ export class HandleProviderWebhook {
       const line = await this.runs.findLineByTransfer(market, event.transferId);
       if (line === undefined || line.amount.currency !== event.currency) return 'ignored';
       const reversed = lineReversed(line, money(event.amountReversed, event.currency), now);
-      if (reversed.newlyReversed.amount === 0n) return 'applied';
-      await this.runs.updateLine(market, reversed.line);
-      const debit = await this.ledger.findByReference(market, `payout:${line.id}`);
-      if (debit !== undefined) {
-        await this.ledger.append(market, [
-          reversalOf(debit, {
-            id: this.ids.next<'LedgerEntry'>(),
-            reference: `transfer-reversal:${line.id}:${event.amountReversed}`,
-            reason: 'transfer-reversed',
-            portion: reversed.newlyReversed,
-            occurredAt: now,
-            recordedAt: now,
-          }),
-        ]);
-      }
+      if (reversed.newlyReversed.amount > 0n) await this.runs.updateLine(market, reversed.line);
       return 'applied';
     }
     return 'ignored';

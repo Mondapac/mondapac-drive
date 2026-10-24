@@ -161,21 +161,25 @@ describe('a payout line', () => {
     expect(line.updatedAt).toEqual(later);
   });
 
-  it('stays pending on a transient refusal until the last attempt, then fails', () => {
+  it('stays pending on a transient refusal until the last attempt, then is unresolved', () => {
     let line = pending();
     for (let attempt = 1; attempt < MAX_TRANSFER_ATTEMPTS; attempt += 1) {
       line = lineRefused(line, { code: 'stripe.unreachable', transient: true }, later);
       expect(line.status).toBe('pending');
     }
     line = lineRefused(line, { code: 'stripe.unreachable', transient: true }, later);
+    const settled = line;
 
     expect(line).toEqual(
       expect.objectContaining({
-        status: 'failed',
+        status: 'unresolved',
         attempts: MAX_TRANSFER_ATTEMPTS,
         lastErrorCode: 'stripe.unreachable',
       }),
     );
+    expect(() =>
+      lineRefused(settled, { code: 'stripe.unreachable', transient: true }, later),
+    ).toThrow(expect.objectContaining({ code: 'payouts.line-state' }) as Error);
   });
 
   it('fails at once on a permanent refusal, and then changes no more', () => {

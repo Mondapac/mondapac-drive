@@ -189,7 +189,7 @@ ALTER TABLE "payouts"."payout_lines"
   ADD CONSTRAINT "payout_lines_market_id_check" CHECK ("market_id" ~ '^[A-Z][A-Z0-9_]{1,7}$'),
   ADD CONSTRAINT "payout_lines_tenant_id_check" CHECK ("tenant_id" ~ '^[a-z][a-z0-9-]{1,31}$'),
   ADD CONSTRAINT "payout_lines_currency_check" CHECK ("currency" ~ '^[A-Z]{3}$'),
-  ADD CONSTRAINT "payout_lines_status_check" CHECK ("status" IN ('pending', 'held', 'transferred', 'failed', 'reversed')),
+  ADD CONSTRAINT "payout_lines_status_check" CHECK ("status" IN ('pending', 'held', 'transferred', 'failed', 'unresolved', 'reversed')),
   ADD CONSTRAINT "payout_lines_hold_check" CHECK (("status" = 'held') = ("hold_reason" IS NOT NULL)),
   ADD CONSTRAINT "payout_lines_destination_check" CHECK ("status" = 'held' OR "destination" IS NOT NULL),
   ADD CONSTRAINT "payout_lines_transfer_check" CHECK ("status" NOT IN ('transferred', 'reversed') OR "transfer_id" IS NOT NULL),
