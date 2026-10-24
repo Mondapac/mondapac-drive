@@ -89,6 +89,31 @@ const deliverySchema = z.strictObject({
   }),
 });
 
+/** Employment types of the hybrid fleet (fleet domain). */
+export const EMPLOYMENT_TYPES = ['employee', 'contractor'] as const;
+
+/**
+ * The `fleet` section, owned by the fleet module: the documents the Market requires of its
+ * couriers. A document type is the Market's own code (`abn` in AU), never a list in core code.
+ */
+const fleetSchema = z.strictObject({
+  documents: z
+    .array(
+      z.strictObject({
+        type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, 'must be a lower-case code'),
+        employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).min(1).optional(),
+        vehicleTypes: z.array(z.enum(VEHICLE_TYPES)).min(1).optional(),
+        coldChainOnly: z.boolean(),
+        perVehicle: z.boolean(),
+        expires: z.boolean(),
+      }),
+    )
+    .max(50)
+    .refine((documents) => new Set(documents.map((d) => d.type)).size === documents.length, {
+      message: 'each document type is listed once',
+    }),
+});
+
 const marketSchema = z
   .strictObject({
     code: marketCode,
@@ -111,6 +136,7 @@ const marketSchema = z
     /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
     routing: routingConfigSchema.optional(),
     notifications: notificationsSchema,
+    fleet: fleetSchema,
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',
