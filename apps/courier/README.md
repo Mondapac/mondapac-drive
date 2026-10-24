@@ -13,7 +13,8 @@ EXPO_PUBLIC_API_URL=https://… pnpm --filter courier start   # against a real A
 
 Without `EXPO_PUBLIC_API_URL` the app always uses the mock (`src/api/mock`). The mock accepts any
 6-digit sign-in code, offers the two fixture jobs in turn and takes the delivery PIN `1234`.
-`EXPO_PUBLIC_API_URL` must be https, except for localhost and LAN addresses.
+A release build refuses to start on the mock or without an https `EXPO_PUBLIC_API_URL`; plain
+http to localhost and LAN addresses works in development builds only.
 
 Web (`expo start --web`) is a screen preview only: no background location, and the session is
 kept in memory (`*.web.ts` files).
@@ -54,6 +55,9 @@ Native Testing Library). Both run in `pnpm verify` and CI through `pnpm -r`, and
 - The proof photo comes from the camera only, is resized to 1280 px and re-encoded as JPEG,
   which also drops its EXIF block (GPS, device). The PIN is sent to the server to check; the app
   never knows the right PIN.
+- A 401 signs the courier out and stops background location, also inside the background task.
+  Going offline stops location on the device before the server is told.
+- Route ids are checked against the API's id format before they go into a path.
 
 ## Backend contract
 

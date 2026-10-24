@@ -51,9 +51,9 @@ export function HomeScreen({ onOpenJob, onOpenEarnings, onNeedLocation }: Props)
         await tracking.start();
         return updated;
       }
-      const updated = await api.setShift('offline');
+      // Sharing stops on the device first, whatever the server answers.
       await tracking.stop();
-      return updated;
+      return api.setShift('offline');
     },
     onSuccess: (updated, next) => {
       if (!updated) {

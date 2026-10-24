@@ -46,17 +46,37 @@ describe('session store', () => {
 });
 
 describe('build settings', () => {
-  it('runs on the mock without an API URL', () => {
-    expect(readEnv({})).toEqual({ apiMode: 'mock', apiUrl: undefined });
+  const DEV = true;
+  const RELEASE = false;
+
+  it('runs on the mock without an API URL in a development build', () => {
+    expect(readEnv({}, DEV)).toEqual({ apiMode: 'mock', apiUrl: undefined });
     expect(
-      readEnv({ EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_API_MODE: 'mock' })
-        .apiMode,
+      readEnv(
+        { EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_API_MODE: 'mock' },
+        DEV,
+      ).apiMode,
     ).toBe('mock');
   });
 
-  it('uses HTTP with a URL, and https only outside a developer machine', () => {
-    expect(readEnv({ EXPO_PUBLIC_API_URL: 'https://api.example.test' }).apiMode).toBe('http');
-    expect(readEnv({ EXPO_PUBLIC_API_URL: 'http://localhost:3000' }).apiMode).toBe('http');
-    expect(() => readEnv({ EXPO_PUBLIC_API_URL: 'http://api.example.test' })).toThrow(/https/);
+  it('refuses the mock in a release build', () => {
+    expect(() => readEnv({}, RELEASE)).toThrow(/release build/);
+    expect(() =>
+      readEnv(
+        { EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_API_MODE: 'mock' },
+        RELEASE,
+      ),
+    ).toThrow(/release build/);
+    expect(readEnv({ EXPO_PUBLIC_API_URL: 'https://api.example.test' }, RELEASE).apiMode).toBe(
+      'http',
+    );
+  });
+
+  it('allows plain http only to a local address in a development build', () => {
+    expect(readEnv({ EXPO_PUBLIC_API_URL: 'http://localhost:3000' }, DEV).apiMode).toBe('http');
+    expect(() => readEnv({ EXPO_PUBLIC_API_URL: 'http://localhost:3000' }, RELEASE)).toThrow(
+      /https/,
+    );
+    expect(() => readEnv({ EXPO_PUBLIC_API_URL: 'http://api.example.test' }, DEV)).toThrow(/https/);
   });
 });

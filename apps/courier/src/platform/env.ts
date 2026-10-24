@@ -9,12 +9,25 @@ export interface AppEnv {
   readonly apiUrl: string | undefined;
 }
 
-export function readEnv(source: Readonly<Record<string, string | undefined>>): AppEnv {
+/**
+ * A release build refuses to start without an https API: the mock would accept every
+ * delivery locally and nothing would reach the server. The mock and plain-http local addresses
+ * are for development builds only.
+ */
+export function readEnv(
+  source: Readonly<Record<string, string | undefined>>,
+  development: boolean,
+): AppEnv {
   const apiUrl = source.EXPO_PUBLIC_API_URL?.trim() || undefined;
   const requested = source.EXPO_PUBLIC_API_MODE;
   const apiMode: ApiMode = requested === 'mock' || !apiUrl ? 'mock' : 'http';
-  if (apiUrl && apiMode === 'http' && !/^https:\/\//.test(apiUrl) && !isLocal(apiUrl)) {
-    throw new Error('EXPO_PUBLIC_API_URL must use https outside a developer machine');
+  if (!development && apiMode === 'mock') {
+    throw new Error('A release build needs EXPO_PUBLIC_API_URL and cannot use the mock API');
+  }
+  if (apiUrl && apiMode === 'http' && !/^https:\/\//.test(apiUrl)) {
+    if (!development || !isLocal(apiUrl)) {
+      throw new Error('EXPO_PUBLIC_API_URL must use https outside a developer machine');
+    }
   }
   return { apiMode, apiUrl };
 }
@@ -23,7 +36,10 @@ function isLocal(url: string): boolean {
   return /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2|192\.168\.\d+\.\d+)(:\d+)?(\/|$)/.test(url);
 }
 
-export const env: AppEnv = readEnv({
-  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
-  EXPO_PUBLIC_API_MODE: process.env.EXPO_PUBLIC_API_MODE,
-});
+export const env: AppEnv = readEnv(
+  {
+    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+    EXPO_PUBLIC_API_MODE: process.env.EXPO_PUBLIC_API_MODE,
+  },
+  __DEV__,
+);

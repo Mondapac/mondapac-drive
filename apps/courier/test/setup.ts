@@ -52,14 +52,15 @@ jest.mock('expo-image-manipulator', () => {
 jest.mock('expo-camera', () => {
   const React = jest.requireActual<typeof ReactModule>('react');
   const { View } = jest.requireActual<typeof ReactNative>('react-native');
+  const takePictureAsync = jest.fn(() =>
+    Promise.resolve({ uri: 'file:///camera.jpg', width: 4032, height: 3024 }),
+  );
   const CameraView = React.forwardRef((_props: object, ref: React.Ref<unknown>) => {
-    React.useImperativeHandle(ref, () => ({
-      takePictureAsync: () =>
-        Promise.resolve({ uri: 'file:///camera.jpg', width: 4032, height: 3024 }),
-    }));
+    React.useImperativeHandle(ref, () => ({ takePictureAsync }));
     return React.createElement(View, { testID: 'camera' });
   });
   return {
+    __takePictureAsync: takePictureAsync,
     CameraView,
     useCameraPermissions: () => [
       { granted: true, canAskAgain: true, status: 'granted' },

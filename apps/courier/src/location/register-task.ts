@@ -1,6 +1,11 @@
 import * as TaskManager from 'expo-task-manager';
 import { courierApi } from '../api';
-import { isOnlineFlagSet, loadSession, sessionSource } from '../session/session-store';
+import {
+  clearSession,
+  isOnlineFlagSet,
+  loadSession,
+  sessionSource,
+} from '../session/session-store';
 import { handleLocationUpdate, LOCATION_TASK, type TaskBody } from './background-task';
 import { stopTracking } from './tracking';
 
@@ -12,5 +17,6 @@ TaskManager.defineTask<unknown>(LOCATION_TASK, (body: TaskBody) =>
     session: async () => sessionSource.current() ?? (await loadSession()),
     isOnline: isOnlineFlagSet,
     stopUpdates: stopTracking,
+    clearSession,
   }),
 );

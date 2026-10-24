@@ -1,4 +1,4 @@
-import type { CourierApi } from '../api/client';
+import { ApiError, type CourierApi } from '../api/client';
 import type { CourierSession } from '../api/schemas';
 import { toPings, type LocationFix } from './pings';
 
@@ -15,6 +15,8 @@ export interface TaskDeps {
   readonly session: () => Promise<CourierSession | null>;
   readonly isOnline: () => Promise<boolean>;
   readonly stopUpdates: () => Promise<void>;
+  /** Forgets a session the server no longer accepts. */
+  readonly clearSession: () => Promise<void>;
 }
 
 /**
@@ -33,7 +35,12 @@ export async function handleLocationUpdate(body: TaskBody, deps: TaskDeps): Prom
   if (pings.length === 0) return;
   try {
     await deps.api().sendPings(pings);
-  } catch {
-    // A lost batch is replaced by the next one; the latest position is what tracking keeps.
+  } catch (error) {
+    // A session the server rejects never sends again: stop collecting and forget it. Any other
+    // lost batch is replaced by the next one; the latest position is what tracking keeps.
+    if (error instanceof ApiError && error.status === 401) {
+      await deps.stopUpdates();
+      await deps.clearSession();
+    }
   }
 }

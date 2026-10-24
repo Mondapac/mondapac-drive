@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { CourierApi } from './api/client';
+import { ApiError, type CourierApi } from './api/client';
 import type { CourierSession, CourierSettings, SignInInput } from './api/schemas';
 import type { Clock } from './platform/clock/clock';
 import {
@@ -76,7 +76,12 @@ const SessionContext = createContext<SessionState | null>(null);
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: 1, staleTime: 5_000 },
+      queries: {
+        // A rejected session is final; anything else is tried once more.
+        retry: (failures, error) =>
+          !(error instanceof ApiError && error.status === 401) && failures < 1,
+        staleTime: 5_000,
+      },
       mutations: { retry: false },
     },
   });
@@ -128,6 +133,26 @@ export function AppProviders({ api, clock, queryClient, storage, tracking, child
     queryClient.clear();
     setSession(null);
   }, [api, store, queryClient, location]);
+
+  // A session the server rejects signs the courier out (and stops tracking) wherever it shows.
+  useEffect(() => {
+    const rejected = (error: unknown) => error instanceof ApiError && error.status === 401;
+    const onEvent = (event: { type: string; action?: { type: string; error?: unknown } }) => {
+      if (
+        event.type === 'updated' &&
+        event.action?.type === 'error' &&
+        rejected(event.action.error)
+      ) {
+        void signOut();
+      }
+    };
+    const unsubscribeQueries = queryClient.getQueryCache().subscribe(onEvent);
+    const unsubscribeMutations = queryClient.getMutationCache().subscribe(onEvent);
+    return () => {
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [queryClient, signOut]);
 
   const services = useMemo(() => ({ api, clock, tracking: location }), [api, clock, location]);
   const sessionState = useMemo(

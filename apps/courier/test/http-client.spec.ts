@@ -116,7 +116,13 @@ describe('HTTP adapter', () => {
     await expect(api.earnings()).rejects.toEqual(new ApiError(0, 'network.unavailable'));
   });
 
-  it('escapes ids in paths', () => {
-    expect(ROUTES.delivery('../x')).toBe('/delivery/deliveries/..%2Fx');
+  it('refuses an id that is not one the API issues', async () => {
+    expect(ROUTES.delivery('d-1')).toBe('/delivery/deliveries/d-1');
+    for (const id of ['..', '../x', 'a/b', '', 'x'.repeat(65)]) {
+      expect(() => ROUTES.delivery(id)).toThrow(new ApiError(400, 'id.invalid'));
+    }
+    const { api, fetch } = setup({ body: job });
+    await expect(api.job('..')).rejects.toEqual(new ApiError(400, 'id.invalid'));
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

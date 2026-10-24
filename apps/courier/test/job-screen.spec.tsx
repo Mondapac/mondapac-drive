@@ -1,4 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react-native';
+import * as Camera from 'expo-camera';
+import { ImageManipulator } from 'expo-image-manipulator';
 import { Linking } from 'react-native';
 import { JobScreen } from '../src/screens/JobScreen';
 import { MARKETS } from './markets';
@@ -8,6 +10,9 @@ const press = (name: string) => fireEvent.press(screen.getByRole('button', { nam
 const typeInto = (label: string, value: string) =>
   fireEvent.changeText(screen.getByLabelText(label), value);
 const TEMPERATURE = 'Box temperature (°C)';
+const { __takePictureAsync: takePictureAsync } = Camera as unknown as {
+  __takePictureAsync: jest.Mock;
+};
 
 describe.each(MARKETS)('active job in $marketId', (settings) => {
   const max = settings.coldChain.chilled.maxCelsius;
@@ -115,6 +120,7 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
 
   it('uploads a compressed photo as proof', async () => {
     const { harness, deliveryId } = await reachDropoff();
+    const upload = jest.spyOn(harness.api, 'uploadProofPhoto');
     await typeInto(TEMPERATURE, String(max));
     await press('Photo');
     await press('Take photo');
@@ -125,6 +131,14 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
       type: 'delivered',
       temperatureCelsius: max,
       proof: { kind: 'photo', photoRef: `mock/proof/${deliveryId}.jpg` },
+    });
+    // No EXIF from the camera, and the upload is always the re-encoded copy.
+    expect(takePictureAsync).toHaveBeenCalledWith(expect.objectContaining({ exif: false }));
+    const manipulate = jest.spyOn(ImageManipulator, 'manipulate');
+    expect(manipulate).toHaveBeenCalledWith('file:///camera.jpg');
+    expect(upload).toHaveBeenCalledWith(deliveryId, {
+      uri: 'file:///compressed.jpg',
+      mimeType: 'image/jpeg',
     });
   });
 });

@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { ApiError } from '../src/api/client';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { MARKETS } from './markets';
 import { createHarness, renderWith, type Harness } from './render';
@@ -89,6 +90,26 @@ it('asks for location first when it is not granted', async () => {
   await waitFor(() => expect(handlers.onNeedLocation).toHaveBeenCalled());
   expect(harness.tracking.start).not.toHaveBeenCalled();
   expect((await harness.api.status()).shift).toBe('offline');
+});
+
+it('stops sharing location even when the server refuses to go offline', async () => {
+  const harness = await createHarness();
+  await renderHome(harness);
+  await screen.findByText('You are offline');
+  await press('Go online');
+  await screen.findByText('You are online');
+  jest.spyOn(harness.api, 'setShift').mockRejectedValueOnce(new ApiError(0, 'network.unavailable'));
+  await press('Go offline');
+  await screen.findByText('No connection. Check your mobile data and try again.');
+  expect(harness.tracking.stop).toHaveBeenCalledTimes(1);
+});
+
+it('signs out and stops tracking when the server rejects the session', async () => {
+  const harness = await createHarness();
+  jest.spyOn(harness.api, 'status').mockRejectedValue(new ApiError(401, 'session.invalid'));
+  await renderHome(harness);
+  await waitFor(() => expect(harness.stored()).toBeNull());
+  expect(harness.tracking.stop).toHaveBeenCalled();
 });
 
 it('stops tracking when going offline', async () => {

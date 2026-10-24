@@ -23,6 +23,12 @@ import {
  * ports of the parallel packages (identity WP2, fleet 05, tracking 06, dispatch 07, payouts 10)
  * and change here, in one place, when those routes land.
  */
+/** An id as the API issues it; anything else (such as `..`) never reaches a path. */
+function segment(id: string): string {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new ApiError(400, 'id.invalid');
+  return id;
+}
+
 export const ROUTES = {
   sessions: '/identity/courier/sessions',
   currentSession: '/identity/courier/sessions/current',
@@ -30,11 +36,11 @@ export const ROUTES = {
   status: '/fleet/courier/me',
   shift: '/fleet/courier/me/shift',
   currentOffer: '/dispatch/courier/offers/current',
-  acceptOffer: (id: string) => `/dispatch/courier/offers/${encodeURIComponent(id)}/accept`,
-  declineOffer: (id: string) => `/dispatch/courier/offers/${encodeURIComponent(id)}/decline`,
-  delivery: (id: string) => `/delivery/deliveries/${encodeURIComponent(id)}`,
-  deliveryEvents: (id: string) => `/delivery/deliveries/${encodeURIComponent(id)}/events`,
-  proofPhotos: (id: string) => `/delivery/deliveries/${encodeURIComponent(id)}/proof-photos`,
+  acceptOffer: (id: string) => `/dispatch/courier/offers/${segment(id)}/accept`,
+  declineOffer: (id: string) => `/dispatch/courier/offers/${segment(id)}/decline`,
+  delivery: (id: string) => `/delivery/deliveries/${segment(id)}`,
+  deliveryEvents: (id: string) => `/delivery/deliveries/${segment(id)}/events`,
+  proofPhotos: (id: string) => `/delivery/deliveries/${segment(id)}/proof-photos`,
   pings: '/tracking/courier/pings',
   earnings: '/payouts/courier/me/summary',
 } as const;
@@ -69,11 +75,12 @@ export function createHttpCourierApi(options: Options): CourierApi {
 
   async function call<T>(
     method: string,
-    path: string,
+    route: string | (() => string),
     schema: z.ZodType<T> | null,
     body?: unknown,
     { authenticated = true }: { authenticated?: boolean } = {},
   ): Promise<T> {
+    const path = typeof route === 'string' ? route : route();
     const headers: Record<string, string> = { accept: 'application/json' };
     if (authenticated) {
       const session = options.session.current();
@@ -125,11 +132,11 @@ export function createHttpCourierApi(options: Options): CourierApi {
     status: () => call('GET', ROUTES.status, courierStatus),
     setShift: (state) => call('PUT', ROUTES.shift, courierStatus, { state }),
     currentOffer: async () => (await call('GET', ROUTES.currentOffer, currentOffer)).offer,
-    acceptOffer: (offerId) => call('POST', ROUTES.acceptOffer(offerId), offerAccepted, {}),
-    declineOffer: (offerId) => call('POST', ROUTES.declineOffer(offerId), null, {}),
-    job: (deliveryId) => call('GET', ROUTES.delivery(deliveryId), job),
+    acceptOffer: (offerId) => call('POST', () => ROUTES.acceptOffer(offerId), offerAccepted, {}),
+    declineOffer: (offerId) => call('POST', () => ROUTES.declineOffer(offerId), null, {}),
+    job: (deliveryId) => call('GET', () => ROUTES.delivery(deliveryId), job),
     recordEvent: (deliveryId, event) =>
-      call('POST', ROUTES.deliveryEvents(deliveryId), job, eventBody(event)),
+      call('POST', () => ROUTES.deliveryEvents(deliveryId), job, eventBody(event)),
     uploadProofPhoto: (deliveryId, photo: PhotoFile) => {
       const form = new FormData();
       // React Native's FormData takes a file as { uri, name, type }.
@@ -138,7 +145,7 @@ export function createHttpCourierApi(options: Options): CourierApi {
         name: 'proof.jpg',
         type: photo.mimeType,
       } as unknown as Blob);
-      return call('POST', ROUTES.proofPhotos(deliveryId), proofPhoto, form);
+      return call('POST', () => ROUTES.proofPhotos(deliveryId), proofPhoto, form);
     },
     sendPings: (pings) => call('POST', ROUTES.pings, null, { pings }),
     earnings: () => call('GET', ROUTES.earnings, earningsSummary),

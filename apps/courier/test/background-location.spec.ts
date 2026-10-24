@@ -1,3 +1,4 @@
+import { ApiError } from '../src/api/client';
 import { createMockCourierApi } from '../src/api/mock/mock-client';
 import { handleLocationUpdate, type TaskDeps } from '../src/location/background-task';
 import { MAX_PINGS_PER_BATCH, toPings, type LocationFix } from '../src/location/pings';
@@ -53,13 +54,15 @@ describe('background location task', () => {
     const mock = createMockCourierApi({ clock: fakeClock(0) });
     const session = await mock.api.signIn({ phone: '+61400000000', code: '123456' });
     const stopUpdates = jest.fn(() => Promise.resolve());
+    const clearSession = jest.fn(() => Promise.resolve());
     const value: TaskDeps = {
       api: () => mock.api,
       session: () => Promise.resolve(signedIn ? session : null),
       isOnline: () => Promise.resolve(online),
       stopUpdates,
+      clearSession,
     };
-    return { value, mock, stopUpdates, session };
+    return { value, mock, stopUpdates, clearSession, session };
   }
 
   it('sends pings while the courier is online', async () => {
@@ -81,6 +84,20 @@ describe('background location task', () => {
     await handleLocationUpdate({ data: { locations: [fix()] } }, value);
     expect(mock.inspect.pings()).toHaveLength(0);
     expect(stopUpdates).toHaveBeenCalled();
+  });
+
+  it('stops collecting and forgets the session when the server rejects it', async () => {
+    const { value, stopUpdates, clearSession } = await deps(true);
+    const rejected: TaskDeps = {
+      ...value,
+      api: () => ({
+        ...value.api(),
+        sendPings: () => Promise.reject(new ApiError(401, 'session.invalid')),
+      }),
+    };
+    await handleLocationUpdate({ data: { locations: [fix()] } }, rejected);
+    expect(stopUpdates).toHaveBeenCalled();
+    expect(clearSession).toHaveBeenCalled();
   });
 
   it('ignores an error batch and a failed send', async () => {
