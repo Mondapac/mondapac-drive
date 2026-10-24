@@ -10,7 +10,7 @@ import { CLOCK } from '../../../../platform/clock/clock.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import type { EmploymentType } from '../../domain/courier-status';
 import { holdsValidDocument } from '../../domain/documents';
-import { canTakeWork, vehiclesForWork } from '../../domain/eligibility';
+import { vehiclesForWork } from '../../domain/eligibility';
 import type { Temperature, VehicleType } from '../../domain/vehicle';
 import {
   COURIER_REPOSITORY,
@@ -73,8 +73,6 @@ export interface PayeeProfile {
  *
  * - {@link findAvailableCouriers}: who can take a job now, with the vehicles for it (dispatch).
  * - {@link payeeProfiles}: the employment and tax facts of couriers to pay (payouts).
- * - {@link findEligibleCouriers}: the fleet ids of who can take a job now. Kept until dispatch
- *   moves to {@link findAvailableCouriers}; it answers fleet ids, not account ids.
  */
 @Injectable()
 export class FleetDirectory {
@@ -165,27 +163,5 @@ export class FleetDirectory {
         businessIdDocumentType !== undefined &&
         holdsValidDocument(courier.documents, businessIdDocumentType, now),
     }));
-  }
-
-  async findEligibleCouriers(
-    context: CallContext,
-    query: EligibleCourierQuery,
-  ): Promise<Id<'Courier'>[]> {
-    const rules = this.rules.get(context.market.marketId);
-    const now = this.clock.now();
-    const need = {
-      vehicleTypes: query.vehicleTypes,
-      coldChain: query.coldChain,
-      serviceAreaCode: query.serviceArea,
-    };
-    const found = await this.unitOfWork.run(
-      context.market,
-      async () => ok(await this.couriers.findOnlineInArea(context.market, query.serviceArea)),
-      { readOnly: true },
-    );
-    if (!found.ok) return [];
-    return found.value
-      .filter((courier) => canTakeWork(courier, need, rules, now))
-      .map((courier) => courier.id);
   }
 }
