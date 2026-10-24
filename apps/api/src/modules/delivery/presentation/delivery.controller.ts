@@ -47,6 +47,7 @@ const STATUS: Readonly<Record<string, number>> = Object.freeze({
   'delivery.conflict': 409,
   'delivery.event-not-allowed': 403,
   'quote.price-changed': 409,
+  'address.geocoding-unavailable': 503,
   ...ACCESS_DENIED_STATUS,
 });
 
