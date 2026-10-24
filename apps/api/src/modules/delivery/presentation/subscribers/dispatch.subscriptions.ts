@@ -33,6 +33,7 @@ export function dispatchSubscriptions(
           deliveryId: event.payload.deliveryId as Id<'Delivery'>,
           courierId: event.payload.courierId,
           vehicle: event.payload.vehicle,
+          previousCourierId: event.payload.previousCourierId,
         });
         if (!result.ok) {
           throw new Error(`${COURIER_ASSIGNED_SUBSCRIBER} refused: ${result.error.code}`);

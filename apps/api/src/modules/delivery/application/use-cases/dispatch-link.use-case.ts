@@ -16,13 +16,16 @@ export interface RecordDispatchAssignmentInput {
   /** The courier's identity account id (dispatch's courier ids are account ids). */
   readonly courierId: Id;
   readonly vehicle: VehicleType;
+  /** The courier dispatch took the job from, or null for a first assignment. */
+  readonly previousCourierId: Id | null;
 }
 
 export type DispatchLinkOutcome =
   | { readonly code: 'recorded' }
   | {
       readonly code: 'skipped';
-      readonly reason: 'delivery.missing' | 'delivery.moved-on' | 'already-recorded';
+      readonly reason:
+        'delivery.missing' | 'delivery.moved-on' | 'already-recorded' | 'stale-assignment';
     }
   | { readonly code: 'already-handled' };
 
@@ -38,8 +41,11 @@ const SYSTEM_ONLY: DeliveryFailure = Object.freeze({
  *
  * - DISPATCHING: `courier_assigned`.
  * - SCHEDULED (dispatch opened early): `dispatch_opened`, then `courier_assigned`.
- * - ASSIGNED or AT_PICKUP with another courier (a reassignment): `courier_unassigned` with the
- *   code `courier-reassigned`, then `courier_assigned`.
+ * - ASSIGNED or AT_PICKUP with another courier: a reassignment only when the event names that
+ *   courier as the one it replaces (`previousCourierId`): `courier_unassigned` with the code
+ *   `courier-reassigned`, then `courier_assigned`. Any other event is older than the delivery's
+ *   courier (events arrive in no order) and is skipped, so a replaced courier never gets the job,
+ *   and its stop contacts, back (Hassan, PR #20 M1).
  * - Anything later, final, or missing: nothing is recorded; the event is still marked handled.
  *
  * Each step is its own version and writes its own event, caused by the consumed one.
@@ -74,7 +80,7 @@ export class RecordDispatchAssignment extends UseCase<
       refusingBrokenRules(async (): Promise<Result<DispatchLinkOutcome, DeliveryFailure>> => {
         const delivery = await this.deps.deliveries.findById(market, input.deliveryId);
         if (delivery === undefined) return ok({ code: 'skipped', reason: 'delivery.missing' });
-        const steps = stepsTo(delivery, input.courierId);
+        const steps = stepsTo(delivery, input.courierId, input.previousCourierId);
         if (typeof steps === 'string') return ok({ code: 'skipped', reason: steps });
         const now = this.deps.clock.now();
         const next = [
@@ -112,7 +118,8 @@ type Step =
 function stepsTo(
   delivery: DeliveryState,
   courierId: string,
-): readonly Step[] | 'delivery.moved-on' | 'already-recorded' {
+  previousCourierId: string | null,
+): readonly Step[] | 'delivery.moved-on' | 'already-recorded' | 'stale-assignment' {
   if (isFinal(delivery.status)) return 'delivery.moved-on';
   switch (delivery.status) {
     case 'DISPATCHING':
@@ -121,9 +128,10 @@ function stepsTo(
       return [{ type: 'dispatch_opened' }];
     case 'ASSIGNED':
     case 'AT_PICKUP':
-      return delivery.courierId === courierId
-        ? 'already-recorded'
-        : [{ type: 'courier_unassigned', reasonCode: 'courier-reassigned' }];
+      if (delivery.courierId === courierId) return 'already-recorded';
+      return previousCourierId !== null && previousCourierId === delivery.courierId
+        ? [{ type: 'courier_unassigned', reasonCode: 'courier-reassigned' }]
+        : 'stale-assignment';
     default:
       return 'delivery.moved-on';
   }

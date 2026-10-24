@@ -277,7 +277,7 @@ describe('delivery events (database integration)', () => {
       ]);
     });
 
-    const assigned = (deliveryId: string, courierId: string) =>
+    const assigned = (deliveryId: string, courierId: string, previous: string | null = null) =>
       DISPATCH_COURIER_ASSIGNED.record({
         aggregateId: app.get<IdGenerator>(ID_GENERATOR).next(),
         aggregateVersion: 2,
@@ -287,11 +287,11 @@ describe('delivery events (database integration)', () => {
           courierId: courierId as Id,
           vehicle: 'car',
           method: 'offer',
-          previousCourierId: null,
+          previousCourierId: previous as Id | null,
         },
       });
 
-    it("records dispatch's assignment once, and a reassignment as two steps", async () => {
+    it("records dispatch's assignment once, a reassignment as two steps, and skips a stale one", async () => {
       const { id } = await book();
       const eventId = await fromDispatch(code, assigned(id, courier.accountId));
 
@@ -309,7 +309,13 @@ describe('delivery events (database integration)', () => {
       await fromDispatch(code, assigned(id, courier.accountId));
       expect(await outbox(id)).toHaveLength(2);
 
+      // An assignment that does not replace the current courier is older than it: skipped.
       await fromDispatch(code, assigned(id, otherCourier.accountId));
+      expect(await outbox(id)).toHaveLength(2);
+
+      await fromDispatch(code, assigned(id, otherCourier.accountId, courier.accountId));
+      // The replaced courier's late first assignment does not bring the job back to it.
+      await fromDispatch(code, assigned(id, courier.accountId));
       expect((await outbox(id)).slice(2).map((row) => row.payload)).toEqual([
         {
           deliveryId: id,
