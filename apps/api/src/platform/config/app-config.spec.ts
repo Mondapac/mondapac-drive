@@ -31,6 +31,40 @@ describe('loadAppConfig', () => {
     });
   });
 
+  it('requires TLS to Redis in production, and never prints the URL', () => {
+    const plain = {
+      HOSTED_MARKETS: 'AU',
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://:pw1@cache:6379',
+    };
+    expect(() => loadAppConfig(plain)).toThrow(/REDIS_URL: must be a rediss:\/\/ \(TLS\) URL/);
+    try {
+      loadAppConfig(plain);
+    } catch (error) {
+      expect(String(error)).not.toContain('pw1');
+    }
+    expect(loadAppConfig({ ...plain, REDIS_URL: 'rediss://:pw1@cache:6379' }).redisUrl).toBe(
+      'rediss://:pw1@cache:6379',
+    );
+    expect(loadAppConfig({ ...plain, NODE_ENV: 'development' }).redisUrl).toBe(
+      'redis://:pw1@cache:6379',
+    );
+  });
+
+  it('takes Redis from REDIS_URL and refuses another scheme without echoing it', () => {
+    expect(
+      loadAppConfig({ HOSTED_MARKETS: 'AU', REDIS_URL: 'redis://localhost:6380' }).redisUrl,
+    ).toBe('redis://localhost:6380');
+    expect(() =>
+      loadAppConfig({ HOSTED_MARKETS: 'AU', REDIS_URL: 'http://user:s3cret@cache:6379' }),
+    ).toThrow(/REDIS_URL: must be a redis:\/\/ or rediss:\/\/ URL/);
+    try {
+      loadAppConfig({ HOSTED_MARKETS: 'AU', REDIS_URL: 'http://user:s3cret@cache:6379' });
+    } catch (error) {
+      expect(String(error)).not.toContain('s3cret');
+    }
+  });
+
   describe('the BFF client address (ADR-0037)', () => {
     const SECRET = Buffer.alloc(32, 7).toString('base64');
 

@@ -40,6 +40,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     extensions: [],
     delivery: ['USAGE'],
     platform: ['USAGE'],
+    tracking: ['USAGE'],
   },
   tables: {
     'platform.audit_log': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
@@ -81,6 +82,14 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The tracking module (20261025060000): only the status, courier and end of a tracked
+    // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
+    'tracking.tracked_deliveries': {
+      table: ['DELETE', 'INSERT', 'SELECT'],
+      columnUpdate: ['courier_id', 'ended_at', 'status', 'updated_at', 'vehicle', 'version'],
+    },
+    'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
+    'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

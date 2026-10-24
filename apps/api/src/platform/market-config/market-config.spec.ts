@@ -33,6 +33,22 @@ const DELIVERY = {
   scheduling: { minLeadMinutes: 60, maxDaysAhead: 7, minWindowMinutes: 60 },
 };
 
+const TRACKING = {
+  ping: {
+    maxAgeSeconds: 120,
+    maxFutureSkewSeconds: 30,
+    minIntervalSeconds: 3,
+    maxAccuracyMetres: 500,
+    maxSpeedKmh: 160,
+  },
+  livePositionTtlSeconds: 300,
+  breadcrumbRetentionDays: 30,
+  trackingLinkTtlHours: 24,
+  streamIntervalSeconds: 5,
+  nearestCouriers: { maxRadiusMetres: 20000, maxResults: 50 },
+  etaRefreshSeconds: 60,
+};
+
 const VALID = {
   code: 'QQ',
   status: 'active',
@@ -45,6 +61,7 @@ const VALID = {
   requestLimits: { anonymousIdentityPerMinute: 20, defaultPerMinute: 300 },
   tax: { defaultRateBps: 1500 },
   delivery: DELIVERY,
+  tracking: TRACKING,
 };
 
 function directoryWith(files: Record<string, unknown>): string {
@@ -139,6 +156,17 @@ describe('loadMarketConfigs', () => {
     ['no tax section', { tax: undefined }, /tax/],
     ['a tax rate above 50 %', { tax: { defaultRateBps: 5001 } }, /tax\.defaultRateBps/],
     ['no delivery section', { delivery: undefined }, /delivery/],
+    ['no tracking section', { tracking: undefined }, /tracking/],
+    [
+      'an ETA refresh of zero',
+      { tracking: { ...TRACKING, etaRefreshSeconds: 0 } },
+      /tracking\.etaRefreshSeconds/,
+    ],
+    [
+      'a breadcrumb retention above a year',
+      { tracking: { ...TRACKING, breadcrumbRetentionDays: 366 } },
+      /tracking\.breadcrumbRetentionDays/,
+    ],
     [
       'a rate card with no vehicle',
       delivery({ rateCard: { ...DELIVERY.rateCard, vehicles: {} } }),

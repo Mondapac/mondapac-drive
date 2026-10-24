@@ -1,0 +1,61 @@
+// The tracking module's tables: tracking's view of each delivery, the breadcrumb trail of a
+// delivery while a courier carries it, and the customer tracking links. Live positions are in
+// Redis, not here. A trail is live-location personal data: it is kept only for the Market's
+// `tracking.breadcrumbRetentionDays` and then deleted by the `tracking.purge-expired` job. Other
+// modules' records are referenced by id only.
+
+/// Tracking's view of one delivery, reported by delivery and dispatch.
+model TrackingDelivery {
+  marketId   String    @map("market_id") @db.VarChar(8)
+  tenantId   String    @map("tenant_id")
+  deliveryId String    @map("delivery_id") @db.Uuid
+  status     String    @db.VarChar(24)
+  courierId  String?   @map("courier_id") @db.VarChar(64)
+  vehicle    String?   @db.VarChar(16)
+  pickupLat  Float     @map("pickup_lat")
+  pickupLng  Float     @map("pickup_lng")
+  dropoffLat Float     @map("dropoff_lat")
+  dropoffLng Float     @map("dropoff_lng")
+  startedAt  DateTime  @map("started_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @map("updated_at") @db.Timestamptz(6)
+  endedAt    DateTime? @map("ended_at") @db.Timestamptz(6)
+  version    Int
+
+  @@id([marketId, deliveryId])
+  @@index([marketId, courierId])
+  @@index([marketId, endedAt])
+  @@map("tracked_deliveries")
+  @@schema("tracking")
+}
+
+/// One point of a delivery's trail. The key makes a repeated ping a no-op.
+model TrackingBreadcrumb {
+  marketId       String   @map("market_id") @db.VarChar(8)
+  tenantId       String   @map("tenant_id")
+  deliveryId     String   @map("delivery_id") @db.Uuid
+  recordedAt     DateTime @map("recorded_at") @db.Timestamptz(6)
+  courierId      String   @map("courier_id") @db.VarChar(64)
+  lat            Float
+  lng            Float
+  accuracyMetres Int      @map("accuracy_metres")
+
+  @@id([marketId, deliveryId, recordedAt])
+  @@index([marketId, recordedAt])
+  @@map("breadcrumbs")
+  @@schema("tracking")
+}
+
+/// A customer tracking link: the SHA-256 of its token, never the token.
+model TrackingLink {
+  marketId   String   @map("market_id") @db.VarChar(8)
+  tenantId   String   @map("tenant_id")
+  tokenHash  String   @map("token_hash") @db.Char(64)
+  deliveryId String   @map("delivery_id") @db.Uuid
+  createdAt  DateTime @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@id([marketId, tokenHash])
+  @@index([marketId, expiresAt])
+  @@map("links")
+  @@schema("tracking")
+}

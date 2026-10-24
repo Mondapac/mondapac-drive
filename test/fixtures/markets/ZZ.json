@@ -84,5 +84,23 @@
         "van": 18
       }
     }
+  },
+  "tracking": {
+    "ping": {
+      "maxAgeSeconds": 60,
+      "maxFutureSkewSeconds": 10,
+      "minIntervalSeconds": 5,
+      "maxAccuracyMetres": 200,
+      "maxSpeedKmh": 120
+    },
+    "livePositionTtlSeconds": 120,
+    "breadcrumbRetentionDays": 7,
+    "trackingLinkTtlHours": 6,
+    "streamIntervalSeconds": 3,
+    "nearestCouriers": {
+      "maxRadiusMetres": 8000,
+      "maxResults": 20
+    },
+    "etaRefreshSeconds": 30
   }
 }
