@@ -19,6 +19,8 @@ export const REVERSAL_REASONS = [
   'transfer-failed',
   'transfer-reversed',
   'correction',
+  /** The line was held before its transfer: the account could no longer be paid out (L5). */
+  'payout-held',
 ] as const;
 export type ReversalReason = (typeof REVERSAL_REASONS)[number];
 

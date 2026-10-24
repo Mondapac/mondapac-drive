@@ -1,34 +1,24 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   err,
   ok,
-  type Clock,
-  type IdGenerator,
-  type MarketContext,
+  type CallContext,
   type Money,
   type Result,
   type Temporal,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { PayoutsDomainError } from '../../domain/errors';
 import { tipEntry } from '../../domain/ledger';
 import { payTaxOn } from '../../domain/tax';
+import { isSystem } from '../callers';
+import type { PayoutsDependencies } from '../dependencies';
 import {
+  ACCESS_DENIED,
   refusingBrokenRules,
   unknownCourier,
   type PayoutsFailure,
   type RecordedEntry,
 } from '../failure';
-import {
-  LEDGER_REPOSITORY,
-  PAYEE_DIRECTORY,
-  PAYOUT_SETTINGS,
-  type LedgerRepository,
-  type PayeeDirectory,
-  type PayoutSettingsProvider,
-} from '../ports';
 
 export interface TipInput {
   readonly deliveryId: string;
@@ -40,24 +30,33 @@ export interface TipInput {
 /**
  * Credits a tip on a delivery to its courier, once per delivery. The whole tip goes to the
  * courier; it carries tax only where the Market taxes tips. An employee's tips are recorded too
- * and reach payroll through the held payout line.
+ * and reach payroll through the held payout line. Rule `system`: the marketplace's tip arrives
+ * through an event subscriber.
  */
-@Injectable()
-export class RecordTip {
-  constructor(
-    @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
-    @Inject(PAYEE_DIRECTORY) private readonly payees: PayeeDirectory,
-    @Inject(PAYOUT_SETTINGS) private readonly settings: PayoutSettingsProvider,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
-  ) {}
+export class RecordTip extends UseCase<TipInput, RecordedEntry, PayoutsFailure> {
+  static override readonly access: AccessDeclaration = {
+    name: 'payouts.record-tip',
+    rule: { kind: 'system' },
+  };
 
-  async run(market: MarketContext, tip: TipInput): Promise<Result<RecordedEntry, PayoutsFailure>> {
-    const settings = this.settings.get(market.marketId);
-    const payee = (await this.payees.payees(market, [tip.courierId])).get(tip.courierId);
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: PayoutsDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected async handle(
+    context: CallContext,
+    tip: TipInput,
+  ): Promise<Result<RecordedEntry, PayoutsFailure>> {
+    if (!isSystem(context)) return err(ACCESS_DENIED);
+    const { market } = context;
+    const { ledger, payees, unitOfWork, clock, ids } = this.deps;
+    const settings = this.deps.settings.get(market.marketId);
+    const payee = (await payees.payees(context, [tip.courierId])).get(tip.courierId);
     if (payee === undefined) return err(unknownCourier(tip.courierId));
-    const id = this.ids.next<'LedgerEntry'>();
+    const id = ids.next<'LedgerEntry'>();
 
     return refusingBrokenRules(async () => {
       if (tip.amount.currency !== settings.currency) {
@@ -73,11 +72,11 @@ export class RecordTip {
         amount: tip.amount,
         tax: payTaxOn(settings, payee, 'tip', tip.amount),
         occurredAt: tip.occurredAt,
-        recordedAt: this.clock.now(),
+        recordedAt: clock.now(),
       });
-      return this.unitOfWork.run<RecordedEntry, PayoutsFailure>(market, async () => {
-        if ((await this.ledger.append(market, [entry])) === 1) return ok({ recorded: true, entry });
-        const existing = await this.ledger.findByReference(market, entry.reference);
+      return unitOfWork.run<RecordedEntry, PayoutsFailure>(market, async () => {
+        if ((await ledger.append(market, [entry])) === 1) return ok({ recorded: true, entry });
+        const existing = await ledger.findByReference(market, entry.reference);
         return ok({ recorded: false, entry: existing ?? entry });
       });
     });

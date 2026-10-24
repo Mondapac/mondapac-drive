@@ -1,6 +1,6 @@
 import { Temporal } from '@mondapac-drive/shared-kernel';
 import { AU, payoutMarkets, ZZ } from '../../../../test/support/payouts-markets';
-import { latestCutoff } from './payout-schedule';
+import { earningPeriods, latestCutoff } from './payout-schedule';
 
 const instant = (text: string) => Temporal.Instant.from(text);
 
@@ -51,5 +51,33 @@ describe('latestCutoff', () => {
     expect(() =>
       latestCutoff({ ...au.schedule, weekday: 8 }, au.timezone, instant('2026-11-04T00:00:00Z')),
     ).toThrow(expect.objectContaining({ code: 'schedule.invalid-weekday' }) as Error);
+  });
+});
+
+describe('earningPeriods', () => {
+  it.each([
+    // Brisbane (UTC+10, no daylight saving): a Wednesday morning.
+    ['AU', '2026-11-04T01:30:00Z', '2026-11-03T14:00:00Z', '2026-11-01T14:00:00Z'],
+    // A Monday: the week starts today.
+    ['AU', '2026-11-02T03:00:00Z', '2026-11-01T14:00:00Z', '2026-11-01T14:00:00Z'],
+  ] as const)('in %s at %s', (code, at, day, week) => {
+    const { timezone } = payoutMarkets.get(code === 'AU' ? AU : ZZ);
+    expect(earningPeriods(timezone, Temporal.Instant.from(at))).toEqual({
+      dayStart: Temporal.Instant.from(day),
+      weekStart: Temporal.Instant.from(week),
+    });
+  });
+
+  it('starts the day and the week at local midnight in the ZZ Market too', () => {
+    const { timezone } = payoutMarkets.get(ZZ);
+    const at = Temporal.Instant.from('2026-11-06T12:00:00Z');
+    const { dayStart, weekStart } = earningPeriods(timezone, at);
+    const local = (instant: Temporal.Instant) => instant.toZonedDateTimeISO(timezone);
+
+    expect(local(dayStart).toPlainTime().toString()).toBe('00:00:00');
+    expect(local(weekStart).dayOfWeek).toBe(1);
+    expect(local(weekStart).toPlainTime().toString()).toBe('00:00:00');
+    expect(Temporal.Instant.compare(weekStart, dayStart)).toBeLessThanOrEqual(0);
+    expect(Temporal.Instant.compare(dayStart, at)).toBeLessThanOrEqual(0);
   });
 });

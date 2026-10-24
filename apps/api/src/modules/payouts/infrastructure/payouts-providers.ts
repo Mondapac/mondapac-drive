@@ -3,7 +3,10 @@ import type { AppConfig } from '../../../platform/config/app-config';
 import { APP_CONFIG } from '../../../platform/config/config.module';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
+import { DeliveryDispatchView } from '../../delivery';
+import { FleetDirectory } from '../../fleet';
 import {
+  DELIVERY_FACTS,
   LEDGER_REPOSITORY,
   PAYEE_DIRECTORY,
   PAYOUT_ACCOUNT_REPOSITORY,
@@ -13,7 +16,8 @@ import {
   PROVIDER_WEBHOOK_VERIFIER,
 } from '../application/ports';
 import { ConfigPayoutSettingsProvider } from './config-payout-settings.provider';
-import { InMemoryPayeeDirectory } from './in-memory-payee-directory';
+import { DeliveryModuleFacts } from './delivery-facts.adapter';
+import { FleetPayeeDirectory } from './fleet-payee-directory';
 import { PrismaLedgerRepository } from './prisma-ledger.repository';
 import { PrismaPayoutAccountRepository } from './prisma-payout-accounts.repository';
 import { PrismaPayoutRunRepository } from './prisma-payout-runs.repository';
@@ -42,8 +46,18 @@ export const payoutsProviders: Provider[] = [
     inject: [MarketRegistry],
     useFactory: (markets: MarketRegistry) => new ConfigPayoutSettingsProvider(markets),
   },
-  // Until fleet (work package 05) is on main: no courier is known, so nothing is paid.
-  { provide: PAYEE_DIRECTORY, useFactory: () => new InMemoryPayeeDirectory() },
+  // Until fleet's payee profiles (work package 23) are on main: no courier is known, so nothing
+  // is paid.
+  {
+    provide: PAYEE_DIRECTORY,
+    inject: [FleetDirectory],
+    useFactory: (fleet: FleetDirectory) => new FleetPayeeDirectory(fleet),
+  },
+  {
+    provide: DELIVERY_FACTS,
+    inject: [DeliveryDispatchView],
+    useFactory: (view: DeliveryDispatchView) => new DeliveryModuleFacts(view),
+  },
   {
     provide: PAYOUT_GATEWAY,
     inject: [APP_CONFIG],

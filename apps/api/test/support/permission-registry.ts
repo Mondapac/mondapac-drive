@@ -7,6 +7,7 @@ import { DELIVERY_PERMISSIONS } from '../../src/modules/delivery/contracts/permi
 import { FLEET_PERMISSIONS } from '../../src/modules/fleet/contracts/permissions';
 import { IDENTITY_PERMISSIONS } from '../../src/modules/identity/contracts/permissions';
 import { NOTIFICATIONS_PERMISSIONS } from '../../src/modules/notifications/contracts/permissions';
+import { PAYOUTS_PERMISSIONS } from '../../src/modules/payouts/contracts/permissions';
 import { TRACKING_PERMISSIONS } from '../../src/modules/tracking/contracts/permissions';
 import { PermissionRegistry } from '../../src/platform/authz/permission-registry';
 
@@ -23,6 +24,7 @@ export function realPermissionRegistry(): PermissionRegistry {
   registry.register('tracking', TRACKING_PERMISSIONS);
   registry.register('notifications', NOTIFICATIONS_PERMISSIONS);
   registry.register('fleet', FLEET_PERMISSIONS);
+  registry.register('payouts', PAYOUTS_PERMISSIONS);
   registry.seal();
   return registry;
 }

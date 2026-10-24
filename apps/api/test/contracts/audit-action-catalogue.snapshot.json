@@ -473,5 +473,32 @@
       "previousSecretValidUntil": "optional(instant)",
       "secretVersion": "integer"
     }
+  },
+  {
+    "action": "payouts.adjustment.recorded",
+    "targetType": "payouts.courier",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "amount": "money",
+      "entryId": "id",
+      "reason": "enumOf(bonus|correction|damage-claim|other)",
+      "tax": "money"
+    }
+  },
+  {
+    "action": "payouts.line.settled",
+    "targetType": "payouts.line",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "status": "enumOf(pending|held|transferred|failed|unresolved|reversed)"
+    },
+    "after": {
+      "courierId": "id",
+      "providerTransferFound": "boolean",
+      "status": "enumOf(pending|held|transferred|failed|unresolved|reversed)"
+    }
   }
 ]
