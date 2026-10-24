@@ -3,7 +3,7 @@ import type { CallContext, Result } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { ASSIGNMENT_REPORT, ASSIGNMENT_VIEW } from '../../contracts/permissions';
 import type { DeliveryEventInput, DeliveryState } from '../../domain/delivery';
-import type { DeliveryEventType } from '../../domain/delivery-status';
+import { isFinal, type DeliveryEventType } from '../../domain/delivery-status';
 import {
   ACCESS_DENIED,
   courierOf,
@@ -34,7 +34,9 @@ export interface ReportInput extends DeliveryRef {
 
 /**
  * A delivery assigned to the courier. Rule `permissions [delivery.assignment.view]`. A delivery
- * not assigned to this courier answers `delivery.not-found`.
+ * not assigned to this courier, or one that has ended (delivered, returned, cancelled), answers
+ * `delivery.not-found`: the courier's access to the stops and contacts lasts as long as the job
+ * (Hassan, WP2 review).
  */
 export class ViewAssignment extends UseCase<DeliveryRef, DeliveryState, DeliveryFailure> {
   static override readonly access: AccessDeclaration = {
@@ -59,7 +61,7 @@ export class ViewAssignment extends UseCase<DeliveryRef, DeliveryState, Delivery
       this.deps,
       context.market,
       input.deliveryId,
-      (delivery) => delivery.courierId === courierId,
+      (delivery) => delivery.courierId === courierId && !isFinal(delivery.status),
     );
   }
 }

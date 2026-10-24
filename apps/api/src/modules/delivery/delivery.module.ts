@@ -1,4 +1,5 @@
 import { Module, type FactoryProvider } from '@nestjs/common';
+import { IdentityModule } from '../identity';
 import type { Clock, IdGenerator } from '@mondapac-drive/shared-kernel';
 import { registerPermissions, USE_CASE_GATE, type UseCaseGate } from '../../platform/authz';
 import { CLOCK } from '../../platform/clock/clock.module';
@@ -7,10 +8,12 @@ import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-
 import type { DeliveryAccessDependencies } from './application/deliveries';
 import { DeliveryPricing } from './application/pricing';
 import {
+  COURIER_ACCOUNTS,
   DELIVERY_REPOSITORY,
   DISTANCE_PROVIDER,
   GEOCODER,
   MARKET_SETTINGS,
+  type CourierAccounts,
   type DeliveryRepository,
   type DistanceProvider,
   type Geocoder,
@@ -72,6 +75,7 @@ function deliveryUseCase<U>(
  * operators and dispatchers read, dispatch and cancel any delivery of the Market.
  */
 @Module({
+  imports: [IdentityModule],
   controllers: [MerchantDeliveryController, CourierDeliveryController, AdminDeliveryController],
   providers: [
     registerPermissions('delivery', DELIVERY_PERMISSIONS),
@@ -107,7 +111,25 @@ function deliveryUseCase<U>(
     deliveryUseCase(ViewAssignment),
     deliveryUseCase(ReportAssignmentEvent),
     deliveryUseCase(ViewDelivery),
-    deliveryUseCase(DispatchDelivery),
+    {
+      provide: DispatchDelivery,
+      inject: [
+        USE_CASE_GATE,
+        DELIVERY_REPOSITORY,
+        MARKET_SETTINGS,
+        UNIT_OF_WORK,
+        CLOCK,
+        COURIER_ACCOUNTS,
+      ],
+      useFactory: (
+        gate: UseCaseGate,
+        deliveries: DeliveryRepository,
+        markets: MarketSettingsProvider,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+        couriers: CourierAccounts,
+      ) => new DispatchDelivery(gate, { deliveries, markets, unitOfWork, clock, couriers }),
+    },
     deliveryUseCase(CancelDelivery),
   ],
 })

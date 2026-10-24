@@ -88,7 +88,7 @@ export class IssueMerchantApiKey extends UseCase<
         if (accountId === undefined) return err({ code: 'access.unavailable' });
         merchant.touch();
         await this.deps.merchants.save(market, merchant);
-        const issued = this.deps.sessionTokens.issue();
+        const issued = this.deps.sessionTokens.issue('api-key');
         const session = openSession({
           id: this.deps.ids.next<'Session'>(),
           marketId: market.marketId,

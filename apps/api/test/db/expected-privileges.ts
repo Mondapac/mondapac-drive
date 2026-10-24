@@ -92,9 +92,24 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     // append-only, a merchant and a membership change only their state.
     'identity.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'identity.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
-    'identity.accounts': { table: ['INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    // 20261025121200 (Hassan, WP2 review): UPDATE only of the columns the application writes.
+    'identity.accounts': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'display_name',
+        'timezone',
+        'locale',
+        'status',
+        'email_verified_at',
+        'signed_up_at',
+        'version',
+      ],
+    },
     'identity.password_credentials': { table: ['INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
-    'identity.sessions': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
+    'identity.sessions': {
+      table: ['DELETE', 'INSERT', 'SELECT'],
+      columnUpdate: ['last_seen_at', 'revoked_at', 'revoked_reason', 'token_hash'],
+    },
     'identity.sign_in_throttles': {
       table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
       columnUpdate: [],

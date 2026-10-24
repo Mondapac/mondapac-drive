@@ -3,12 +3,14 @@ import type { CallContext, Id, Result } from '@mondapac-drive/shared-kernel';
 import type { AccessDenied } from '../../../platform/authz';
 import type { ContactEmailOf } from '../application/use-cases/contact-email-of.use-case';
 import type { DescribeActor } from '../application/use-cases/describe-actor.use-case';
+import type { IsActiveCourier } from '../application/use-cases/is-active-courier.use-case';
 import type { ActorDescription, IdentityFacade } from '../contracts/identity.facade';
 
 /** The use cases behind the facade, one per method. */
 export interface IdentityFacadeUseCases {
   readonly describeActor: DescribeActor;
   readonly contactEmailOf: ContactEmailOf;
+  readonly isActiveCourier: IsActiveCourier;
 }
 
 /**
@@ -40,5 +42,12 @@ export class IdentityFacadeImplementation implements IdentityFacade {
     accountId: Id<'Account'>,
   ): Promise<Result<string | null, AccessDenied>> {
     return this.useCases.contactEmailOf.execute(context, { accountId });
+  }
+
+  isActiveCourier(
+    context: CallContext,
+    accountId: Id<'Account'>,
+  ): Promise<Result<boolean, AccessDenied>> {
+    return this.useCases.isActiveCourier.execute(context, { accountId });
   }
 }

@@ -114,6 +114,39 @@ function present(delivery: DeliveryState) {
   };
 }
 
+/** A history entry without the courier: for the merchant and the courier, who see only their own side. */
+function withoutCourier(delivery: ReturnType<typeof present>) {
+  return delivery.history.map((entry) => {
+    const { courierId: hidden, ...rest } = entry;
+    void hidden;
+    return rest;
+  });
+}
+
+/**
+ * The merchant's view (Hassan, WP2 review): no courier id, here or in the history. The merchant
+ * follows the courier through the tracking link, never by account id.
+ */
+function presentForMerchant(delivery: DeliveryState) {
+  const full = present(delivery);
+  const { courierId: hidden, ...rest } = full;
+  void hidden;
+  return { ...rest, history: withoutCourier(full) };
+}
+
+/**
+ * The courier's view (Hassan, WP2 review): the job without the merchant's price (only the
+ * vehicle and distance of the quote), and no other courier's id in the history.
+ */
+function presentForCourier(delivery: DeliveryState) {
+  const full = present(delivery);
+  return {
+    ...full,
+    quote: { vehicle: delivery.quote.vehicle, distanceMetres: delivery.quote.distanceMetres },
+    history: withoutCourier(full),
+  };
+}
+
 const CSRF = { name: CSRF_HEADER, required: true, description: 'The CSRF token of the session' };
 
 /**
@@ -160,7 +193,7 @@ export class MerchantDeliveryController {
     const input = parsed(() => createDeliveryBody.parse(body));
     const { delivery, created } = answer(await this.bookDelivery.execute(context, input));
     res.status(created ? 201 : 200);
-    return present(delivery);
+    return presentForMerchant(delivery);
   }
 
   @Get('deliveries/:id')
@@ -168,7 +201,7 @@ export class MerchantDeliveryController {
   @ApiOperation({ summary: "One of the merchant's deliveries, with its history" })
   async get(@Call() context: CallContext, @Param('id') id: string) {
     const deliveryId = deliveryIdOf(id);
-    return present(answer(await this.viewBooking.execute(context, { deliveryId })));
+    return presentForMerchant(answer(await this.viewBooking.execute(context, { deliveryId })));
   }
 
   @Post('deliveries/:id/cancel')
@@ -178,7 +211,9 @@ export class MerchantDeliveryController {
   async cancel(@Call() context: CallContext, @Param('id') id: string, @Body() body: unknown) {
     const deliveryId = deliveryIdOf(id);
     const { reason } = parsed(() => cancelBody.parse(body));
-    return present(answer(await this.cancelBooking.execute(context, { deliveryId, reason })));
+    return presentForMerchant(
+      answer(await this.cancelBooking.execute(context, { deliveryId, reason })),
+    );
   }
 }
 
@@ -201,7 +236,7 @@ export class CourierDeliveryController {
   @ApiOperation({ summary: 'A delivery assigned to the courier' })
   async get(@Call() context: CallContext, @Param('id') id: string) {
     const deliveryId = deliveryIdOf(id);
-    return present(answer(await this.viewAssignment.execute(context, { deliveryId })));
+    return presentForCourier(answer(await this.viewAssignment.execute(context, { deliveryId })));
   }
 
   @Post('deliveries/:id/events')
@@ -216,7 +251,9 @@ export class CourierDeliveryController {
   async event(@Call() context: CallContext, @Param('id') id: string, @Body() body: unknown) {
     const deliveryId = deliveryIdOf(id);
     const report = parsed(() => courierReportBody.parse(body));
-    return present(answer(await this.reportEvent.execute(context, { deliveryId, report })));
+    return presentForCourier(
+      answer(await this.reportEvent.execute(context, { deliveryId, report })),
+    );
   }
 }
 

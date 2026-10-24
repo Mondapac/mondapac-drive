@@ -3,17 +3,23 @@ import type { IssuedSessionToken, SessionTokens } from '../../application/ports/
 
 /** The version prefix of a session token, so scanners and log filters recognise one (6.2). */
 export const SESSION_TOKEN_PREFIX = 'ms1_';
+/**
+ * The prefix of a merchant API key: distinct from a session's, so a leaked key is recognisable as
+ * one (Hassan, WP2 review). Keys issued before it carry `ms1_` and keep working.
+ */
+export const API_KEY_PREFIX = 'mk1_';
 const TOKEN_BYTES = 32;
-const TOKEN = /^ms1_[A-Za-z0-9_-]{43}$/;
+const TOKEN = /^m[sk]1_[A-Za-z0-9_-]{43}$/;
 
 /**
  * {@link SessionTokens} (identity design 6.2): 32 bytes from the system random source,
- * base64url, with the prefix `ms1_`. Only the SHA-256 of the whole token is stored; the token
+ * base64url, with the prefix `ms1_` (`mk1_` for a merchant API key). Only the SHA-256 of the whole token is stored; the token
  * has 256 bits of entropy, so an unkeyed fast hash is enough (Hassan, 14.2).
  */
 export class RandomSessionTokens implements SessionTokens {
-  issue(): IssuedSessionToken {
-    const token = `${SESSION_TOKEN_PREFIX}${randomBytes(TOKEN_BYTES).toString('base64url')}`;
+  issue(kind: 'session' | 'api-key' = 'session'): IssuedSessionToken {
+    const prefix = kind === 'api-key' ? API_KEY_PREFIX : SESSION_TOKEN_PREFIX;
+    const token = `${prefix}${randomBytes(TOKEN_BYTES).toString('base64url')}`;
     return { token, tokenHash: sha256(token) };
   }
 

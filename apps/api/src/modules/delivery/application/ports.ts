@@ -1,4 +1,10 @@
-import type { GeoPoint, Id, MarketContext, MarketId } from '@mondapac-drive/shared-kernel';
+import type {
+  CallContext,
+  GeoPoint,
+  Id,
+  MarketContext,
+  MarketId,
+} from '@mondapac-drive/shared-kernel';
 import type { DeliveryState } from '../domain/delivery';
 import type { MarketDeliverySettings } from '../domain/market-settings';
 import type { ServiceArea } from '../domain/service-area';
@@ -59,3 +65,13 @@ export interface MarketSettingsProvider {
   areaFor(marketId: MarketId, postcode: string): ServiceArea | undefined;
 }
 export const MARKET_SETTINGS = Symbol('MarketSettingsProvider');
+
+/** Courier accounts as identity knows them. */
+export interface CourierAccounts {
+  /**
+   * Whether the id names an active courier account of the Market, asked as the calling actor;
+   * `undefined` when the actor may not ask (its role does not hold the courier view).
+   */
+  isActive(context: CallContext, accountId: string): Promise<boolean | undefined>;
+}
+export const COURIER_ACCOUNTS = Symbol('CourierAccounts');

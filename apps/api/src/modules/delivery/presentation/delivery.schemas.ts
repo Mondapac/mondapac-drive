@@ -1,7 +1,17 @@
-import { Temporal } from '@mondapac-drive/shared-kernel';
+import { parsePlainText, Temporal } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
 import { TEMPERATURES } from '../domain/parcel';
 import { VEHICLE_TYPES } from '../domain/vehicle';
+
+/**
+ * Free text a person reads (a stop's address, contact, notes, a reason): no control, bidi or
+ * other invisible formatting character, which could make a panel or the courier app show it as
+ * something else (Hassan, WP2 review). The kernel's plain-text rule, as identity's names.
+ */
+const plainText = (schema: z.ZodString) =>
+  schema.refine((value) => parsePlainText(value).ok, {
+    message: 'must not contain control or invisible formatting characters',
+  });
 
 const point = z.strictObject({
   lat: z.number().min(-90).max(90),
@@ -30,7 +40,7 @@ const shared = {
   vehicle: z.enum(VEHICLE_TYPES).optional(),
 };
 
-const address = z.string().min(3).max(300);
+const address = plainText(z.string().min(3).max(300));
 
 /** A quoted stop: its point, or an address to geocode (with the postcode), or both. */
 const quoteStop = z
@@ -51,14 +61,14 @@ const stop = z.strictObject({
   address,
   postcode,
   point: point.optional(),
-  contactName: z.string().min(1).max(120),
+  contactName: plainText(z.string().min(1).max(120)),
   contactPhone: z.string().regex(/^\+?[0-9 ]{6,20}$/),
-  notes: z.string().max(500).optional(),
+  notes: plainText(z.string().max(500)).optional(),
 });
 
 /** A booking: the merchant is the API key's, never a field. */
 export const createDeliveryBody = z.strictObject({
-  externalReference: z.string().min(1).max(128),
+  externalReference: plainText(z.string().min(1).max(128)),
   pickup: stop,
   dropoff: stop,
   /** Minor units as decimal text, as every amount in this API (JSON has no 64-bit integer). */
@@ -75,7 +85,7 @@ const proof = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('photo'), photoRef: z.string().min(1).max(300) }),
 ]);
 
-const reason = z.string().max(500);
+const reason = plainText(z.string().max(500));
 
 /** What a courier reports on its own assignment: never a courier id, which is the actor's. */
 export const courierReportBody = z.strictObject({
@@ -102,4 +112,4 @@ export const dispatchBody = z.strictObject({
 });
 
 /** A cancellation always has a reason. */
-export const cancelBody = z.strictObject({ reason: reason.min(1) });
+export const cancelBody = z.strictObject({ reason: plainText(z.string().min(1).max(500)) });
