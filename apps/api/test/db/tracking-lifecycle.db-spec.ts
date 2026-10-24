@@ -72,6 +72,23 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
     while ((await dispatcher.runOnce()).claimed > 0);
   }
 
+  /**
+   * Handles events until the delivery's tracking is in `status` (and has followed delivery
+   * `version`, when given). Other spec files run their own
+   * relay and dispatcher on the same database at the same time, and may hold a claim on one of
+   * this spec's events while this one already finds nothing to do.
+   */
+  async function handleUntil(deliveryId: string, status: string, version?: number): Promise<void> {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await handleAll();
+      const row = await tracked(deliveryId);
+      if (row?.status === status && (version === undefined || row.delivery_version === version)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
   async function tracked(deliveryId: string): Promise<TrackedRow | undefined> {
     const { rows } = await sql.query<TrackedRow>(
       `SELECT status, courier_id, vehicle, pickup_lat, ended_at IS NOT NULL AS ended,
@@ -122,7 +139,7 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
 
     it('starts at booking, follows each step with its courier, and ends at DELIVERED', async () => {
       const { id, quote } = await book();
-      await handleAll();
+      await handleUntil(id, 'DISPATCHING');
       expect(await tracked(id)).toEqual({
         status: 'DISPATCHING',
         courier_id: null,
@@ -142,7 +159,7 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
       for (const type of ['arrived_at_pickup', 'picked_up']) {
         expect((await report(id, { type })).status).toBe(200);
       }
-      await handleAll();
+      await handleUntil(id, 'PICKED_UP');
       expect(await tracked(id)).toMatchObject({
         status: 'PICKED_UP',
         courier_id: courier.accountId,
@@ -159,7 +176,7 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
       expect((await report(id, { type: 'delivered', proof: { kind: 'pin', pin } })).status).toBe(
         200,
       );
-      await handleAll();
+      await handleUntil(id, 'DELIVERED');
       expect(await tracked(id)).toMatchObject({ status: 'DELIVERED', ended: true });
       const ended = await request(app.getHttpServer())
         .get(`/tracking/links/${link.value.token}`)
@@ -189,13 +206,13 @@ describe('tracking follows the delivery lifecycle (database integration)', () =>
         type: 'courier_unassigned',
         reason: 'courier unwell',
       });
-      await handleAll();
+      await handleUntil(id, 'DISPATCHING', 3);
       expect(await tracked(id)).toMatchObject({ status: 'DISPATCHING', courier_id: null });
 
       await post(code, `/delivery/deliveries/${id}/cancel`, merchant.headers, {
         reason: 'order refunded',
       });
-      await handleAll();
+      await handleUntil(id, 'CANCELLED');
       expect(await tracked(id)).toMatchObject({
         status: 'CANCELLED',
         ended: true,

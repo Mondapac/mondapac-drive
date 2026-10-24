@@ -4,15 +4,22 @@ import {
   courierId,
   dispatchSettings,
   requirements,
+  stops,
   ZZ,
 } from '../../../../test/support/dispatch-markets';
 import {
   answerOffer,
   assignManually,
   cancelJob,
+  followedDeliveryVersion,
+  offerOf,
   openDispatchJob,
+  openEarly,
+  openOfferOf,
   pendingOffers,
+  recordAssignment,
   redispatch,
+  restartOffering,
   sendWave,
   sweep,
   type DispatchJob,
@@ -63,11 +70,20 @@ describe.each([
         marketId: market,
         deliveryId,
         requirements: requirements(),
+        stops: stops(),
+        deliveryVersion: 1,
         ...(windowStart === undefined ? {} : { windowStart }),
       },
       now,
       settings,
     );
+  }
+
+  /** The id of the offer `job` holds for courier `n`. */
+  function offerTo(job: DispatchJob, n: number): Id<'DispatchOffer'> {
+    const offer = job.offers.find((o) => o.courierId === courierId(n));
+    if (offer === undefined) throw new Error(`no offer to courier ${n}`);
+    return offer.id;
   }
 
   /** An on-demand job with its first wave out to the given couriers. */
@@ -190,7 +206,13 @@ describe.each([
   describe('answers', () => {
     it('assigns the delivery to the courier who accepts and withdraws the other offers', () => {
       const job = offered(1, 2);
-      const change = answerOffer(job, courierId(1), 'accept', now.add({ seconds: 5 }));
+      const change = answerOffer(
+        job,
+        offerTo(job, 1),
+        courierId(1),
+        'accept',
+        now.add({ seconds: 5 }),
+      );
 
       expect(change.job).toMatchObject({
         status: 'ASSIGNED',
@@ -212,17 +234,26 @@ describe.each([
     it('refuses an answer once the offer expired, and from a courier without an offer', () => {
       const job = offered(1, 2);
 
-      expect(codeOf(() => answerOffer(job, courierId(1), 'accept', now.add(timeout)))).toBe(
+      const first = offerTo(job, 1);
+      expect(codeOf(() => answerOffer(job, first, courierId(1), 'accept', now.add(timeout)))).toBe(
         'offer.expired',
       );
-      expect(codeOf(() => answerOffer(job, courierId(9), 'accept', now))).toBe('offer.not-pending');
+      expect(codeOf(() => answerOffer(job, first, courierId(9), 'accept', now))).toBe(
+        'offer.not-pending',
+      );
     });
 
     it('moves on at once when the last offer of a wave is declined, and never asks that courier again', () => {
       const job = offered(1, 2);
       let declined = job;
       for (const offer of pendingOffers(job)) {
-        declined = answerOffer(declined, offer.courierId, 'decline', now.add({ seconds: 1 })).job;
+        declined = answerOffer(
+          declined,
+          offer.id,
+          offer.courierId,
+          'decline',
+          now.add({ seconds: 1 }),
+        ).job;
       }
 
       const swept = sweep(declined, now.add({ seconds: 1 }), settings);
@@ -263,10 +294,13 @@ describe.each([
     });
 
     it('dispatches again without the courier who dropped the delivery', () => {
-      const assigned = answerOffer(offered(1, 2), courierId(1), 'accept', now).job;
-      const again = redispatch(assigned, now);
+      const job = offered(1, 2);
+      const assigned = answerOffer(job, offerTo(job, 1), courierId(1), 'accept', now).job;
+      expect(assigned.stops).toBeUndefined();
+      const again = redispatch(assigned, stops({ dropoffAddress: '3 New Lane' }), now);
 
       expect(again.job).toMatchObject({ status: 'OFFERING', round: 0, nextActionAt: now });
+      expect(again.job.stops?.dropoffAddress).toBe('3 New Lane');
       expect(again.job.assignment).toBeUndefined();
       const wave = sendWave(again.job, candidates(1, 3, 4), now, settings, nextOfferId);
       expect(pendingOffers(wave.job).map((o) => o.courierId)).not.toContain(courierId(1));
@@ -281,6 +315,67 @@ describe.each([
       expect(codeOf(() => assignManually(cancelled.job, courierId(1), 'car', now))).toBe(
         'dispatch.cancelled',
       );
+    });
+  });
+
+  describe('following the delivery', () => {
+    it("refuses an answer to another courier's offer as if it did not exist", () => {
+      const job = offered(1, 2);
+      const other = offerTo(job, settings.waveSize > 1 ? 2 : 1);
+
+      expect(codeOf(() => answerOffer(job, other, courierId(9), 'accept', now))).toBe(
+        'offer.not-pending',
+      );
+      expect(offerOf(job, other, courierId(9))).toBeUndefined();
+    });
+
+    it('shows a courier only their own open offer, and not once it lapsed', () => {
+      const job = offered(1, 2);
+
+      expect(openOfferOf(job, courierId(1), now)?.id).toBe(offerTo(job, 1));
+      expect(openOfferOf(job, courierId(9), now)).toBeUndefined();
+      expect(openOfferOf(job, courierId(1), now.add(timeout))).toBeUndefined();
+    });
+
+    it('records a courier the delivery assigned, withdrawing offers without a courier-assigned event', () => {
+      const change = recordAssignment(offered(1, 2), courierId(7), now);
+
+      expect(change.job).toMatchObject({
+        status: 'ASSIGNED',
+        assignment: { courierId: courierId(7), method: 'manual' },
+      });
+      expect(change.job.stops).toBeUndefined();
+      expect(types(change.events)).toEqual(
+        Array.from({ length: settings.waveSize }, () => 'dispatch.offer-withdrawn.v1'),
+      );
+      expect(recordAssignment(change.job, courierId(7), now).job).toBe(change.job);
+    });
+
+    it('restarts offering only after every round lapsed', () => {
+      const exhausted: DispatchJob = { ...open(), status: 'EXHAUSTED', round: settings.maxRounds };
+      const restarted = restartOffering(exhausted, now);
+
+      expect(restarted.job).toMatchObject({ status: 'OFFERING', round: 0, nextActionAt: now });
+      expect(restarted.job.stops).toEqual(stops());
+      expect(codeOf(() => restartOffering(offered(1), now))).toBe('dispatch.not-exhausted');
+    });
+
+    it('opens a scheduled job early, and leaves an open one as it is', () => {
+      const waiting = open(now.add({ hours: 3 }));
+      const early = openEarly(waiting, now.add({ minutes: 1 }));
+
+      expect(early.job).toMatchObject({ status: 'WAITING', opensAt: now.add({ minutes: 1 }) });
+      expect(sweep(early.job, now.add({ minutes: 1 }), settings).opened).toBe(true);
+      expect(openEarly(offered(1), now).job.version).toBe(offered(1).version);
+    });
+
+    it('notes the delivery version it followed, bumping its own once', () => {
+      const job = offered(1);
+      const unchanged = followedDeliveryVersion(job, job, 4);
+      expect(unchanged).toMatchObject({ deliveryVersion: 4, version: job.version + 1 });
+
+      const changed = recordAssignment(job, courierId(7), now).job;
+      expect(followedDeliveryVersion(job, changed, 5).version).toBe(changed.version);
     });
   });
 });

@@ -1,26 +1,39 @@
 import { Temporal } from '@mondapac-drive/shared-kernel';
-import { FixedClock } from '@mondapac-drive/shared-kernel/testing';
+import {
+  FixedClock,
+  testAuthenticatedActor,
+  testCallContext,
+} from '@mondapac-drive/shared-kernel/testing';
 import { JobAdvancer } from '../../src/modules/dispatch/application/job-advancer';
 import { AdvanceDispatchJobs } from '../../src/modules/dispatch/application/use-cases/advance-dispatch-jobs.use-case';
 import { AnswerOffer } from '../../src/modules/dispatch/application/use-cases/answer-offer.use-case';
-import { OpenDispatchJob } from '../../src/modules/dispatch/application/use-cases/open-dispatch-job.use-case';
 import {
   answerOffer,
+  followedDeliveryVersion,
+  openEarly,
   openDispatchJob,
   pendingOffers,
+  recordCollection,
   sendWave,
   sweep,
   type DispatchJob,
 } from '../../src/modules/dispatch/domain/dispatch-job';
 import { DISPATCH_EVENTS } from '../../src/modules/dispatch/domain/events/dispatch-events';
 import { InMemoryCouriers } from '../support/dispatch-couriers';
+import { FakeDeliveryFacts } from '../support/dispatch-fakes';
 import { PrismaDispatchJobRepository } from '../../src/modules/dispatch/infrastructure/prisma-dispatch-job.repository';
-import { UnlinkedDelivery } from '../../src/modules/dispatch/infrastructure/unlinked-delivery';
 import { EventCatalogue } from '../../src/platform/events/event-catalogue';
 import { NO_PERMISSION_KEYS } from '../../src/platform/events/outbox-writer';
 import { PrismaOutboxWriterFactory } from '../../src/platform/persistence/outbox/prisma-outbox-writer';
 import { StaleAggregateError } from '../../src/platform/unit-of-work/errors';
-import { courier, courierId, dispatchSettings, requirements } from '../support/dispatch-markets';
+import {
+  courier,
+  courierId,
+  dispatchSettings,
+  requirements,
+  stops,
+} from '../support/dispatch-markets';
+import { openGate } from '../support/system-only-denial';
 import { TEST_MARKETS } from '../support/test-config';
 import { eventContext, ids } from './outbox-support';
 import {
@@ -67,6 +80,8 @@ describe('dispatch repository (database integration)', () => {
         marketId: marketOf(code).marketId,
         deliveryId: newId<'Delivery'>(),
         requirements: requirements(),
+        stops: stops(),
+        deliveryVersion: 1,
         ...(windowStart === undefined ? {} : { windowStart }),
       },
       at,
@@ -95,7 +110,14 @@ describe('dispatch repository (database integration)', () => {
         () => newId<'DispatchOffer'>(),
       ).job;
       await inUnit(code, () => repository.update(market, wave));
-      const accepted = answerOffer(wave, courierId(1), 'accept', at.add({ seconds: 3 })).job;
+      const offer = wave.offers.find((o) => o.courierId === courierId(1))!;
+      const accepted = answerOffer(
+        wave,
+        offer.id,
+        courierId(1),
+        'accept',
+        at.add({ seconds: 3 }),
+      ).job;
       await inUnit(code, () => repository.update(market, accepted));
 
       const read = await inUnit(code, () => repository.findById(market, opened.id), true);
@@ -106,6 +128,72 @@ describe('dispatch repository (database integration)', () => {
         true,
       );
       expect(byDelivery.ok && byDelivery.value?.id).toBe(opened.id);
+      const byOffer = await inUnit(code, () => repository.findByOffer(market, offer.id), true);
+      expect(byOffer.ok && byOffer.value?.id).toBe(opened.id);
+    });
+
+    it("keeps the offer's stops while offering, drops them once assigned, and finds a courier's pending offers", async () => {
+      const opened = newJob(code);
+      await inUnit(code, () => repository.insert(market, opened));
+      const wave = sendWave(
+        sweep(opened, at, settings).job,
+        [{ courierId: courierId(3), vehicle: 'car' as const, distanceMetres: 1 }],
+        at,
+        settings,
+        () => newId<'DispatchOffer'>(),
+      ).job;
+      await inUnit(code, () => repository.update(market, wave));
+
+      const pending = await inUnit(
+        code,
+        () => repository.findWithPendingOfferFor(market, courierId(3)),
+        true,
+      );
+      expect(pending.ok && pending.value.map((job) => job.id)).toContain(opened.id);
+      const found = pending.ok ? pending.value.find((job) => job.id === opened.id) : undefined;
+      expect(found?.stops).toEqual(stops());
+
+      const offer = wave.offers[0]!;
+      const accepted = answerOffer(wave, offer.id, courierId(3), 'accept', at).job;
+      const followed = followedDeliveryVersion(accepted, accepted, 3);
+      await inUnit(code, () =>
+        repository.update(market, { ...followed, version: wave.version + 1 }),
+      );
+      const read = await inUnit(code, () => repository.findById(market, opened.id), true);
+      expect(read.ok && read.value?.stops).toBeUndefined();
+      expect(read.ok && read.value?.deliveryVersion).toBe(3);
+      const none = await inUnit(
+        code,
+        () => repository.findWithPendingOfferFor(market, courierId(3)),
+        true,
+      );
+      expect(none.ok && none.value.map((job) => job.id)).not.toContain(opened.id);
+    });
+
+    it('stores a collected job, and refuses stops on a job that is not offering', async () => {
+      const opened = newJob(code);
+      await inUnit(code, () => repository.insert(market, opened));
+      const collected = recordCollection(opened, courierId(4), at).job;
+      await inUnit(code, () => repository.update(market, collected));
+      const read = await inUnit(code, () => repository.findById(market, opened.id), true);
+      expect(read.ok && read.value?.status).toBe('COLLECTED');
+      expect(read.ok && read.value?.assignment?.courierId).toBe(courierId(4));
+
+      const waiting = newJob(code, at.add({ hours: 24 }));
+      expect(waiting.stops).toBeUndefined();
+      await expect(
+        inUnit(code, () => repository.insert(market, { ...waiting, stops: stops() })),
+      ).rejects.toThrow();
+    });
+
+    it('moves the opening time of a scheduled job forward', async () => {
+      const later = newJob(code, at.add({ hours: 24 }));
+      await inUnit(code, () => repository.insert(market, later));
+      const early = openEarly(later, at).job;
+      await inUnit(code, () => repository.update(market, early));
+
+      const due = await inUnit(code, () => repository.findDue(market, at, 1000), true);
+      expect(due.ok && due.value).toContain(later.id);
     });
 
     it('refuses a second job for the same delivery', async () => {
@@ -172,44 +260,51 @@ describe('dispatch repository (database integration)', () => {
         dispatchSettings,
         couriers,
         couriers,
-        new UnlinkedDelivery(),
+        new FakeDeliveryFacts(),
         outbox,
         db.unitOfWork,
         ids,
         clock,
       );
-      const open = new OpenDispatchJob(
-        repository,
-        dispatchSettings,
-        db.unitOfWork,
-        ids,
+      const gate = openGate();
+      const sweepJobs = new AdvanceDispatchJobs(gate, {
+        jobs: repository,
+        unitOfWork: db.unitOfWork,
         clock,
         advancer,
-      );
-      const answer = new AnswerOffer(
-        repository,
-        new UnlinkedDelivery(),
+      });
+      const answer = new AnswerOffer(gate, {
+        jobs: repository,
         outbox,
-        db.unitOfWork,
+        unitOfWork: db.unitOfWork,
         clock,
-        advancer,
-      );
+      });
       const context = eventContext(market);
-      const deliveryId = newId<'Delivery'>();
+      const opened = newJob(code);
+      const deliveryId = opened.deliveryId;
+      await inUnit(code, () => repository.insert(market, opened));
 
-      const opened = await open.run(context, { deliveryId, requirements: requirements() });
-      expect(opened.ok).toBe(true);
+      await sweepJobs.execute(context, {});
       clock.advance(Temporal.Duration.from({ seconds: settings.offerTimeoutSeconds }));
-      await new AdvanceDispatchJobs(repository, db.unitOfWork, clock, advancer).run(context);
+      await sweepJobs.execute(context, {});
       const job = await inUnit(code, () => repository.findByDelivery(market, deliveryId), true);
       const offer = job.ok ? pendingOffers(job.value!)[0] : undefined;
       expect(offer).toBeDefined();
-      const accepted = await answer.run(context, {
-        deliveryId,
-        courierId: offer!.courierId,
+      const courierContext = testCallContext(
+        market,
+        testAuthenticatedActor(market, {
+          population: 'courier',
+          accountId: offer!.courierId as never,
+          sessionId: newId() as never,
+          merchantId: null,
+        }),
+        `db-test-${ids.next()}`,
+      );
+      const accepted = await answer.execute(courierContext, {
+        offerId: offer!.id,
         answer: 'accept',
       });
-      expect(accepted.ok && accepted.value.status).toBe('ASSIGNED');
+      expect(accepted).toEqual({ ok: true, value: { deliveryId, assigned: true } });
 
       const rows = await db.root.dispatchOutbox.findMany({
         where: { marketId: market.marketId, payload: { path: ['deliveryId'], equals: deliveryId } },

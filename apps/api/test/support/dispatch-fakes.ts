@@ -1,4 +1,6 @@
 import {
+  geoPoint,
+  type AuditEntry,
   type CallContext,
   type Id,
   type MarketContext,
@@ -7,15 +9,18 @@ import {
   type Temporal,
 } from '@mondapac-drive/shared-kernel';
 import type {
-  DeliveryLink,
+  CourierAccounts,
+  DeliveryFacts,
+  DeliveryForDispatch,
   DispatchJobRepository,
 } from '../../src/modules/dispatch/application/ports';
-import type { VehicleType } from '../../src/modules/dispatch/domain/courier';
 import type { DispatchJob } from '../../src/modules/dispatch/domain/dispatch-job';
+import type { AuditWriter } from '../../src/platform/audit/audit-writer';
+import type { EventDelivery } from '../../src/platform/events/event-delivery';
 import type { OutboxWriter } from '../../src/platform/events/outbox-writer';
 import { StaleAggregateError } from '../../src/platform/unit-of-work/errors';
 import type { UnitOfWork } from '../../src/platform/unit-of-work/unit-of-work';
-import { noRunOnce } from './fake-run-once';
+import { fakeRunOnce } from './fake-run-once';
 
 /**
  * In-memory stand-ins for the dispatch use cases' ports, for suites without a database. The
@@ -36,6 +41,24 @@ export class InMemoryDispatchJobs implements DispatchJobRepository {
     return Promise.resolve(
       [...this.jobs.values()].find(
         (job) => job.marketId === market.marketId && job.deliveryId === deliveryId,
+      ),
+    );
+  }
+
+  findByOffer(market: MarketContext, offerId: Id<'DispatchOffer'>) {
+    return Promise.resolve(
+      [...this.jobs.values()].find(
+        (job) => job.marketId === market.marketId && job.offers.some((o) => o.id === offerId),
+      ),
+    );
+  }
+
+  findWithPendingOfferFor(market: MarketContext, courierId: Id<'Courier'>) {
+    return Promise.resolve(
+      [...this.jobs.values()].filter(
+        (job) =>
+          job.marketId === market.marketId &&
+          job.offers.some((o) => o.courierId === courierId && o.status === 'PENDING'),
       ),
     );
   }
@@ -70,11 +93,30 @@ export class InMemoryDispatchJobs implements DispatchJobRepository {
   }
 }
 
-/** A unit of work that runs the work once; events appended in a refused unit are dropped. */
+/**
+ * A unit of work that runs the work once; events and audit rows appended in a refused unit are
+ * dropped. `runOnce` keeps an in-memory inbox of the events handled.
+ */
 export class FakeUnitOfWork implements UnitOfWork {
-  constructor(private readonly outbox: RecordingOutbox) {}
+  readonly #once = fakeRunOnce();
+
+  constructor(
+    private readonly outbox: RecordingOutbox,
+    private readonly audit?: RecordingAudit,
+  ) {}
 
   async run<T, E>(_market: MarketContext, work: () => Promise<Result<T, E>>) {
+    const audited = this.audit?.entries.length ?? 0;
+    const result = await this.runOutbox(work);
+    if (!result.ok && this.audit) this.audit.entries.length = audited;
+    return result;
+  }
+
+  runOnce<T, E>(market: MarketContext, delivery: EventDelivery, work: () => Promise<Result<T, E>>) {
+    return this.#once(market, delivery, () => this.run(market, work));
+  }
+
+  private async runOutbox<T, E>(work: () => Promise<Result<T, E>>) {
     const mark = this.outbox.events.length;
     try {
       const result = await work();
@@ -85,8 +127,6 @@ export class FakeUnitOfWork implements UnitOfWork {
       throw error;
     }
   }
-
-  runOnce = noRunOnce;
 }
 
 export class RecordingOutbox implements OutboxWriter {
@@ -108,21 +148,49 @@ export class RecordingOutbox implements OutboxWriter {
   }
 }
 
-export class RecordingDeliveryLink implements DeliveryLink {
-  readonly calls: string[] = [];
+export class RecordingAudit implements AuditWriter {
+  readonly entries: AuditEntry[] = [];
 
-  dispatchOpened(_context: CallContext, deliveryId: Id<'Delivery'>) {
-    this.calls.push(`opened ${deliveryId}`);
+  record(_context: CallContext, entry: AuditEntry) {
+    this.entries.push(entry);
     return Promise.resolve();
   }
 
-  courierAssigned(
-    _context: CallContext,
-    deliveryId: Id<'Delivery'>,
-    courierId: Id<'Courier'>,
-    vehicle: VehicleType,
-  ) {
-    this.calls.push(`assigned ${deliveryId} ${courierId} ${vehicle}`);
-    return Promise.resolve();
+  actions(): string[] {
+    return this.entries.map((entry) => entry.action);
+  }
+}
+
+/** Delivery's read for dispatch over a map of deliveries the test books. */
+export class FakeDeliveryFacts implements DeliveryFacts {
+  readonly deliveries = new Map<string, DeliveryForDispatch>();
+
+  book(deliveryId: Id<'Delivery'>, overrides: Partial<DeliveryForDispatch> = {}): void {
+    this.deliveries.set(deliveryId, {
+      status: 'DISPATCHING',
+      serviceAreaCode: 'area-1',
+      pickup: { address: '1 Pickup Street', postcode: '4000', point: geoPoint(-27.47, 153.02) },
+      dropoff: { address: '2 Dropoff Road', postcode: '4101', point: geoPoint(-27.5, 153.05) },
+      distanceMetres: 4200,
+      weightGrams: 5000,
+      volumeLitres: 20,
+      temperature: 'chilled',
+      vehicle: 'motorbike',
+      ...overrides,
+    });
+  }
+
+  forDispatch(_context: CallContext, deliveryId: Id<'Delivery'>) {
+    return Promise.resolve(this.deliveries.get(deliveryId));
+  }
+}
+
+/** Identity's answer on courier accounts: the active ones are listed; `undefined` for a denial. */
+export class FakeCourierAccounts implements CourierAccounts {
+  readonly active = new Set<string>();
+  denied = false;
+
+  isActive(_context: CallContext, accountId: string) {
+    return Promise.resolve(this.denied ? undefined : this.active.has(accountId));
   }
 }

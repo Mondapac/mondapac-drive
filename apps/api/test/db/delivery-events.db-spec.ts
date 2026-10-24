@@ -120,8 +120,18 @@ describe('delivery events (database integration)', () => {
       `SELECT event_id FROM dispatch.outbox WHERE correlation_id = $1`,
       [context.correlationId],
     );
-    await handleAll();
-    return rows[0]!.event_id;
+    const eventId = rows[0]!.event_id;
+    // Other spec files claim events from the same database at the same time: handle until
+    // delivery's inbox shows this one handled.
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await handleAll();
+      const handled = await sql.query('SELECT 1 FROM delivery.inbox WHERE event_id = $1', [
+        eventId,
+      ]);
+      if (handled.rowCount !== 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return eventId;
   }
 
   async function handleAll(): Promise<void> {

@@ -1,5 +1,6 @@
 import { geoPoint, Temporal, uuidV7, type Id } from '@mondapac-drive/shared-kernel';
 import { ConfigDispatchSettingsProvider } from '../../src/modules/dispatch/infrastructure/config-dispatch-settings.provider';
+import type { OfferStops } from '../../src/modules/dispatch/domain/dispatch-job';
 import type {
   AvailableCourier,
   DispatchRequirements,
@@ -35,6 +36,17 @@ export function requirements(overrides: Partial<DispatchRequirements> = {}): Dis
     weightGrams: 5000,
     volumeLitres: 20,
     temperature: 'chilled',
+    ...overrides,
+  };
+}
+
+/** What an offer shows: two street addresses and the trip distance. */
+export function stops(overrides: Partial<OfferStops> = {}): OfferStops {
+  return {
+    pickupAddress: '1 Pickup Street',
+    dropoffAddress: '2 Dropoff Road',
+    dropoff: geoPoint(-27.5, 153.05),
+    tripDistanceMetres: 4200,
     ...overrides,
   };
 }

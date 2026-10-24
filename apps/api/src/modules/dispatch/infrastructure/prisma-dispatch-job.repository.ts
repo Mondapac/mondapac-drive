@@ -9,11 +9,18 @@ import type {
   JobStatus,
   Offer,
   OfferStatus,
+  OfferStops,
 } from '../domain/dispatch-job';
 
 const toDate = (instant: Temporal.Instant): Date => new Date(instant.epochMilliseconds);
 const toInstant = (date: Date): Temporal.Instant =>
   Temporal.Instant.fromEpochMilliseconds(date.getTime());
+
+/**
+ * The most pending offers of one courier read for the current offer. A wave sends one offer per
+ * courier and job, and an expired one stays PENDING only until the next sweep.
+ */
+const PENDING_OFFERS_READ = 5;
 
 /** The statuses whose job may still have work for the sweep. */
 const OPEN_STATUSES: JobStatus[] = ['WAITING', 'OFFERING'];
@@ -37,6 +44,12 @@ const SELECT_JOB = {
   assignmentMethod: true,
   assignedAt: true,
   excludedCourierIds: true,
+  pickupAddress: true,
+  dropoffAddress: true,
+  dropoffLat: true,
+  dropoffLng: true,
+  tripDistanceMetres: true,
+  deliveryVersion: true,
   createdAt: true,
   version: true,
 } as const;
@@ -71,8 +84,34 @@ interface JobRow {
   readonly assignmentMethod: string | null;
   readonly assignedAt: Date | null;
   readonly excludedCourierIds: string[];
+  readonly pickupAddress: string | null;
+  readonly dropoffAddress: string | null;
+  readonly dropoffLat: number | null;
+  readonly dropoffLng: number | null;
+  readonly tripDistanceMetres: number | null;
+  readonly deliveryVersion: number;
   readonly createdAt: Date;
   readonly version: number;
+}
+
+/** The offer's stops, when the row still holds them (all five columns are set together). */
+function readStops(row: JobRow): OfferStops | undefined {
+  const { pickupAddress, dropoffAddress, dropoffLat, dropoffLng, tripDistanceMetres } = row;
+  if (
+    pickupAddress === null ||
+    dropoffAddress === null ||
+    dropoffLat === null ||
+    dropoffLng === null ||
+    tripDistanceMetres === null
+  ) {
+    return undefined;
+  }
+  return {
+    pickupAddress,
+    dropoffAddress,
+    dropoff: geoPoint(dropoffLat, dropoffLng),
+    tripDistanceMetres,
+  };
 }
 
 interface OfferRow {
@@ -100,6 +139,7 @@ function readOffer(row: OfferRow): Offer {
 }
 
 function readJob(row: JobRow, offers: readonly OfferRow[], market: MarketContext): DispatchJob {
+  const stops = readStops(row);
   return {
     id: row.id as Id<'DispatchJob'>,
     marketId: market.marketId,
@@ -112,6 +152,7 @@ function readJob(row: JobRow, offers: readonly OfferRow[], market: MarketContext
       volumeLitres: row.volumeLitres,
       temperature: row.temperature as Temperature,
     },
+    ...(stops === undefined ? {} : { stops }),
     status: row.status as JobStatus,
     opensAt: toInstant(row.opensAt),
     round: row.round,
@@ -131,6 +172,7 @@ function readJob(row: JobRow, offers: readonly OfferRow[], market: MarketContext
         }
       : {}),
     excludedCourierIds: row.excludedCourierIds as Id<'Courier'>[],
+    deliveryVersion: row.deliveryVersion,
     createdAt: toInstant(row.createdAt),
     version: row.version,
   };
@@ -147,6 +189,13 @@ function changingColumns(job: DispatchJob) {
     assignmentMethod: job.assignment?.method ?? null,
     assignedAt: job.assignment === undefined ? null : toDate(job.assignment.at),
     excludedCourierIds: [...job.excludedCourierIds],
+    opensAt: toDate(job.opensAt),
+    pickupAddress: job.stops?.pickupAddress ?? null,
+    dropoffAddress: job.stops?.dropoffAddress ?? null,
+    dropoffLat: job.stops?.dropoff.lat ?? null,
+    dropoffLng: job.stops?.dropoff.lng ?? null,
+    tripDistanceMetres: job.stops?.tripDistanceMetres ?? null,
+    deliveryVersion: job.deliveryVersion,
     version: job.version,
   };
 }
@@ -173,6 +222,34 @@ export class PrismaDispatchJobRepository implements DispatchJobRepository {
       select: SELECT_JOB,
     });
     return row === null ? undefined : this.withOffers(market, row);
+  }
+
+  async findByOffer(market: MarketContext, offerId: Id<'DispatchOffer'>) {
+    const offer = await this.prisma.tx(market).dispatchOffer.findFirst({
+      where: { marketId: market.marketId, tenantId: market.tenantId, id: offerId },
+      select: { jobId: true },
+    });
+    return offer === null ? undefined : this.findById(market, offer.jobId as Id<'DispatchJob'>);
+  }
+
+  async findWithPendingOfferFor(market: MarketContext, courierId: Id<'Courier'>) {
+    const offers = await this.prisma.tx(market).dispatchOffer.findMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        courierId,
+        status: 'PENDING',
+      },
+      orderBy: { expiresAt: 'asc' },
+      take: PENDING_OFFERS_READ,
+      select: { jobId: true },
+    });
+    const jobs: DispatchJob[] = [];
+    for (const jobId of new Set(offers.map((offer) => offer.jobId))) {
+      const job = await this.findById(market, jobId as Id<'DispatchJob'>);
+      if (job !== undefined) jobs.push(job);
+    }
+    return jobs;
   }
 
   async findDue(market: MarketContext, now: Temporal.Instant, limit: number) {
@@ -205,7 +282,6 @@ export class PrismaDispatchJobRepository implements DispatchJobRepository {
           weightGrams: job.requirements.weightGrams,
           volumeLitres: job.requirements.volumeLitres,
           temperature: job.requirements.temperature,
-          opensAt: toDate(job.opensAt),
           createdAt: toDate(job.createdAt),
           ...changingColumns(job),
         },

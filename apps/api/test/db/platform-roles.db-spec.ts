@@ -184,7 +184,7 @@ describe.each(TEST_MARKETS)('the role catalogue in market %s (database, slice 10
     });
     // The operator holds keys the reader lacks (R1).
     expect(entry(await seededRole('operator'))).toMatchObject({
-      permissionCount: 8,
+      permissionCount: 9,
       grantable: false,
     });
     expect(entry(await seededRole('platform-administrator'))).toMatchObject({
@@ -303,6 +303,6 @@ describe.each(TEST_MARKETS)('the role catalogue in market %s (database, slice 10
       expect([role.state.marketId, role.state.scope]).toEqual([code, 'platform']);
     }
     const operator = read.value.all.find((role) => role.state.seedCode === 'operator')!;
-    expect(operator.state.permissionKeys).toHaveLength(8);
+    expect(operator.state.permissionKeys).toHaveLength(9);
   });
 });

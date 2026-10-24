@@ -1,23 +1,28 @@
-import { Temporal, type CallContext } from '@mondapac-drive/shared-kernel';
+import { parseId, type CallContext } from '@mondapac-drive/shared-kernel';
 import type { MarketRegistry } from '../../../platform/market-config/market-registry';
-import type { FleetDirectory } from '../../fleet';
+import type { AvailableFleetVehicle, FleetDirectory } from '../../fleet';
 import type { CourierAvailability } from '../application/ports';
-import { isAtLeast, VEHICLE_TYPES, type Temperature, type VehicleType } from '../domain/courier';
+import { isAtLeast, VEHICLE_TYPES } from '../domain/courier';
 import type { AvailableCourier, DispatchRequirements } from '../domain/matching';
 
-/** Fleet does not report idle time yet: every courier ties, and the courier id decides. */
-const UNKNOWN_IDLE_SINCE = Temporal.Instant.fromEpochMilliseconds(0);
+/** Whether the vehicle carries the parcel: its own capacity and the temperature it keeps. */
+function fits(vehicle: AvailableFleetVehicle, needs: DispatchRequirements): boolean {
+  return (
+    vehicle.maxWeightGrams >= needs.weightGrams &&
+    vehicle.maxVolumeLitres >= needs.volumeLitres &&
+    vehicle.temperatures.includes(needs.temperature)
+  );
+}
 
 /**
- * {@link CourierAvailability} over fleet's `FleetDirectory`: the couriers who are active,
- * online in the service area, and hold an eligible vehicle (documents verified, cold box when
- * the parcel is chilled or frozen) of a type at least as large as the delivery's.
+ * {@link CourierAvailability} over fleet's `FleetDirectory.findAvailableCouriers`: the couriers
+ * (by identity account id) who are active, online in the service area and hold an eligible
+ * vehicle (documents verified, cold box when the parcel is chilled or frozen) of a type at least
+ * as large as the delivery's and offered by the Market's rate card, with fleet's idle time.
  *
- * Fleet answers ids only, so fleet is asked once per vehicle type, smallest first, and each
- * courier gets the smallest type they are eligible for. Fleet does not expose a vehicle's
- * capacity, so the Market rate card's limits for that type stand in. They are at least the
- * quoted vehicle's, which the parcel already fits. A type the Market's rate card does not
- * offer is not asked for.
+ * Each courier is matched with the smallest of their vehicles that carries the parcel by its
+ * own capacity; a courier none of whose vehicles carries it, or with a malformed id, is left
+ * out.
  */
 export class FleetCourierAvailability implements CourierAvailability {
   constructor(
@@ -30,33 +35,34 @@ export class FleetCourierAvailability implements CourierAvailability {
     needs: DispatchRequirements,
   ): Promise<readonly AvailableCourier[]> {
     const rates = this.markets.get(context.market.marketId).delivery.rateCard.vehicles;
-    const temperatures: Temperature[] =
-      needs.temperature === 'ambient' ? ['ambient'] : ['ambient', needs.temperature];
+    const vehicleTypes = VEHICLE_TYPES.filter(
+      (type) => isAtLeast(type, needs.minimumVehicle) && rates[type] !== undefined,
+    );
+    if (vehicleTypes.length === 0) return [];
+    const couriers = await this.fleet.findAvailableCouriers(context, {
+      vehicleTypes,
+      coldChain: needs.temperature !== 'ambient',
+      serviceArea: needs.serviceAreaCode,
+    });
     const found: AvailableCourier[] = [];
-    const seen = new Set<string>();
-    for (const type of VEHICLE_TYPES.filter((t) => isAtLeast(t, needs.minimumVehicle))) {
-      const rate = rates[type];
-      if (rate === undefined) continue;
-      const ids = await this.fleet.findEligibleCouriers(context, {
-        vehicleTypes: [type],
-        coldChain: needs.temperature !== 'ambient',
-        serviceArea: needs.serviceAreaCode,
+    for (const courier of couriers) {
+      const courierId = parseId<'Courier'>(courier.courierId);
+      if (!courierId.ok) continue;
+      const vehicle = courier.vehicles
+        .filter((v) => vehicleTypes.includes(v.type) && fits(v, needs))
+        .sort((a, b) => VEHICLE_TYPES.indexOf(a.type) - VEHICLE_TYPES.indexOf(b.type))[0];
+      if (vehicle === undefined) continue;
+      found.push({
+        courierId: courierId.value,
+        vehicle: {
+          type: vehicle.type,
+          maxWeightGrams: vehicle.maxWeightGrams,
+          maxVolumeLitres: vehicle.maxVolumeLitres,
+          temperatures: vehicle.temperatures,
+        },
+        serviceAreaCodes: [needs.serviceAreaCode],
+        idleSince: courier.idleSince,
       });
-      for (const courierId of ids) {
-        if (seen.has(courierId)) continue;
-        seen.add(courierId);
-        found.push({
-          courierId,
-          vehicle: {
-            type: type satisfies VehicleType,
-            maxWeightGrams: rate.maxWeightGrams,
-            maxVolumeLitres: rate.maxVolumeLitres,
-            temperatures,
-          },
-          serviceAreaCodes: [needs.serviceAreaCode],
-          idleSince: UNKNOWN_IDLE_SINCE,
-        });
-      }
     }
     return found;
   }

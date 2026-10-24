@@ -86,6 +86,8 @@ const LEAD_KEYS = [
   'delivery.delivery.cancel',
   'delivery.delivery.dispatch',
   'delivery.delivery.view',
+  'dispatch.job.assign',
+  'dispatch.job.view',
   'fleet.courier.decide',
   'fleet.courier.view',
   'fleet.document.review',
