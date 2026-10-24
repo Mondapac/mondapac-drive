@@ -4,6 +4,7 @@ import { parseMarketId } from '@mondapac-drive/shared-kernel';
 import type { MarketId } from '@mondapac-drive/shared-kernel';
 import { z } from 'zod';
 import { routingConfigSchema } from '../routing/routing-config';
+import { notificationsSchema } from './notifications-section';
 
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
 const TIME_ZONES = new Set(Intl.supportedValuesOf('timeZone'));
@@ -124,6 +125,7 @@ const marketSchema = z
     /** Owned by `platform/routing`; absent, routes are straight-line estimates. */
     routing: routingConfigSchema.optional(),
     dispatch: dispatchSchema,
+    notifications: notificationsSchema,
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',

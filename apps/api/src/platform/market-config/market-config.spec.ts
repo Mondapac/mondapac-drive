@@ -42,6 +42,22 @@ const DISPATCH = {
   candidateLimit: 20,
 };
 
+const NOTIFICATIONS = {
+  webhooks: { maxAttempts: 8, firstRetrySeconds: 30, maxRetrySeconds: 3600 },
+  sms: {
+    senderId: 'Example',
+    optOutText: 'Reply STOP to opt out',
+    maxAttempts: 5,
+    allowedCallingCodes: ['64'],
+    templates: {
+      booked: 'Booked {reference}: {trackingUrl}',
+      on_the_way: 'On the way: {trackingUrl}',
+      delivered: 'Delivered {reference}',
+      failed: 'Not delivered {reference}',
+    },
+  },
+};
+
 const VALID = {
   code: 'QQ',
   status: 'active',
@@ -55,6 +71,7 @@ const VALID = {
   tax: { defaultRateBps: 1500 },
   delivery: DELIVERY,
   dispatch: DISPATCH,
+  notifications: NOTIFICATIONS,
 };
 
 function directoryWith(files: Record<string, unknown>): string {

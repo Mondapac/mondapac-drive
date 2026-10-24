@@ -40,6 +40,7 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     extensions: [],
     delivery: ['USAGE'],
     dispatch: ['USAGE'],
+    notifications: ['USAGE'],
     platform: ['USAGE'],
   },
   tables: {
@@ -101,6 +102,36 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'dispatch.offers': { table: ['INSERT', 'SELECT'], columnUpdate: ['answered_at', 'status'] },
     'dispatch.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
     'dispatch.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // The notifications module (20261025110000): only the retry state of a queued message and
+    // the status and secret version of a subscription change.
+    'notifications.webhook_subscriptions': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['secret_version', 'status', 'version'],
+    },
+    'notifications.webhook_calls': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'dead_at',
+        'last_error_code',
+        'last_status_code',
+        'next_attempt_at',
+        'sent_at',
+        'status',
+      ],
+    },
+    'notifications.sms_messages': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: [
+        'attempts',
+        'dead_at',
+        'last_error_code',
+        'next_attempt_at',
+        'provider_message_id',
+        'sent_at',
+        'status',
+      ],
+    },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

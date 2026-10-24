@@ -108,5 +108,24 @@
     "scheduledLeadMinutes": 45,
     "searchRadiusMetres": 8000,
     "candidateLimit": 20
+  },
+  "notifications": {
+    "webhooks": {
+      "maxAttempts": 8,
+      "firstRetrySeconds": 30,
+      "maxRetrySeconds": 3600
+    },
+    "sms": {
+      "senderId": "Mondapac",
+      "optOutText": "Reply STOP to opt out",
+      "maxAttempts": 5,
+      "allowedCallingCodes": ["61"],
+      "templates": {
+        "booked": "Your order {reference} is booked for delivery. Track it: {trackingUrl}",
+        "on_the_way": "Your order {reference} is on the way. Track it: {trackingUrl}",
+        "delivered": "Your order {reference} has been delivered.",
+        "failed": "We could not deliver your order {reference}. The sender will contact you."
+      }
+    }
   }
 }
