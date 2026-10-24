@@ -23,6 +23,9 @@ import {
   type FleetRulesProvider,
 } from './ports';
 
+/** The courier a change is for: by its fleet id (operators), or by its account (the courier). */
+export type CourierRef = { readonly id: Id<'Courier'> } | { readonly accountId: string };
+
 /** One change of a courier, as a use case describes it to {@link CourierChanges.apply}. */
 export interface ChangeOfCourier {
   /** Who may make it, seen against the stored courier. Refused callers get "not found". */
@@ -54,13 +57,16 @@ export class CourierChanges {
 
   apply(
     context: CallContext,
-    courierId: Id<'Courier'>,
+    ref: CourierRef,
     change: ChangeOfCourier,
   ): Promise<Result<CourierState, FleetFailure>> {
     const rules = this.rules.get(context.market.marketId);
     return this.unitOfWork.run(context.market, () =>
       refusingBrokenRules(async () => {
-        const courier = await this.couriers.findById(context.market, courierId);
+        const courier =
+          'id' in ref
+            ? await this.couriers.findById(context.market, ref.id)
+            : await this.couriers.findByActorId(context.market, ref.accountId);
         if (courier === undefined || !change.allowed(courier)) return err(courierNotFound());
         const decided = change.decide(courier, rules, this.clock.now());
         if (decided.courier === courier) return ok(courier);

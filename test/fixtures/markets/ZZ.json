@@ -247,7 +247,8 @@
         "expires": true
       }
     ],
-    "businessIdDocumentType": "business_number"
+    "businessIdDocumentType": "business_number",
+    "courierApp": { "supportPhone": "+9991000000", "distanceUnit": "km" }
   },
   "payouts": {
     "earnings": {

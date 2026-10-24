@@ -276,7 +276,8 @@
         "expires": false
       }
     ],
-    "businessIdDocumentType": "abn"
+    "businessIdDocumentType": "abn",
+    "courierApp": { "supportPhone": "+61700000000", "distanceUnit": "km" }
   },
   "payouts": {
     "earnings": {

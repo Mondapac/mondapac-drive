@@ -36,6 +36,29 @@ describe('DiskObjectStore', () => {
     await expect(store.delete('p1/i1/thumb')).resolves.toBeUndefined();
   });
 
+  it('lists the objects under a prefix in key order, up to the limit', async () => {
+    const { store } = await fresh();
+    await store.put('fleet/AU/c1/d2', Buffer.from('2'));
+    await store.put('fleet/AU/c1/d1', Buffer.from('1'));
+    await store.put('fleet/AU/c2/d3', Buffer.from('3'));
+    await store.put('fleet/ZZ/c9/d9', Buffer.from('9'));
+    const listed = await store.list('fleet/AU', 10);
+    expect(listed.map((o) => o.key)).toEqual([
+      'fleet/AU/c1/d1',
+      'fleet/AU/c1/d2',
+      'fleet/AU/c2/d3',
+    ]);
+    expect(listed.every((o) => o.writtenAt.epochMilliseconds > 0)).toBe(true);
+    expect((await store.list('fleet/AU', 2)).map((o) => o.key)).toEqual([
+      'fleet/AU/c1/d1',
+      'fleet/AU/c1/d2',
+    ]);
+    expect((await store.list('fleet/AU', 10, 'fleet/AU/c1/d2')).map((o) => o.key)).toEqual([
+      'fleet/AU/c2/d3',
+    ]);
+    expect(await store.list('fleet/NOPE', 10)).toEqual([]);
+  });
+
   it('leaves no temporary file behind', async () => {
     const { store, dir } = await fresh();
     await store.put('p1/i1/thumb', Buffer.from('abc'));

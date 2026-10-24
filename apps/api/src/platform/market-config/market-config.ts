@@ -618,6 +618,12 @@ const fleetSchema = z
      * reads as "business id verified". One of `documents`, of the courier, not of a vehicle.
      */
     businessIdDocumentType: z.string().optional(),
+    /** What the courier app shows: the support line couriers call, and the unit of distances. */
+    courierApp: z.strictObject({
+      /** E.164, as the app dials it. */
+      supportPhone: z.string().regex(/^\+[1-9][0-9]{6,14}$/, 'must be an E.164 phone number'),
+      distanceUnit: z.enum(['km', 'mi']),
+    }),
   })
   .refine(
     (fleet) =>

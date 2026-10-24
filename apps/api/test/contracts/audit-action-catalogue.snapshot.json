@@ -53,6 +53,18 @@
     }
   },
   {
+    "action": "fleet.courier.tax-registration-set",
+    "targetType": "fleet.courier",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "taxRegistered": "boolean"
+    },
+    "after": {
+      "taxRegistered": "boolean"
+    }
+  },
+  {
     "action": "fleet.document.rejected",
     "targetType": "fleet.document",
     "targetId": "id",
@@ -84,6 +96,21 @@
       "courierId": "id",
       "declaredExpiresAt": "optional(instant)",
       "expiresAt": "optional(instant)"
+    }
+  },
+  {
+    "action": "fleet.vehicle.capacity-set",
+    "targetType": "fleet.vehicle",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "maxVolumeLitres": "integer",
+      "maxWeightGrams": "integer"
+    },
+    "after": {
+      "courierId": "id",
+      "maxVolumeLitres": "integer",
+      "maxWeightGrams": "integer"
     }
   },
   {

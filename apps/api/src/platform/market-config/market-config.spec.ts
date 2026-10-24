@@ -86,6 +86,7 @@ const NOTIFICATIONS = {
 };
 
 const FLEET = {
+  courierApp: { supportPhone: '+61700000000', distanceUnit: 'km' },
   documents: [
     {
       type: 'licence',
@@ -291,18 +292,25 @@ describe('loadMarketConfigs', () => {
     ['no fleet section', { fleet: undefined }, /fleet/],
     [
       'a document type that is not a code',
-      { fleet: { documents: [{ ...FLEET.documents[0], type: 'Driver Licence' }] } },
+      { fleet: { ...FLEET, documents: [{ ...FLEET.documents[0], type: 'Driver Licence' }] } },
       /fleet\.documents\.0\.type/,
     ],
     [
       'a document listed twice',
-      { fleet: { documents: [FLEET.documents[0], FLEET.documents[0]] } },
+      { fleet: { ...FLEET, documents: [FLEET.documents[0], FLEET.documents[0]] } },
       /each document type is listed once/,
     ],
     [
       'an unknown employment type',
-      { fleet: { documents: [{ ...FLEET.documents[0], employmentTypes: ['volunteer'] }] } },
+      {
+        fleet: { ...FLEET, documents: [{ ...FLEET.documents[0], employmentTypes: ['volunteer'] }] },
+      },
       /fleet\.documents\.0\.employmentTypes/,
+    ],
+    [
+      'a support phone that is not E.164',
+      { fleet: { ...FLEET, courierApp: { supportPhone: '07 3000 0000', distanceUnit: 'km' } } },
+      /fleet\.courierApp\.supportPhone/,
     ],
     [
       'a business-id document the Market does not list',
@@ -313,6 +321,7 @@ describe('loadMarketConfigs', () => {
       'a business-id document of a vehicle',
       {
         fleet: {
+          ...FLEET,
           documents: [{ ...FLEET.documents[0], perVehicle: true }],
           businessIdDocumentType: 'licence',
         },
