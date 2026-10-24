@@ -17,6 +17,14 @@ const MAX_NAME_LENGTH = 100;
 const FORBIDDEN = /[\p{Cc}؜‎‏‪-‮⁦-⁩]/u;
 
 /**
+ * Whether text an operator typed for a merchant (its name, an API key's label) holds a control
+ * or bidi formatting character, which could make the admin panel show it as something else.
+ */
+export function hasForbiddenFormatting(text: string): boolean {
+  return FORBIDDEN.test(text);
+}
+
+/**
  * A merchant's business name, as an operator typed it: trimmed, 1 to 100 code points, no control
  * or bidi formatting character. Unlike a person's display name it may look like a host name
  * ("Halal.com.au"): it is the business, not a person.

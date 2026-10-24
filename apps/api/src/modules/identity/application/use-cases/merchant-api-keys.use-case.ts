@@ -3,6 +3,7 @@ import type { CallContext, Id, Result, Temporal } from '@mondapac-drive/shared-k
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { MERCHANT_API_KEY_ISSUE, MERCHANT_VIEW } from '../../contracts/permissions';
 import { ApiKeyIssuedAudit, ApiKeyRevokedAudit } from '../../domain/audit';
+import { hasForbiddenFormatting } from '../../domain/merchant';
 import { API_KEY_LABEL_MAX, openSession } from '../../domain/session';
 import { isWellFormedText } from '../../domain/well-formed-text';
 import {
@@ -67,7 +68,7 @@ export class IssueMerchantApiKey extends UseCase<
     if (label.length < 1 || label.length > API_KEY_LABEL_MAX) {
       return err({ code: 'validation.failed', fields: [{ path: 'label', code: 'length' }] });
     }
-    if (!isWellFormedText(label)) {
+    if (!isWellFormedText(label) || hasForbiddenFormatting(label)) {
       return err({ code: 'validation.failed', fields: [{ path: 'label', code: 'characters' }] });
     }
     const { market } = context;
