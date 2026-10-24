@@ -97,6 +97,20 @@ describe('payouts provider webhook (database integration)', () => {
     });
   });
 
+  it('keeps the 64 KB limit for an unhosted Market and any other path or method (L-a)', async () => {
+    const body = `{"id": "evt_1", "pad": "${'x'.repeat(100 * 1024)}"}`;
+    const server = () => request(app.getHttpServer());
+
+    for (const call of [
+      () => server().post('/payouts/QQ/provider-webhook'),
+      () => server().post(`/payouts/${TEST_MARKETS[0]}/provider-webhook/x`),
+      () => server().put(`/payouts/${TEST_MARKETS[0]}/provider-webhook`),
+    ]) {
+      const response = await call().set('content-type', 'application/json').send(body);
+      expect(response.status).toBe(413);
+    }
+  });
+
   it('refuses a Market this deployment does not host, before reading the body', async () => {
     const body = eventBody();
 

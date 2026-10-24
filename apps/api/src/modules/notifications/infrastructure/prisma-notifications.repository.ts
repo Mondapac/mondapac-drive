@@ -32,6 +32,7 @@ interface SubscriptionRow {
   readonly url: string;
   readonly eventTypes: string[];
   readonly secretVersion: number;
+  readonly previousSecretValidUntil: Date | null;
   readonly status: string;
   readonly createdAt: Date;
   readonly version: number;
@@ -45,6 +46,7 @@ function readSubscription(row: SubscriptionRow, market: MarketContext): WebhookS
     url: row.url as WebhookUrl,
     eventTypes: row.eventTypes as WebhookEventType[],
     secretVersion: row.secretVersion,
+    previousSecretValidUntil: maybeInstant(row.previousSecretValidUntil),
     status: row.status as SubscriptionStatus,
     createdAt: toInstant(row.createdAt),
     version: row.version,
@@ -70,6 +72,15 @@ export class PrismaWebhookSubscriptionRepository implements WebhookSubscriptionR
     return rows.map((row) => readSubscription(row, market));
   }
 
+  async listOf(market: MarketContext, merchantId: string, limit: number) {
+    const rows = await this.prisma.tx(market).notificationsWebhookSubscription.findMany({
+      where: { ...scope(market), merchantId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+    return rows.map((row) => readSubscription(row, market));
+  }
+
   async insert(market: MarketContext, subscription: WebhookSubscription): Promise<void> {
     await this.prisma.tx(market).notificationsWebhookSubscription.create({
       data: {
@@ -79,6 +90,7 @@ export class PrismaWebhookSubscriptionRepository implements WebhookSubscriptionR
         url: subscription.url,
         eventTypes: [...subscription.eventTypes],
         secretVersion: subscription.secretVersion,
+        previousSecretValidUntil: maybeDate(subscription.previousSecretValidUntil),
         status: subscription.status,
         createdAt: toDate(subscription.createdAt),
         version: subscription.version,
@@ -90,7 +102,9 @@ export class PrismaWebhookSubscriptionRepository implements WebhookSubscriptionR
     const updated = await this.prisma.tx(market).notificationsWebhookSubscription.updateMany({
       where: { ...scope(market), id: subscription.id, version: subscription.version - 1 },
       data: {
+        eventTypes: [...subscription.eventTypes],
         secretVersion: subscription.secretVersion,
+        previousSecretValidUntil: maybeDate(subscription.previousSecretValidUntil),
         status: subscription.status,
         version: subscription.version,
       },
@@ -241,6 +255,15 @@ export class PrismaOutboundRepository implements OutboundRepository {
       .tx(market)
       .notificationsWebhookCall.findFirst({ where: { ...scope(market), id } });
     return row === null ? undefined : readCall(row);
+  }
+
+  async deadCalls(market: MarketContext, limit: number) {
+    const rows = await this.prisma.tx(market).notificationsWebhookCall.findMany({
+      where: { ...scope(market), status: 'dead' },
+      orderBy: [{ deadAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+    return rows.map(readCall);
   }
 
   async saveCall(market: MarketContext, call: WebhookCall, expectedAttempts: number) {

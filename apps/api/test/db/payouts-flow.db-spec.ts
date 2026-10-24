@@ -48,7 +48,10 @@ import {
 import { RecordTip } from '../../src/modules/payouts/application/use-cases/record-tip.use-case';
 import { ReverseDeliveryEarning } from '../../src/modules/payouts/application/use-cases/reverse-delivery-earning.use-case';
 import { RunPayouts } from '../../src/modules/payouts/application/use-cases/run-payouts.use-case';
-import { SettleUnresolvedLine } from '../../src/modules/payouts/application/use-cases/settle-unresolved-line.use-case';
+import {
+  SETTLE_NOT_FOUND_AFTER,
+  SettleUnresolvedLine,
+} from '../../src/modules/payouts/application/use-cases/settle-unresolved-line.use-case';
 import { StartPayoutOnboarding } from '../../src/modules/payouts/application/use-cases/start-payout-onboarding.use-case';
 import { EARNINGS_VIEW, ACCOUNT_ONBOARD } from '../../src/modules/payouts/contracts/permissions';
 import type { Payee } from '../../src/modules/payouts/domain/payee';
@@ -345,7 +348,7 @@ describe('courier pay and payouts (database integration)', () => {
   }
 
   describe.each(TEST_MARKETS)('in market %s', (code) => {
-    const index = TEST_MARKETS.indexOf(code) * 20;
+    const index = TEST_MARKETS.indexOf(code) * 25;
 
     it('records an earning once per delivery, with tax for a registered contractor', async () => {
       const w = world(code, index + 1);
@@ -669,6 +672,9 @@ describe('courier pay and payouts (database integration)', () => {
         err(expect.objectContaining({ code: 'access.denied' })),
       );
       const transferred = await settle(madeLine!.id);
+      // "Not transferred" waits until the provider has had time to list the last attempt (L-b).
+      const early = await settle(neverLine!.id);
+      clock.advance(SETTLE_NOT_FOUND_AFTER);
       const failed = await settle(neverLine!.id);
       const again = await settle(neverLine!.id);
 
@@ -683,6 +689,7 @@ describe('courier pay and payouts (database integration)', () => {
           }),
         ),
       );
+      expect(early).toEqual(err(expect.objectContaining({ code: 'payouts.settle-too-early' })));
       expect(failed).toEqual(ok(expect.objectContaining({ providerTransferFound: false })));
       expect(again).toEqual(err(expect.objectContaining({ code: 'payouts.line-state' })));
       expect(await w.balanceOf(made)).toEqual(w.m(0n));
@@ -734,6 +741,40 @@ describe('courier pay and payouts (database integration)', () => {
           lineId: line!.id as Id<'PayoutLine'>,
         }),
       ).toEqual(err(expect.objectContaining({ code: 'payouts.settle-mismatch' })));
+      expect(await w.linesOf(courierId)).toEqual([
+        expect.objectContaining({ status: 'unresolved' }),
+      ]);
+    });
+
+    it('refuses to settle as not transferred while a transfer without its line id could be it (L-b)', async () => {
+      const w = world(code, index + 20);
+      const courierId = w.courier();
+      const account = await w.readyAccount(courierId);
+      await w.earn(w.delivered(courierId));
+      gateway.refusals.set(
+        account,
+        Array.from({ length: MAX_TRANSFER_ATTEMPTS }, () => ({
+          code: 'stripe.unreachable',
+          transient: true,
+        })),
+      );
+      for (let tick = 0; tick < MAX_TRANSFER_ATTEMPTS; tick += 1) await w.pay();
+      const [line] = await w.linesOf(courierId);
+      const sent = gateway.transfers.find((t) => t.destination === account)!;
+      // The provider holds the transfer, but its metadata did not survive.
+      gateway.unseen.push({
+        group: line!.run_id,
+        transferId: 'tr_nometadata012345',
+        amount: sent.amount,
+        destination: account,
+      });
+      clock.advance(SETTLE_NOT_FOUND_AFTER);
+
+      expect(
+        await use(SettleUnresolvedLine).execute(w.person('admin'), {
+          lineId: line!.id as Id<'PayoutLine'>,
+        }),
+      ).toEqual(err(expect.objectContaining({ code: 'payouts.settle-ambiguous' })));
       expect(await w.linesOf(courierId)).toEqual([
         expect.objectContaining({ status: 'unresolved' }),
       ]);

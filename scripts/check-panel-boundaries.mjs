@@ -26,7 +26,8 @@ const SERVER_ONLY_KERNEL_NAMES = new Set([
   'authenticatedActor',
   'createCallContext',
 ]);
-const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'coverage']);
+// `public` holds only copied third-party files (the live map's MapLibre worker), never panel code.
+const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', 'coverage', 'public']);
 
 function* sourceFiles(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

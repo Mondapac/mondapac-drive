@@ -596,23 +596,38 @@ export const EMPLOYMENT_TYPES = ['employee', 'contractor'] as const;
  * The `fleet` section, owned by the fleet module: the documents the Market requires of its
  * couriers. A document type is the Market's own code (`abn` in AU), never a list in core code.
  */
-const fleetSchema = z.strictObject({
-  documents: z
-    .array(
-      z.strictObject({
-        type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, 'must be a lower-case code'),
-        employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).min(1).optional(),
-        vehicleTypes: z.array(z.enum(VEHICLE_TYPES)).min(1).optional(),
-        coldChainOnly: z.boolean(),
-        perVehicle: z.boolean(),
-        expires: z.boolean(),
+const fleetSchema = z
+  .strictObject({
+    documents: z
+      .array(
+        z.strictObject({
+          type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, 'must be a lower-case code'),
+          employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).min(1).optional(),
+          vehicleTypes: z.array(z.enum(VEHICLE_TYPES)).min(1).optional(),
+          coldChainOnly: z.boolean(),
+          perVehicle: z.boolean(),
+          expires: z.boolean(),
+        }),
+      )
+      .max(50)
+      .refine((documents) => new Set(documents.map((d) => d.type)).size === documents.length, {
+        message: 'each document type is listed once',
       }),
-    )
-    .max(50)
-    .refine((documents) => new Set(documents.map((d) => d.type)).size === documents.length, {
-      message: 'each document type is listed once',
-    }),
-});
+    /**
+     * The document that proves a contractor's business registration (`abn` in AU), which payouts
+     * reads as "business id verified". One of `documents`, of the courier, not of a vehicle.
+     */
+    businessIdDocumentType: z.string().optional(),
+  })
+  .refine(
+    (fleet) =>
+      fleet.businessIdDocumentType === undefined ||
+      fleet.documents.some((d) => d.type === fleet.businessIdDocumentType && !d.perVehicle),
+    {
+      message: "businessIdDocumentType must name one of the courier's own documents",
+      path: ['businessIdDocumentType'],
+    },
+  );
 
 const marketSchema = z
   .strictObject({

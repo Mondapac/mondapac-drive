@@ -60,7 +60,9 @@ the one whose metadata `payoutLineId` is this line:
 | Stripe has | Result | Effect |
 |---|---|---|
 | exactly one transfer, same destination and amount | `200`, line `transferred` with that transfer id | The debit stands. |
-| none | `200`, line `failed` (`settled.not-transferred`) | Debit reversed; the next run pays it again. |
+| none, and the line has been unresolved for at least an hour | `200`, line `failed` (`settled.not-transferred`) | Debit reversed; the next run pays it again. |
+| none, within the first hour | `409 payouts.settle-too-early` | Nothing changes. Try again later. |
+| none with this line's id, but one without a line id to the same account for the same amount | `409 payouts.settle-ambiguous` | Nothing changes. Escalate (step 4). |
 | one with another destination or amount | `409 payouts.settle-mismatch` | Nothing changes. Escalate (step 4). |
 | more than one | `409 payouts.settle-ambiguous` | Nothing changes. Escalate (step 4). |
 | Stripe unreachable, or a list it answered wrongly | `503 payouts.provider-unavailable` | Nothing changes. Retry later. |
@@ -68,9 +70,9 @@ the one whose metadata `payoutLineId` is this line:
 A line that is no longer `unresolved` (settled by someone else, or a webhook arrived first)
 answers `409 payouts.line-state` and changes nothing. Settling twice is therefore safe.
 
-**Wait before settling a fresh line.** This is operating guidance, not a rule Drive enforces:
-wait at least 15 minutes after the run, so that a transfer Stripe is still processing appears in
-the list.
+**Settling a fresh line.** Drive refuses to settle a line as "not transferred" within an hour
+of the line's last change, so that a transfer Stripe is still processing has time to appear in
+the list. Settling as transferred is allowed at once.
 
 ## 4. Escalate a mismatch or ambiguity
 

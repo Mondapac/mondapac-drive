@@ -10,6 +10,7 @@ import { OUTBOX_WRITER, type OutboxWriter } from '../../platform/events/outbox-w
 import { ID_GENERATOR } from '../../platform/ids/ids.module';
 import { PersistenceModule } from '../../platform/persistence/persistence.module';
 import { DeliveryModule } from '../delivery';
+import { FleetModule } from '../fleet';
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import type { PayoutsDependencies } from './application/dependencies';
@@ -123,7 +124,7 @@ function useCase<U>(
  * and the provider's webhook is anonymous behind its signature.
  */
 @Module({
-  imports: [DeliveryModule],
+  imports: [DeliveryModule, FleetModule],
   controllers: [ProviderWebhookController, CourierPayoutsController, AdminPayoutsController],
   providers: [
     registerPermissions('payouts', PAYOUTS_PERMISSIONS),

@@ -118,14 +118,13 @@ describe('request logging before body parsing (integration)', () => {
     expect(line).not.toHaveProperty('err');
   });
 
-  it("mounts the request logger first and the JSON parsers after it, none of Nest's own", () => {
+  it("mounts the request logger first and one JSON parser after it, none of Nest's own", () => {
     const router = (app.getHttpAdapter().getInstance() as { router: { stack: { name: string }[] } })
       .router;
     const names = router.stack.map((layer) => layer.name);
     const logger = names.indexOf('result');
 
-    // The global parser, and the provider webhook's own (larger limit, raw body kept) before it.
-    expect(names.filter((name) => name === 'jsonParser')).toHaveLength(2);
+    expect(names.filter((name) => name === 'jsonParser')).toHaveLength(1);
     // JSON only since item 6.
     expect(names.filter((name) => name === 'urlencodedParser')).toHaveLength(0);
     expect(logger).toBeGreaterThanOrEqual(0);

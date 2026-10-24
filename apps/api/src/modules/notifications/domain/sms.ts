@@ -12,15 +12,35 @@ export interface SmsSettings {
   /** The country calling codes recipients may have (SMS pumping control), e.g. `61`. */
   readonly allowedCallingCodes: readonly string[];
   readonly templates: Readonly<Record<SmsKind, string>>;
+  /**
+   * Added after the booked message when the delivery has a proof-of-delivery PIN; names
+   * `{pin}`. The PIN is read from the delivery at the attempt and is never stored here.
+   */
+  readonly pinText: string;
+  /** The customer tracking page, an https URL naming `{token}` once. */
+  readonly trackingPageUrl: string;
 }
 
 /** The values a template may name; the tracking link exists only once tracking issued one. */
 export interface SmsValues {
   readonly reference: string;
   readonly trackingUrl?: string;
+  /** The recipient's proof-of-delivery PIN: shown in the booked message only. */
+  readonly pin?: string;
 }
 
-export type SmsRenderError = 'sms.tracking-link-missing';
+export type SmsRenderError = 'sms.tracking-link-missing' | 'sms.pin-invalid';
+
+/** A PIN as a message may show it: 4 to 8 digits, nothing else. */
+const PIN = /^[0-9]{4,8}$/;
+
+/**
+ * The customer's tracking URL for a link token: the Market's page with the token in place of
+ * `{token}`. The token is url-safe by construction; it is encoded anyway.
+ */
+export function trackingUrlFor(settings: SmsSettings, token: string): string {
+  return settings.trackingPageUrl.replace('{token}', encodeURIComponent(token));
+}
 
 /** The longest reference a message shows; a merchant's reference is cut to this. */
 export const MAX_SMS_REFERENCE_LENGTH = 32;
@@ -37,7 +57,9 @@ export function safeReference(reference: string): string {
 
 /**
  * The text of one recipient SMS: the Market's template of `kind` with its placeholders filled,
- * then the opt-out text. A template that names `{trackingUrl}` cannot be sent without a link.
+ * then, for a booked message with a PIN, the Market's PIN text, then the opt-out text. A
+ * template that names `{trackingUrl}` cannot be sent without a link. A PIN is only ever shown
+ * in the booked message, and only as 4 to 8 digits.
  */
 export function renderSms(
   settings: SmsSettings,
@@ -51,7 +73,10 @@ export function renderSms(
   const filled = template
     .replaceAll('{reference}', safeReference(values.reference))
     .replaceAll('{trackingUrl}', values.trackingUrl ?? '');
-  return ok(`${filled} ${settings.optOutText}`);
+  if (kind !== 'booked' || values.pin === undefined) return ok(`${filled} ${settings.optOutText}`);
+  if (!PIN.test(values.pin)) return err('sms.pin-invalid');
+  const pinText = settings.pinText.replaceAll('{pin}', values.pin);
+  return ok(`${filled} ${pinText} ${settings.optOutText}`);
 }
 
 /** The retry rules of SMS: the Market's attempts, then 30 s doubling to 30 min. */

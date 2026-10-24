@@ -380,6 +380,64 @@
     }
   },
   {
+    "action": "notifications.webhook-call.resent",
+    "targetType": "notifications.webhook-call",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "attempts": "integer"
+    },
+    "after": {
+      "subscriptionId": "id"
+    }
+  },
+  {
+    "action": "notifications.webhook-subscription.created",
+    "targetType": "notifications.webhook-subscription",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "eventTypes": "listOf(enumOf(delivery.booked|delivery.status-changed|delivery.cancelled), max 3)",
+      "secretVersion": "integer"
+    }
+  },
+  {
+    "action": "notifications.webhook-subscription.disabled",
+    "targetType": "notifications.webhook-subscription",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": null,
+    "after": {
+      "disabled": "boolean"
+    }
+  },
+  {
+    "action": "notifications.webhook-subscription.event-types-changed",
+    "targetType": "notifications.webhook-subscription",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "eventTypes": "listOf(enumOf(delivery.booked|delivery.status-changed|delivery.cancelled), max 3)"
+    },
+    "after": {
+      "eventTypes": "listOf(enumOf(delivery.booked|delivery.status-changed|delivery.cancelled), max 3)"
+    }
+  },
+  {
+    "action": "notifications.webhook-subscription.secret-rotated",
+    "targetType": "notifications.webhook-subscription",
+    "targetId": "id",
+    "actors": ["authenticated"],
+    "before": {
+      "secretVersion": "integer"
+    },
+    "after": {
+      "previousSecretValidUntil": "optional(instant)",
+      "secretVersion": "integer"
+    }
+  },
+  {
     "action": "payouts.adjustment.recorded",
     "targetType": "payouts.courier",
     "targetId": "id",

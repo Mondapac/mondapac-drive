@@ -12,6 +12,7 @@ const STATUS: Readonly<Record<string, number>> = Object.freeze({
   'payouts.key-reused': 409,
   'payouts.settle-ambiguous': 409,
   'payouts.settle-mismatch': 409,
+  'payouts.settle-too-early': 409,
   'payouts.not-a-contractor': 409,
   'payouts.provider-unavailable': 503,
   'payouts.provider-refused': 502,

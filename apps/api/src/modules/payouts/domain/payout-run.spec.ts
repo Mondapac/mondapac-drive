@@ -267,10 +267,23 @@ describe('a payout line, held or settled', () => {
 describe('an account update (L1)', () => {
   const stored = { ...account('c-1', false), providerStateAt: now };
 
-  it('applies a report as new as the stored state or newer', () => {
+  it('applies a newer report, and keeps a disabled account of the same second disabled (L-c)', () => {
     const later = now.add({ seconds: 5 });
+    expect(
+      accountUpdated(stored, { payoutsEnabled: true, stateAt: now.add({ seconds: 1 }) }, later),
+    ).toEqual(
+      expect.objectContaining({
+        payoutsEnabled: true,
+        providerStateAt: now.add({ seconds: 1 }),
+        updatedAt: later,
+      }),
+    );
     expect(accountUpdated(stored, { payoutsEnabled: true, stateAt: now }, later)).toEqual(
-      expect.objectContaining({ payoutsEnabled: true, providerStateAt: now, updatedAt: later }),
+      expect.objectContaining({ payoutsEnabled: false, providerStateAt: now }),
+    );
+    const enabled = { ...account('c-1', true), providerStateAt: now };
+    expect(accountUpdated(enabled, { payoutsEnabled: false, stateAt: now }, later)).toEqual(
+      expect.objectContaining({ payoutsEnabled: false }),
     );
     expect(accountUpdated(account('c-1'), { payoutsEnabled: false, stateAt: now }, later)).toEqual(
       expect.objectContaining({ payoutsEnabled: false }),

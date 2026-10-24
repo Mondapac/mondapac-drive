@@ -10,3 +10,5 @@ apps/api/src/generated/
 .expo/
 .object-store/
 *.rdb
+# Copied from maplibre-gl by apps/panel/scripts/copy-maplibre-worker.mjs.
+apps/panel/public/maplibre/

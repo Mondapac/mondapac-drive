@@ -1,4 +1,11 @@
-import { err, ok, type CallContext, type Id, type Result } from '@mondapac-drive/shared-kernel';
+import {
+  err,
+  ok,
+  Temporal,
+  type CallContext,
+  type Id,
+  type Result,
+} from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import { LINE_SETTLE } from '../../contracts/permissions';
 import { lineSettledAudit } from '../../domain/audit-actions';
@@ -25,6 +32,9 @@ export interface SettledLine {
 }
 
 const failure = (code: string, message: string): PayoutsFailure => ({ code, message });
+
+/** How long a line stays unresolved before it may be settled as not transferred. */
+export const SETTLE_NOT_FOUND_AFTER = Temporal.Duration.from({ hours: 1 });
 
 /**
  * The stuck-payout tool (docs/runbooks/payouts-unresolved-line.md): settles an `unresolved` line,
@@ -88,6 +98,29 @@ export class SettleUnresolvedLine extends UseCase<SettleLineInput, SettledLine, 
       return err(failure('payouts.settle-ambiguous', 'The provider holds several transfers'));
     }
     const match = matches[0];
+    if (match === undefined) {
+      // "Not transferred" credits the courier back for the next run, so it is answered only when
+      // the provider has had time to list a transfer of the last attempt (Hassan L-b) and no
+      // transfer of the run could be this line's with its metadata lost.
+      const unresolvedFor = clock.now().since(line.updatedAt);
+      if (Temporal.Duration.compare(unresolvedFor, SETTLE_NOT_FOUND_AFTER) < 0) {
+        return err(
+          failure('payouts.settle-too-early', 'The provider may not list the transfer yet'),
+        );
+      }
+      const lookalike = listed.value.some(
+        (transfer) =>
+          transfer.payoutLineId === undefined &&
+          transfer.destination === line.destination &&
+          transfer.amount.currency === line.amount.currency &&
+          transfer.amount.amount === transferAmountOf(line).amount,
+      );
+      if (lookalike) {
+        return err(
+          failure('payouts.settle-ambiguous', 'A transfer without its line id may be this line'),
+        );
+      }
+    }
     if (
       match !== undefined &&
       (match.destination !== line.destination ||

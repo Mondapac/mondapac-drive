@@ -199,7 +199,8 @@
     "webhooks": {
       "maxAttempts": 4,
       "firstRetrySeconds": 10,
-      "maxRetrySeconds": 120
+      "maxRetrySeconds": 120,
+      "rotationOverlapMinutes": 30
     },
     "sms": {
       "senderId": "ZZDrive",
@@ -211,7 +212,9 @@
         "on_the_way": "ZZ on the way {trackingUrl}",
         "delivered": "ZZ delivered {reference}",
         "failed": "ZZ failed {reference}"
-      }
+      },
+      "pinText": "ZZ PIN {pin}",
+      "trackingPageUrl": "https://track.zz.example/t/{token}"
     }
   },
   "fleet": {
@@ -243,7 +246,8 @@
         "perVehicle": false,
         "expires": true
       }
-    ]
+    ],
+    "businessIdDocumentType": "business_number"
   },
   "payouts": {
     "earnings": {

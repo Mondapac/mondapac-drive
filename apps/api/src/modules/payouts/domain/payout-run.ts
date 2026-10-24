@@ -294,7 +294,9 @@ export function lineSettled(
 /**
  * The account after a provider report of its state produced at `stateAt`. Reports arrive in no
  * order (security review L1): one older than the state stored changes nothing (`undefined`).
- * One as old applies, so a repeated second-granular timestamp still lets the later report win.
+ * Two reports of the same second (the provider's timestamps are second-granular) cannot be
+ * ordered, so the account stays enabled only if both say so (fails closed, Hassan L-c): the
+ * provider's next report enables it again.
  */
 export function accountUpdated(
   account: PayoutAccount,
@@ -302,12 +304,12 @@ export function accountUpdated(
   at: Temporal.Instant,
 ): PayoutAccount | undefined {
   const stored = account.providerStateAt;
-  if (stored !== undefined && Temporal.Instant.compare(report.stateAt, stored) < 0) {
-    return undefined;
-  }
+  const order = stored === undefined ? 1 : Temporal.Instant.compare(report.stateAt, stored);
+  if (order < 0) return undefined;
   return Object.freeze({
     ...account,
-    payoutsEnabled: report.payoutsEnabled,
+    payoutsEnabled:
+      order === 0 ? report.payoutsEnabled && account.payoutsEnabled : report.payoutsEnabled,
     providerStateAt: report.stateAt,
     updatedAt: at,
   });

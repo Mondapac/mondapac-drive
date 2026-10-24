@@ -44,10 +44,16 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
  * The Nest modules that bind their own audit writer and register their actions. A module joins
  * this list only with the audited actions its approved design names: fleet (work package 05)
  * with its operator decisions on couriers and documents; identity with its access-management
- * actions (accounts, roles, sessions, merchants and API keys); payouts (work package 24) with an
- * operator's ledger adjustment and the settling of an unresolved payout line.
+ * actions (accounts, roles, sessions, merchants and API keys); notifications (package 25) with
+ * merchants' webhook subscription changes and operators' re-sends; payouts (work package 24) with
+ * an operator's ledger adjustment and the settling of an unresolved payout line.
  */
-const AUDITING_MODULES: readonly string[] = ['FleetModule', 'IdentityModule', 'PayoutsModule'];
+const AUDITING_MODULES: readonly string[] = [
+  'FleetModule',
+  'IdentityModule',
+  'NotificationsModule',
+  'PayoutsModule',
+];
 const SRC = path.join(__dirname, '../../src');
 
 const foldersOf = (dir: string) =>
@@ -373,6 +379,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     expect(binders.sort()).toEqual([
       ['FleetModule', 'fleet'],
       ['IdentityModule', 'identity'],
+      ['NotificationsModule', 'notifications'],
       ['PayoutsModule', 'payouts'],
     ]);
   });
@@ -399,6 +406,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ['FleetModule', 'writer'],
       ['IdentityModule', 'actions'],
       ['IdentityModule', 'writer'],
+      ['NotificationsModule', 'actions'],
+      ['NotificationsModule', 'writer'],
       ['PayoutsModule', 'actions'],
       ['PayoutsModule', 'writer'],
     ]);
@@ -483,6 +492,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: registerAuditActions('fleet')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: auditWriterFor('identity')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: registerAuditActions('identity')`,
+      `${path.join('modules', 'notifications', 'notifications.module.ts')}: auditWriterFor('notifications')`,
+      `${path.join('modules', 'notifications', 'notifications.module.ts')}: registerAuditActions('notifications')`,
       `${path.join('modules', 'payouts', 'payouts.module.ts')}: auditWriterFor('payouts')`,
       `${path.join('modules', 'payouts', 'payouts.module.ts')}: registerAuditActions('payouts')`,
     ]);
