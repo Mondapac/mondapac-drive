@@ -70,7 +70,7 @@ describe('delivery lifecycle', () => {
   it('walks the happy path and keeps a history', () => {
     const done = run(newDelivery('ambient'), ...toDropoff, {
       type: 'delivered',
-      proof: { kind: 'pin', pinMatched: true },
+      proof: { kind: 'pin' },
     });
     expect(done.status).toBe('DELIVERED');
     expect(done.courierId).toBe('c1');

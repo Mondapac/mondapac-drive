@@ -1,4 +1,6 @@
 import type { Provider } from '@nestjs/common';
+import { APP_CONFIG } from '../../../platform/config/config.module';
+import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { ServiceAreaDirectory } from '../../../platform/market-config/service-area-directory';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
@@ -10,7 +12,11 @@ import {
   DISTANCE_PROVIDER,
   GEOCODER,
   MARKET_SETTINGS,
+  PROOF_PHOTOS,
+  RECIPIENT_PINS,
 } from '../application/ports';
+import { HmacRecipientPins, pinKey } from './hmac-recipient-pins';
+import { PrismaProofPhotoRepository } from './prisma-proof-photo.repository';
 import { ConfigMarketSettingsProvider } from './config-market-settings.provider';
 import { IdentityCourierAccounts } from './identity-courier-accounts';
 import { PrismaDeliveryRepository } from './prisma-delivery.repository';
@@ -22,6 +28,16 @@ export const deliveryProviders: Provider[] = [
     provide: DELIVERY_REPOSITORY,
     inject: [PrismaService],
     useFactory: (prisma: PrismaService) => new PrismaDeliveryRepository(prisma),
+  },
+  {
+    provide: PROOF_PHOTOS,
+    inject: [PrismaService],
+    useFactory: (prisma: PrismaService) => new PrismaProofPhotoRepository(prisma),
+  },
+  {
+    provide: RECIPIENT_PINS,
+    inject: [APP_CONFIG],
+    useFactory: (config: AppConfig) => new HmacRecipientPins(pinKey(process.env, config)),
   },
   {
     provide: MARKET_SETTINGS,

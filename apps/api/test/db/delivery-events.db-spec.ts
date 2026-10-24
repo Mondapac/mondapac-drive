@@ -161,6 +161,12 @@ describe('delivery events (database integration)', () => {
     const report = (id: string, body: object, by: CourierActor = courier) =>
       post(code, `/delivery/courier/deliveries/${id}/events`, by.headers, body);
 
+    const pinOf = async (id: string) =>
+      (await app
+        .get(DeliveryRecipients, { strict: false })
+        .forNotification(testCallContext(marketOf(code), 'system'), id as Id<'Delivery'>))!
+        .recipientPin!;
+
     it('writes delivery.booked once, and nothing for a repeated booking', async () => {
       const reference = `order-${randomUUID()}`;
       const { id, merchantId, quote } = await book(reference);
@@ -205,7 +211,8 @@ describe('delivery events (database integration)', () => {
         expect((await report(id, { type })).status).toBe(200);
       }
       expect(
-        (await report(id, { type: 'delivered', proof: { kind: 'photo', photoRef: 'p-1' } })).status,
+        (await report(id, { type: 'delivered', proof: { kind: 'pin', pin: await pinOf(id) } }))
+          .status,
       ).toBe(200);
 
       const rows = await outbox(id);
@@ -394,7 +401,7 @@ describe('delivery events (database integration)', () => {
         merchantId,
         externalReference: expect.stringMatching(/^order-/) as unknown,
         dropoffPhone: '+61 400 000 000',
-        recipientPin: null,
+        recipientPin: expect.stringMatching(code === 'AU' ? /^[0-9]{4}$/ : /^[0-9]{6}$/) as unknown,
       });
       const anonymous = testCallContext(marketOf(code), 'anonymous');
       await expect(view.forDispatch(anonymous, id as Id<'Delivery'>)).rejects.toThrow(/refused/);

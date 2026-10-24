@@ -384,6 +384,22 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
     await this.appendHistory(market, delivery, stored);
   }
 
+  async claimPinAttempt(
+    market: MarketContext,
+    id: Id<'Delivery'>,
+    max: number,
+  ): Promise<number | null> {
+    const tx = this.prisma.tx(market);
+    const where = { marketId: market.marketId, tenantId: market.tenantId, id };
+    const claimed = await tx.deliveryDelivery.updateMany({
+      where: { ...where, wrongPins: { lt: max } },
+      data: { wrongPins: { increment: 1 } },
+    });
+    if (claimed.count === 0) return null;
+    const row = await tx.deliveryDelivery.findFirst({ where, select: { wrongPins: true } });
+    return row?.wrongPins ?? max;
+  }
+
   async raiseException(
     market: MarketContext,
     id: Id<'Delivery'>,
