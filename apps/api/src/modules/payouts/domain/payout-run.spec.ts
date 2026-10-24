@@ -3,8 +3,12 @@ import { AU, payoutMarkets, ZZ } from '../../../../test/support/payouts-markets'
 import type { Balance } from './ledger';
 import type { Payee } from './payee';
 import {
+  accountUpdated,
+  lineHeldBeforeTransfer,
   lineRefused,
   lineReversed,
+  lineSettled,
+  SETTLED_NOT_TRANSFERRED,
   lineTransferred,
   MAX_TRANSFER_ATTEMPTS,
   planPayoutRun,
@@ -214,5 +218,72 @@ describe('a payout line', () => {
     expect(() => lineReversed(pending(), m(1n), later)).toThrow(
       expect.objectContaining({ code: 'payouts.line-state' }) as Error,
     );
+  });
+});
+
+describe('a payout line, held or settled', () => {
+  const m = (amount: bigint) => money(amount, 'AUD');
+  const pending = (): PayoutLine =>
+    plan(
+      'AU',
+      [{ courierId: 'c-1', balance: { amount: m(1000n), tax: m(100n), total: m(1100n) } }],
+      [contractor('c-1')],
+      [account('c-1')],
+    ).lines[0]!;
+  const later = now.add({ minutes: 1 });
+  const unresolved = (): PayoutLine => {
+    let line = pending();
+    for (let attempt = 0; attempt < MAX_TRANSFER_ATTEMPTS; attempt += 1) {
+      line = lineRefused(line, { code: 'stripe.unreachable', transient: true }, later);
+    }
+    return line;
+  };
+
+  it('holds a pending line before its transfer, with the reason (L5)', () => {
+    expect(lineHeldBeforeTransfer(pending(), 'payouts-disabled', later)).toEqual(
+      expect.objectContaining({ status: 'held', holdReason: 'payouts-disabled', version: 2 }),
+    );
+    expect(() =>
+      lineHeldBeforeTransfer(lineTransferred(pending(), 'tr_1', later), 'payouts-disabled', later),
+    ).toThrow(expect.objectContaining({ code: 'payouts.line-state' }));
+  });
+
+  it('settles an unresolved line as transferred, or as failed when the provider holds none', () => {
+    const line = unresolved();
+    expect(line.status).toBe('unresolved');
+
+    expect(lineSettled(line, { found: true, transferId: 'tr_9' }, later)).toEqual(
+      expect.objectContaining({ status: 'transferred', transferId: 'tr_9' }),
+    );
+    expect(lineSettled(line, { found: false }, later)).toEqual(
+      expect.objectContaining({ status: 'failed', lastErrorCode: SETTLED_NOT_TRANSFERRED }),
+    );
+    expect(() => lineSettled(pending(), { found: false }, later)).toThrow(
+      expect.objectContaining({ code: 'payouts.line-state' }),
+    );
+  });
+});
+
+describe('an account update (L1)', () => {
+  const stored = { ...account('c-1', false), providerStateAt: now };
+
+  it('applies a report as new as the stored state or newer', () => {
+    const later = now.add({ seconds: 5 });
+    expect(accountUpdated(stored, { payoutsEnabled: true, stateAt: now }, later)).toEqual(
+      expect.objectContaining({ payoutsEnabled: true, providerStateAt: now, updatedAt: later }),
+    );
+    expect(accountUpdated(account('c-1'), { payoutsEnabled: false, stateAt: now }, later)).toEqual(
+      expect.objectContaining({ payoutsEnabled: false }),
+    );
+  });
+
+  it('changes nothing for a report older than the stored state', () => {
+    expect(
+      accountUpdated(
+        stored,
+        { payoutsEnabled: true, stateAt: now.subtract({ seconds: 1 }) },
+        now,
+      ),
+    ).toBeUndefined();
   });
 });

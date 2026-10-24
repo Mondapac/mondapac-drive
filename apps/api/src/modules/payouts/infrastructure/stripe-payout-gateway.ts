@@ -1,13 +1,13 @@
-import { err, ok, Temporal, type Result } from '@mondapac-drive/shared-kernel';
+import { err, money, ok, Temporal, type Result } from '@mondapac-drive/shared-kernel';
 import type { ProviderSecret } from '../../../platform/config/payment-provider';
-import type { GatewayRefusal, PayoutGateway } from '../application/ports';
+import type { GatewayRefusal, PayoutGateway, ProviderTransfer } from '../application/ports';
 
-/** One HTTPS call to the provider, and its answer. */
+/** One HTTPS call to the provider, and its answer. A GET has no body. */
 export interface HttpRequest {
-  readonly method: 'POST';
+  readonly method: 'POST' | 'GET';
   readonly url: string;
   readonly headers: Readonly<Record<string, string>>;
-  readonly body: string;
+  readonly body?: string;
 }
 export interface HttpResponse {
   readonly status: number;
@@ -24,7 +24,7 @@ export const fetchTransport: HttpTransport = async (request) => {
   const response = await fetch(request.url, {
     method: request.method,
     headers: request.headers,
-    body: request.body,
+    ...(request.body === undefined ? {} : { body: request.body }),
     redirect: 'error',
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -39,6 +39,11 @@ export const fetchTransport: HttpTransport = async (request) => {
 const UNSUPPORTED_CURRENCIES = new Set(['HUF', 'ISK', 'TWD', 'UGX']);
 
 const ID = /^[A-Za-z0-9_]{1,64}$/;
+const LINE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Transfers per page of a list, Stripe's maximum, and the pages one lookup reads at most. */
+const PAGE_SIZE = 100;
+export const MAX_TRANSFER_PAGES = 20;
 
 /** Form fields as Stripe takes them: text, or nested fields written as `key[inner]`. */
 interface FormFields {
@@ -173,22 +178,62 @@ export class StripePayoutGateway implements PayoutGateway {
       : err({ code: 'stripe.malformed-answer', transient: true });
   }
 
-  private async post(
+  /**
+   * Every transfer of one transfer group, page by page (newest first, as Stripe lists them). A
+   * transfer whose answer is malformed fails the lookup: settling must see every transfer.
+   */
+  async transfersOfGroup(
+    group: string,
+  ): Promise<Result<readonly ProviderTransfer[], GatewayRefusal>> {
+    const found: ProviderTransfer[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < MAX_TRANSFER_PAGES; page += 1) {
+      const query = new URLSearchParams({ transfer_group: group, limit: String(PAGE_SIZE) });
+      if (after !== undefined) query.set('starting_after', after);
+      const answer = await this.send('GET', `/transfers?${query.toString()}`);
+      if (!answer.ok) return answer;
+      const { data, has_more: hasMore } = answer.value;
+      if (!Array.isArray(data) || typeof hasMore !== 'boolean') {
+        return err({ code: 'stripe.malformed-answer', transient: true });
+      }
+      for (const item of data as unknown[]) {
+        const transfer = transferOf(item);
+        if (transfer === undefined) return err({ code: 'stripe.malformed-answer', transient: true });
+        found.push(transfer);
+      }
+      const last = found.at(-1);
+      if (!hasMore) return ok(found);
+      if (last === undefined) return err({ code: 'stripe.malformed-answer', transient: true });
+      after = last.transferId;
+    }
+    return err({ code: 'stripe.too-many-transfers', transient: false });
+  }
+
+  private post(
     path: string,
     fields: FormFields,
+    idempotencyKey?: string,
+  ): Promise<Result<Record<string, unknown>, GatewayRefusal>> {
+    return this.send('POST', path, form(fields), idempotencyKey);
+  }
+
+  private async send(
+    method: 'POST' | 'GET',
+    path: string,
+    body?: string,
     idempotencyKey?: string,
   ): Promise<Result<Record<string, unknown>, GatewayRefusal>> {
     let response: HttpResponse;
     try {
       response = await this.transport({
-        method: 'POST',
+        method,
         url: `${API}${path}`,
         headers: {
           authorization: `Bearer ${this.secretKey.reveal()}`,
-          'content-type': 'application/x-www-form-urlencoded',
+          ...(body === undefined ? {} : { 'content-type': 'application/x-www-form-urlencoded' }),
           ...(idempotencyKey === undefined ? {} : { 'idempotency-key': idempotencyKey }),
         },
-        body: form(fields),
+        ...(body === undefined ? {} : { body }),
       });
     } catch {
       // A timeout or a lost connection: the request may have been applied, so it is retried
@@ -196,11 +241,40 @@ export class StripePayoutGateway implements PayoutGateway {
       return err({ code: 'stripe.unreachable', transient: true });
     }
     if (response.status < 200 || response.status >= 300) return err(refusalOf(response));
-    const body = parseJson(response.body);
-    return body === undefined
+    const answer = parseJson(response.body);
+    return answer === undefined
       ? err({ code: 'stripe.malformed-answer', transient: true })
-      : ok(body);
+      : ok(answer);
   }
+}
+
+/** One listed transfer, or `undefined` when it is not shaped as Stripe documents it. */
+function transferOf(item: unknown): ProviderTransfer | undefined {
+  if (typeof item !== 'object' || item === null) return undefined;
+  const { id, amount, currency, destination, metadata } = item as Record<string, unknown>;
+  if (
+    typeof id !== 'string' ||
+    !ID.test(id) ||
+    typeof amount !== 'number' ||
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    typeof currency !== 'string' ||
+    !/^[a-z]{3}$/.test(currency) ||
+    typeof destination !== 'string' ||
+    !ID.test(destination)
+  ) {
+    return undefined;
+  }
+  const lineId =
+    typeof metadata === 'object' && metadata !== null
+      ? (metadata as Record<string, unknown>).payoutLineId
+      : undefined;
+  return {
+    transferId: id,
+    amount: money(BigInt(amount), currency.toUpperCase()),
+    destination,
+    ...(typeof lineId === 'string' && LINE_ID.test(lineId) ? { payoutLineId: lineId } : {}),
+  };
 }
 
 /** The gateway of a deployment without provider credentials: it sends nothing. */
@@ -220,6 +294,10 @@ export class DisabledPayoutGateway implements PayoutGateway {
   }
 
   createTransfer() {
+    return this.refuse();
+  }
+
+  transfersOfGroup() {
     return this.refuse();
   }
 }

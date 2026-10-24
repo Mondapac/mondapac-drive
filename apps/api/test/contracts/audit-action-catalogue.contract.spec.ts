@@ -44,9 +44,10 @@ const SNAPSHOT = path.join(__dirname, 'audit-action-catalogue.snapshot.json');
  * The Nest modules that bind their own audit writer and register their actions. A module joins
  * this list only with the audited actions its approved design names: fleet (work package 05)
  * with its operator decisions on couriers and documents; identity with its access-management
- * actions (accounts, roles, sessions, merchants and API keys).
+ * actions (accounts, roles, sessions, merchants and API keys); payouts (work package 24) with an
+ * operator's ledger adjustment and the settling of an unresolved payout line.
  */
-const AUDITING_MODULES: readonly string[] = ['FleetModule', 'IdentityModule'];
+const AUDITING_MODULES: readonly string[] = ['FleetModule', 'IdentityModule', 'PayoutsModule'];
 const SRC = path.join(__dirname, '../../src');
 
 const foldersOf = (dir: string) =>
@@ -131,7 +132,11 @@ const isAmountKind = (kind: AuditFieldKind): boolean =>
  * platform-audit 3.2). Pricing's regular-price and special-price rows carry the seller's own amounts, and sellers' minimum-order change the seller's own public minimum; Cost
  * never enters an audit row (ADR-0024), which `costLeakProblems` checks apart from this list.
  */
-const MONEY_FIELD_ALLOW_LIST: readonly string[] = [];
+const MONEY_FIELD_ALLOW_LIST: readonly string[] = [
+  // An operator's adjustment of a courier's own earnings: its amount and its tax (package 24).
+  'payouts.adjustment.recorded.after.amount',
+  'payouts.adjustment.recorded.after.tax',
+];
 
 /** Every field of every action, as `<action>.<side>.<field>` with its kind. */
 function auditFieldsOf(definitions: readonly AuditActionDefinition[]) {
@@ -368,6 +373,7 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
     expect(binders.sort()).toEqual([
       ['FleetModule', 'fleet'],
       ['IdentityModule', 'identity'],
+      ['PayoutsModule', 'payouts'],
     ]);
   });
 
@@ -393,6 +399,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       ['FleetModule', 'writer'],
       ['IdentityModule', 'actions'],
       ['IdentityModule', 'writer'],
+      ['PayoutsModule', 'actions'],
+      ['PayoutsModule', 'writer'],
     ]);
     expect(found.filter((entry) => entry.owner !== entry.allowed)).toEqual([]);
   });
@@ -475,6 +483,8 @@ describe('only the auditing modules bind an audit writer, each its own (Ali, con
       `${path.join('modules', 'fleet', 'fleet.module.ts')}: registerAuditActions('fleet')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: auditWriterFor('identity')`,
       `${path.join('modules', 'identity', 'identity.module.ts')}: registerAuditActions('identity')`,
+      `${path.join('modules', 'payouts', 'payouts.module.ts')}: auditWriterFor('payouts')`,
+      `${path.join('modules', 'payouts', 'payouts.module.ts')}: registerAuditActions('payouts')`,
     ]);
   });
 });

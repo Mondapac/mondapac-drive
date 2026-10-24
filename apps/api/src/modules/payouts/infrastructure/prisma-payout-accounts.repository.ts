@@ -11,6 +11,7 @@ interface AccountRow {
   readonly courierId: string;
   readonly providerAccountId: string;
   readonly payoutsEnabled: boolean;
+  readonly providerStateAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -19,6 +20,7 @@ const SELECT_ACCOUNT = {
   courierId: true,
   providerAccountId: true,
   payoutsEnabled: true,
+  providerStateAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -28,6 +30,7 @@ function readAccount(row: AccountRow): PayoutAccount {
     courierId: row.courierId,
     providerAccountId: row.providerAccountId,
     payoutsEnabled: row.payoutsEnabled,
+    ...(row.providerStateAt === null ? {} : { providerStateAt: toInstant(row.providerStateAt) }),
     createdAt: toInstant(row.createdAt),
     updatedAt: toInstant(row.updatedAt),
   });
@@ -78,6 +81,8 @@ export class PrismaPayoutAccountRepository implements PayoutAccountRepository {
           courierId: account.courierId,
           providerAccountId: account.providerAccountId,
           payoutsEnabled: account.payoutsEnabled,
+          providerStateAt:
+            account.providerStateAt === undefined ? null : toDate(account.providerStateAt),
           createdAt: toDate(account.createdAt),
           updatedAt: toDate(account.updatedAt),
         },
@@ -94,7 +99,12 @@ export class PrismaPayoutAccountRepository implements PayoutAccountRepository {
         tenantId: market.tenantId,
         courierId: account.courierId,
       },
-      data: { payoutsEnabled: account.payoutsEnabled, updatedAt: toDate(account.updatedAt) },
+      data: {
+        payoutsEnabled: account.payoutsEnabled,
+        providerStateAt:
+          account.providerStateAt === undefined ? null : toDate(account.providerStateAt),
+        updatedAt: toDate(account.updatedAt),
+      },
     });
   }
 

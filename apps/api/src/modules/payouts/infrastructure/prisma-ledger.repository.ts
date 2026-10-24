@@ -2,6 +2,7 @@ import {
   addMoney,
   money,
   Temporal,
+  type Money,
   type Id,
   type MarketContext,
 } from '@mondapac-drive/shared-kernel';
@@ -198,5 +199,40 @@ export class PrismaLedgerRepository implements LedgerRepository {
       skipDuplicates: true,
     });
     return created.count === 1;
+  }
+
+  async earnedSince(
+    market: MarketContext,
+    courierId: string,
+    since: Temporal.Instant,
+    currency: string,
+  ): Promise<Money> {
+    const sums = await this.prisma.tx(market).payoutsLedgerEntry.aggregate({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        courierId,
+        currency,
+        kind: { not: 'payout' },
+        occurredAt: { gte: toDate(since) },
+      },
+      _sum: { amount: true, taxAmount: true },
+    });
+    return balanceFrom(sums._sum.amount, sums._sum.taxAmount, currency).total;
+  }
+
+  async deliveriesSince(
+    market: MarketContext,
+    courierId: string,
+    since: Temporal.Instant,
+  ): Promise<number> {
+    return this.prisma.tx(market).payoutsCourierDelivery.count({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        courierId,
+        deliveredAt: { gte: toDate(since) },
+      },
+    });
   }
 }

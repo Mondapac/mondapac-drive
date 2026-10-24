@@ -1,7 +1,7 @@
 import { money, Temporal, type Id, type MarketContext } from '@mondapac-drive/shared-kernel';
 import type { PrismaService } from '../../../platform/persistence/prisma.service';
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
-import type { PayoutRunRepository } from '../application/ports';
+import type { LineQuery, PayoutRunRepository } from '../application/ports';
 import type { HoldReason, PayoutLine, PayoutLineStatus, PayoutRun } from '../domain/payout-run';
 
 const toDate = (instant: Temporal.Instant): Date => new Date(instant.epochMilliseconds);
@@ -69,7 +69,8 @@ function readLine(row: LineRow): PayoutLine {
 /**
  * {@link PayoutRunRepository} on `payouts.payout_runs` and `payouts.payout_lines`, through the
  * open unit's guarded client. A run and its lines are written by separate statements (the guard
- * refuses nested writes); a line changes only its transfer state, under the version check.
+ * refuses nested writes); a line changes only its transfer state (and, held at sending, its hold
+ * reason), under the version check.
  */
 export class PrismaPayoutRunRepository implements PayoutRunRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -162,6 +163,23 @@ export class PrismaPayoutRunRepository implements PayoutRunRepository {
     return row === null ? undefined : readLine(row);
   }
 
+  async listLines(market: MarketContext, query: LineQuery) {
+    const rows = await this.prisma.tx(market).payoutsLine.findMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        status: { in: [...query.statuses] },
+        ...(query.courierId === undefined ? {} : { courierId: query.courierId }),
+        ...(query.after === undefined ? {} : { id: { gt: query.after } }),
+      },
+      // Line ids are UUIDv7, so id order is creation order and a stable cursor.
+      orderBy: { id: 'asc' },
+      take: query.limit,
+      select: SELECT_LINE,
+    });
+    return rows.map(readLine);
+  }
+
   async updateLine(market: MarketContext, line: PayoutLine): Promise<void> {
     const updated = await this.prisma.tx(market).payoutsLine.updateMany({
       where: {
@@ -172,6 +190,7 @@ export class PrismaPayoutRunRepository implements PayoutRunRepository {
       },
       data: {
         status: line.status,
+        holdReason: line.holdReason ?? null,
         transferId: line.transferId ?? null,
         attempts: line.attempts,
         lastErrorCode: line.lastErrorCode ?? null,

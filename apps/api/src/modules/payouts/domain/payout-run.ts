@@ -1,5 +1,11 @@
-import type { Temporal } from '@mondapac-drive/shared-kernel';
-import { addMoney, compareMoney, money, type Id, type Money } from '@mondapac-drive/shared-kernel';
+import {
+  addMoney,
+  compareMoney,
+  money,
+  Temporal,
+  type Id,
+  type Money,
+} from '@mondapac-drive/shared-kernel';
 import { PayoutsDomainError } from './errors';
 import type { Balance } from './ledger';
 import type { Payee } from './payee';
@@ -42,6 +48,11 @@ export interface PayoutAccount {
   readonly providerAccountId: string;
   /** The provider can pay this account out (onboarding finished and verified). */
   readonly payoutsEnabled: boolean;
+  /**
+   * When the provider produced the account state stored (its event's `created`): an older
+   * `account.updated` that arrives later changes nothing (security review L1).
+   */
+  readonly providerStateAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
 }
@@ -241,4 +252,64 @@ export function lineReversed(
     line: next(line, at, { status: 'reversed', reversedAmount: reversedTotal }),
     newlyReversed: newly,
   };
+}
+
+/**
+ * A pending line whose account can no longer be paid out when its transfer is due (security
+ * review L5): it is held instead, with the reason, and its ledger debit must be reversed in the
+ * same unit so the balance waits for a later run.
+ */
+export function lineHeldBeforeTransfer(
+  line: PayoutLine,
+  reason: HoldReason,
+  at: Temporal.Instant,
+): PayoutLine {
+  requireStatus(line, ['pending']);
+  return next(line, at, { status: 'held', holdReason: reason });
+}
+
+/** An unresolved line an operator settled against the provider's records. */
+export type Settlement =
+  | { readonly found: true; readonly transferId: string }
+  | { readonly found: false };
+
+/** The code an operator's settlement leaves on a line the provider never transferred. */
+export const SETTLED_NOT_TRANSFERRED = 'settled.not-transferred';
+
+/**
+ * Settles an `unresolved` line: the provider holds a transfer for it, so it is `transferred`;
+ * or it holds none, so the line is `failed` and its debit must be reversed in the same unit,
+ * and the balance is paid by a later run under a new line.
+ */
+export function lineSettled(
+  line: PayoutLine,
+  settlement: Settlement,
+  at: Temporal.Instant,
+): PayoutLine {
+  requireStatus(line, ['unresolved']);
+  return settlement.found
+    ? next(line, at, { status: 'transferred', transferId: settlement.transferId })
+    : next(line, at, { status: 'failed', lastErrorCode: SETTLED_NOT_TRANSFERRED });
+}
+
+/**
+ * The account after a provider report of its state produced at `stateAt`. Reports arrive in no
+ * order (security review L1): one older than the state stored changes nothing (`undefined`).
+ * One as old applies, so a repeated second-granular timestamp still lets the later report win.
+ */
+export function accountUpdated(
+  account: PayoutAccount,
+  report: { readonly payoutsEnabled: boolean; readonly stateAt: Temporal.Instant },
+  at: Temporal.Instant,
+): PayoutAccount | undefined {
+  const stored = account.providerStateAt;
+  if (stored !== undefined && Temporal.Instant.compare(report.stateAt, stored) < 0) {
+    return undefined;
+  }
+  return Object.freeze({
+    ...account,
+    payoutsEnabled: report.payoutsEnabled,
+    providerStateAt: report.stateAt,
+    updatedAt: at,
+  });
 }

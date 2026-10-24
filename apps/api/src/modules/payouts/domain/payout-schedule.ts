@@ -32,3 +32,22 @@ export function latestCutoff(
   }
   return cutoff.toInstant();
 }
+
+/** The local day and the ISO week (from Monday) that hold `now`, in the Market's time zone. */
+export interface EarningPeriods {
+  readonly dayStart: Temporal.Instant;
+  readonly weekStart: Temporal.Instant;
+}
+
+/**
+ * Where the courier app's "today" and "this week" begin: local midnight of `now`'s day, and of
+ * the Monday of its week, in the Market's time zone (a midnight skipped by daylight saving moves
+ * forward, as Temporal resolves it).
+ */
+export function earningPeriods(timezone: string, now: Temporal.Instant): EarningPeriods {
+  const today = now.toZonedDateTimeISO(timezone).startOfDay();
+  return {
+    dayStart: today.toInstant(),
+    weekStart: today.subtract({ days: today.dayOfWeek - 1 }).startOfDay().toInstant(),
+  };
+}

@@ -9,9 +9,9 @@ export interface PayoutsFailure {
 }
 
 /** Runs domain code and turns a broken domain rule into an `err`; anything else is rethrown. */
-export async function refusingBrokenRules<T>(
-  work: () => Promise<Result<T, PayoutsFailure>>,
-): Promise<Result<T, PayoutsFailure>> {
+export async function refusingBrokenRules<T, E extends PayoutsFailure = PayoutsFailure>(
+  work: () => Promise<Result<T, E>>,
+): Promise<Result<T, E | PayoutsFailure>> {
   try {
     return await work();
   } catch (error) {
@@ -33,3 +33,9 @@ export interface RecordedEntry {
   readonly recorded: boolean;
   readonly entry: LedgerEntry;
 }
+
+/** The refusal of an actor of the wrong population, after the gate admitted its keys. */
+export const ACCESS_DENIED: PayoutsFailure = Object.freeze({
+  code: 'access.denied',
+  message: 'Not allowed',
+});

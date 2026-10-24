@@ -1,4 +1,5 @@
 import type {
+  CallContext,
   Id,
   MarketContext,
   MarketId,
@@ -9,8 +10,14 @@ import type {
 import type { CompletedDelivery, EarningBreakdown } from '../domain/earnings';
 import type { Balance, LedgerEntry } from '../domain/ledger';
 import type { Engagement, Payee } from '../domain/payee';
-import type { CourierBalance, PayoutAccount, PayoutLine, PayoutRun } from '../domain/payout-run';
-import type { MarketPayoutSettings } from '../domain/payout-settings';
+import type {
+  CourierBalance,
+  PayoutAccount,
+  PayoutLine,
+  PayoutLineStatus,
+  PayoutRun,
+} from '../domain/payout-run';
+import type { MarketPayoutSettings, Temperature, VehicleType } from '../domain/payout-settings';
 
 /** A completed delivery as payouts records it, for every courier, employees included. */
 export interface CourierDeliveryRecord {
@@ -42,6 +49,18 @@ export interface LedgerRepository {
   ): Promise<CourierBalance[]>;
   /** Records a delivery once; false, and nothing written, when it was already recorded. */
   recordDelivery(market: MarketContext, record: CourierDeliveryRecord): Promise<boolean>;
+  /**
+   * What one courier earned since `since`: every credit and debit (earnings, tips, adjustments
+   * and reversals) that occurred at or after it, tax included; payouts are not counted.
+   */
+  earnedSince(
+    market: MarketContext,
+    courierId: string,
+    since: Temporal.Instant,
+    currency: string,
+  ): Promise<Money>;
+  /** How many deliveries one courier delivered at or after `since`. */
+  deliveriesSince(market: MarketContext, courierId: string, since: Temporal.Instant): Promise<number>;
 }
 export const LEDGER_REPOSITORY = Symbol('LedgerRepository');
 
@@ -54,10 +73,22 @@ export interface PayoutRunRepository {
   pendingLines(market: MarketContext, limit: number): Promise<PayoutLine[]>;
   findLine(market: MarketContext, id: Id<'PayoutLine'>): Promise<PayoutLine | undefined>;
   findLineByTransfer(market: MarketContext, transferId: string): Promise<PayoutLine | undefined>;
+  /**
+   * Up to `limit` lines in one of `statuses`, oldest first, after the line `after` (a cursor
+   * from the previous page).
+   */
+  listLines(market: MarketContext, query: LineQuery): Promise<PayoutLine[]>;
   /** Saves version n + 1 over n; throws `StaleAggregateError` when the stored version moved. */
   updateLine(market: MarketContext, line: PayoutLine): Promise<void>;
 }
 export const PAYOUT_RUN_REPOSITORY = Symbol('PayoutRunRepository');
+
+export interface LineQuery {
+  readonly statuses: readonly PayoutLineStatus[];
+  readonly courierId?: string;
+  readonly limit: number;
+  readonly after?: Id<'PayoutLine'>;
+}
 
 /** The couriers' connected accounts and the provider events already handled. */
 export interface PayoutAccountRepository {
@@ -69,7 +100,7 @@ export interface PayoutAccountRepository {
   ): Promise<PayoutAccount | undefined>;
   /** False, and nothing written, when the courier already has an account. */
   insert(market: MarketContext, account: PayoutAccount): Promise<boolean>;
-  /** Saves `payoutsEnabled` and `updatedAt`. */
+  /** Saves `payoutsEnabled`, `providerStateAt` and `updatedAt`. */
   update(market: MarketContext, account: PayoutAccount): Promise<void>;
   /** Records a provider event id once; false when it was already recorded. */
   recordProviderEvent(
@@ -81,12 +112,29 @@ export interface PayoutAccountRepository {
 }
 export const PAYOUT_ACCOUNT_REPOSITORY = Symbol('PayoutAccountRepository');
 
-/** The couriers payouts pays, as the fleet module knows them (by courier id). */
+/**
+ * The couriers payouts pays, as the fleet module knows them, by courier id (the courier's
+ * identity account id). Called outside any unit of work, with the caller's context.
+ */
 export interface PayeeDirectory {
   /** The payees among `courierIds`; an id fleet does not know is left out. */
-  payees(market: MarketContext, courierIds: readonly string[]): Promise<ReadonlyMap<string, Payee>>;
+  payees(context: CallContext, courierIds: readonly string[]): Promise<ReadonlyMap<string, Payee>>;
 }
 export const PAYEE_DIRECTORY = Symbol('PayeeDirectory');
+
+/** What payouts reads of a delivered delivery to price it, from the delivery module. */
+export interface DeliveryFacts {
+  readonly vehicle: VehicleType;
+  readonly distanceMetres: number;
+  readonly temperature: Temperature;
+}
+
+/** The delivery module's facts about a delivery. Called outside any unit of work. */
+export interface DeliveryFactsReader {
+  /** The facts of a delivery of the context's Market, or `undefined` when it is unknown. */
+  factsOf(context: CallContext, deliveryId: string): Promise<DeliveryFacts | undefined>;
+}
+export const DELIVERY_FACTS = Symbol('DeliveryFactsReader');
 
 /** The payout settings of the Markets this deployment hosts. */
 export interface PayoutSettingsProvider {
@@ -132,6 +180,20 @@ export interface PayoutGateway {
     readonly idempotencyKey: string;
     readonly metadata: Readonly<Record<string, string>>;
   }): Promise<Result<{ readonly transferId: string }, GatewayRefusal>>;
+  /**
+   * Every transfer the provider holds in one transfer group (a payout run's id), for settling
+   * an unresolved line. A refusal, or more transfers than one lookup reads, is an `err`.
+   */
+  transfersOfGroup(group: string): Promise<Result<readonly ProviderTransfer[], GatewayRefusal>>;
+}
+
+/** A transfer as the provider holds it: what settling an unresolved line compares. */
+export interface ProviderTransfer {
+  readonly transferId: string;
+  readonly amount: Money;
+  readonly destination: string;
+  /** `metadata.payoutLineId`, when the transfer carries one. */
+  readonly payoutLineId?: string;
 }
 export const PAYOUT_GATEWAY = Symbol('PayoutGateway');
 
@@ -143,6 +205,8 @@ export type ProviderEvent =
       readonly type: string;
       readonly accountId: string;
       readonly payoutsEnabled: boolean;
+      /** When the provider produced the event (`created`): reports arrive in no order. */
+      readonly created: Temporal.Instant;
     }
   | {
       readonly kind: 'transfer-reversed';
@@ -152,6 +216,9 @@ export type ProviderEvent =
       /** The running total taken back, in minor units of `currency`. */
       readonly amountReversed: bigint;
       readonly currency: string;
+      /** The transfer's `metadata.marketId` and `metadata.payoutLineId`, when Drive sent it. */
+      readonly marketId?: string;
+      readonly payoutLineId?: string;
     }
   | { readonly kind: 'ignored'; readonly id: string; readonly type: string };
 

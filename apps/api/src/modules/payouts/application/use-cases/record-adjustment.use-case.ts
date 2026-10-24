@@ -1,33 +1,26 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   err,
   ok,
-  type Clock,
-  type IdGenerator,
-  type MarketContext,
+  type CallContext,
+  type Id,
   type Money,
   type Result,
 } from '@mondapac-drive/shared-kernel';
-import { CLOCK } from '../../../../platform/clock/clock.module';
-import { ID_GENERATOR } from '../../../../platform/ids/ids.module';
-import { UNIT_OF_WORK, type UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
+import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
+import { ADJUSTMENT_RECORD } from '../../contracts/permissions';
+import { adjustmentRecorded } from '../../domain/audit-actions';
 import { PayoutsDomainError } from '../../domain/errors';
 import { adjustmentEntry, type AdjustmentReason } from '../../domain/ledger';
 import { payTaxOn } from '../../domain/tax';
+import { isAdmin } from '../callers';
+import type { PayoutsDependencies } from '../dependencies';
 import {
+  ACCESS_DENIED,
   refusingBrokenRules,
   unknownCourier,
   type PayoutsFailure,
   type RecordedEntry,
 } from '../failure';
-import {
-  LEDGER_REPOSITORY,
-  PAYEE_DIRECTORY,
-  PAYOUT_SETTINGS,
-  type LedgerRepository,
-  type PayeeDirectory,
-  type PayoutSettingsProvider,
-} from '../ports';
 
 export interface AdjustmentInput {
   readonly courierId: string;
@@ -40,32 +33,41 @@ export interface AdjustmentInput {
 
 const KEY = /^[A-Za-z0-9._:-]{8,100}$/;
 
+/** The largest adjustment, either way, in minor units: a bound against a typo, not a policy. */
+export const MAX_ADJUSTMENT_MINOR = 100_000_000n;
+
 /**
  * An operator's credit or debit to a courier's balance, such as a bonus or a correction. It
- * occurs now and carries the tax a service payment would. The operator route arrives with the
- * admin population (identity work package 2).
+ * occurs now and carries the tax a service payment would. Audited in the same unit with the
+ * operator, the amounts and the reason. Rule `permissions [payouts.adjustment.record]`
+ * (protected), admins only.
  */
-@Injectable()
-export class RecordAdjustment {
-  constructor(
-    @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
-    @Inject(PAYEE_DIRECTORY) private readonly payees: PayeeDirectory,
-    @Inject(PAYOUT_SETTINGS) private readonly settings: PayoutSettingsProvider,
-    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
-    @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
-  ) {}
+export class RecordAdjustment extends UseCase<AdjustmentInput, RecordedEntry, PayoutsFailure> {
+  static override readonly access: AccessDeclaration = {
+    name: 'payouts.record-adjustment',
+    rule: { kind: 'permissions', allOf: [ADJUSTMENT_RECORD.key] },
+  };
 
-  async run(
-    market: MarketContext,
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: PayoutsDependencies,
+  ) {
+    super(gate);
+  }
+
+  protected async handle(
+    context: CallContext,
     adjustment: AdjustmentInput,
   ): Promise<Result<RecordedEntry, PayoutsFailure>> {
-    const settings = this.settings.get(market.marketId);
-    const payee = (await this.payees.payees(market, [adjustment.courierId])).get(
+    if (!isAdmin(context)) return err(ACCESS_DENIED);
+    const { market } = context;
+    const { ledger, payees, audit, unitOfWork, clock, ids } = this.deps;
+    const settings = this.deps.settings.get(market.marketId);
+    const payee = (await payees.payees(context, [adjustment.courierId])).get(
       adjustment.courierId,
     );
     if (payee === undefined) return err(unknownCourier(adjustment.courierId));
-    const id = this.ids.next<'LedgerEntry'>();
+    const id = ids.next<'LedgerEntry'>();
 
     return refusingBrokenRules(async () => {
       if (!KEY.test(adjustment.key)) {
@@ -80,7 +82,11 @@ export class RecordAdjustment {
           `Adjustments in this Market are in ${settings.currency}`,
         );
       }
-      const now = this.clock.now();
+      const size = adjustment.amount.amount < 0n ? -adjustment.amount.amount : adjustment.amount.amount;
+      if (size > MAX_ADJUSTMENT_MINOR) {
+        throw new PayoutsDomainError('payouts.adjustment-too-large', 'The adjustment is too large');
+      }
+      const now = clock.now();
       const entry = adjustmentEntry({
         id,
         courierId: adjustment.courierId,
@@ -91,16 +97,33 @@ export class RecordAdjustment {
         occurredAt: now,
         recordedAt: now,
       });
-      return this.unitOfWork.run<RecordedEntry, PayoutsFailure>(market, async () => {
-        if ((await this.ledger.append(market, [entry])) === 1) return ok({ recorded: true, entry });
-        const existing = await this.ledger.findByReference(market, entry.reference);
-        if (existing !== undefined && existing.courierId !== entry.courierId) {
+      return unitOfWork.run<RecordedEntry, PayoutsFailure>(market, async () => {
+        if ((await ledger.append(market, [entry])) === 1) {
+          await audit.record(
+            context,
+            adjustmentRecorded.entry(adjustment.courierId as Id, {
+              after: {
+                entryId: entry.id,
+                amount: entry.amount,
+                tax: entry.tax,
+                reason: adjustment.reason,
+              },
+            }),
+          );
+          return ok({ recorded: true, entry });
+        }
+        const existing = await ledger.findByReference(market, entry.reference);
+        if (
+          existing === undefined ||
+          existing.courierId !== entry.courierId ||
+          existing.amount.amount !== entry.amount.amount
+        ) {
           return err({
             code: 'payouts.key-reused',
-            message: 'This idempotency key was used for another courier',
+            message: 'This idempotency key was used for another adjustment',
           });
         }
-        return ok({ recorded: false, entry: existing ?? entry });
+        return ok({ recorded: false, entry: existing });
       });
     });
   }

@@ -4,6 +4,7 @@ import { APP_CONFIG } from '../../../platform/config/config.module';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
 import {
+  DELIVERY_FACTS,
   LEDGER_REPOSITORY,
   PAYEE_DIRECTORY,
   PAYOUT_ACCOUNT_REPOSITORY,
@@ -19,6 +20,7 @@ import { PrismaPayoutAccountRepository } from './prisma-payout-accounts.reposito
 import { PrismaPayoutRunRepository } from './prisma-payout-runs.repository';
 import { DisabledPayoutGateway, StripePayoutGateway } from './stripe-payout-gateway';
 import { StripeWebhookVerifier } from './stripe-webhook-verifier';
+import { UnwiredDeliveryFacts } from './unwired-delivery-facts';
 
 /** The implementations of the payouts ports. Only infrastructure/ reaches the persistence internals. */
 export const payoutsProviders: Provider[] = [
@@ -42,8 +44,10 @@ export const payoutsProviders: Provider[] = [
     inject: [MarketRegistry],
     useFactory: (markets: MarketRegistry) => new ConfigPayoutSettingsProvider(markets),
   },
-  // Until fleet (work package 05) is on main: no courier is known, so nothing is paid.
+  // Until fleet's payee profiles (work package 23) are on main: no courier is known, so nothing
+  // is paid.
   { provide: PAYEE_DIRECTORY, useFactory: () => new InMemoryPayeeDirectory() },
+  { provide: DELIVERY_FACTS, useFactory: () => new UnwiredDeliveryFacts() },
   {
     provide: PAYOUT_GATEWAY,
     inject: [APP_CONFIG],
