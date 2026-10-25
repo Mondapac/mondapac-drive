@@ -584,6 +584,11 @@ const dispatchSchema = z.strictObject({
   scheduledLeadMinutes: z.number().int().nonnegative().max(1440),
   searchRadiusMetres: z.number().int().positive().max(200_000),
   candidateLimit: z.number().int().min(1).max(200),
+  /**
+   * Decimal places of the drop-off point an offer shows before accept (security L3): 3 is a
+   * cell of about 110 m, so the point names a street block, not a house. At most 4 (about 11 m).
+   */
+  offerPointDecimals: z.number().int().min(1).max(4),
 });
 
 /** Whole seconds, bounded so a typo cannot disable a check. */

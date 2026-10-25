@@ -51,6 +51,7 @@ const DISPATCH = {
   scheduledLeadMinutes: 45,
   searchRadiusMetres: 8000,
   candidateLimit: 20,
+  offerPointDecimals: 3,
 };
 
 const TRACKING = {

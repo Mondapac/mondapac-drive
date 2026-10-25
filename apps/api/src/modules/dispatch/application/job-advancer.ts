@@ -116,7 +116,9 @@ export class JobAdvancer {
 
   private async stopsFor(context: CallContext, job: DispatchJob): Promise<OfferStops | undefined> {
     const delivery = await this.facts.forDispatch(context, job.deliveryId);
-    return delivery === undefined ? undefined : stopsOf(delivery);
+    return delivery === undefined
+      ? undefined
+      : stopsOf(delivery, this.settings.get(context.market.marketId));
   }
 
   private async candidatesFor(

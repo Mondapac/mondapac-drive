@@ -61,14 +61,25 @@ export interface Assignment {
 }
 
 /**
- * What a courier's offer shows besides the requirements: both addresses, the drop-off point and
- * the trip distance. Personal data, so the job holds it only while OFFERING: a scheduled job
- * reads it when it opens, it is dropped once a courier has the delivery, every round lapsed or
- * the delivery was cancelled, and it is read again from the delivery when offering restarts.
+ * Where a stop is, as an offer shows it before the courier accepts (security L3): its suburb and
+ * postcode, never the street address, which the courier sees on delivery's job after accepting.
+ * The suburb is null when delivery has none (a stop booked by its point, or no locality).
+ */
+export interface OfferArea {
+  readonly suburb: string | null;
+  readonly postcode: string;
+}
+
+/**
+ * What a courier's offer shows besides the requirements: the suburb and postcode of both stops,
+ * the drop-off point and the trip distance. Location data, so the job holds it only while
+ * OFFERING: a scheduled job reads it when it opens, it is dropped once a courier has the
+ * delivery, every round lapsed or the delivery was cancelled, and it is read again from the
+ * delivery when offering restarts.
  */
 export interface OfferStops {
-  readonly pickupAddress: string;
-  readonly dropoffAddress: string;
+  readonly pickupArea: OfferArea;
+  readonly dropoffArea: OfferArea;
   readonly dropoff: GeoPoint;
   readonly tripDistanceMetres: number;
 }

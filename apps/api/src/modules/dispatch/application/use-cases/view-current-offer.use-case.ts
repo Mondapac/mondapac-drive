@@ -13,7 +13,7 @@ import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../p
 import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import { OFFER_VIEW } from '../../contracts/permissions';
 import type { Temperature } from '../../domain/courier';
-import { openOfferOf } from '../../domain/dispatch-job';
+import { openOfferOf, type OfferArea } from '../../domain/dispatch-job';
 import { courierOf } from '../callers';
 import { accessDenied, type DispatchFailure } from '../failure';
 import type { DispatchJobRepository, OfferEarnings } from '../ports';
@@ -23,8 +23,8 @@ export interface CourierOffer {
   readonly offerId: Id<'DispatchOffer'>;
   readonly deliveryId: Id<'Delivery'>;
   readonly expiresAt: Temporal.Instant;
-  readonly pickup: { readonly address: string; readonly point: GeoPoint };
-  readonly dropoff: { readonly address: string; readonly point: GeoPoint };
+  readonly pickup: OfferArea & { readonly point: GeoPoint };
+  readonly dropoff: OfferArea & { readonly point: GeoPoint };
   readonly tripDistanceMetres: number;
   readonly temperature: Temperature;
   /**
@@ -43,8 +43,9 @@ export interface ViewCurrentOfferDependencies {
 
 /**
  * The signed-in courier's open offer, the one that expires first, or null: the courier app
- * polls it. Only the courier who holds an offer sees the delivery's addresses, and only while
- * the offer is open. The offer carries what the courier will earn for it, priced by payouts
+ * polls it. Before accepting, the courier sees each stop's suburb and postcode and the points,
+ * never the addresses (security L3): those are on delivery's job once the courier has it. Only
+ * the courier who holds an offer sees even that, and only while the offer is open. The offer carries what the courier will earn for it, priced by payouts
  * after the read unit closes. Rule `permissions [dispatch.offer.view]`, couriers only.
  */
 export class ViewCurrentOffer extends UseCase<
@@ -87,8 +88,8 @@ export class ViewCurrentOffer extends UseCase<
           offerId: offer.id,
           deliveryId: job.deliveryId,
           expiresAt: offer.expiresAt,
-          pickup: { address: stops.pickupAddress, point: job.requirements.pickup },
-          dropoff: { address: stops.dropoffAddress, point: stops.dropoff },
+          pickup: { ...stops.pickupArea, point: job.requirements.pickup },
+          dropoff: { ...stops.dropoffArea, point: stops.dropoff },
           tripDistanceMetres: stops.tripDistanceMetres,
           temperature: job.requirements.temperature,
           vehicle: job.requirements.minimumVehicle,
