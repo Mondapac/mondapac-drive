@@ -22,8 +22,16 @@ const offerBody = (offer: CourierOffer) => ({
   id: offer.offerId,
   deliveryId: offer.deliveryId,
   expiresAt: offer.expiresAt.toString(),
-  pickup: { address: offer.pickup.address, point: offer.pickup.point },
-  dropoff: { address: offer.dropoff.address, point: offer.dropoff.point },
+  pickup: {
+    suburb: offer.pickup.suburb,
+    postcode: offer.pickup.postcode,
+    point: offer.pickup.point,
+  },
+  dropoff: {
+    suburb: offer.dropoff.suburb,
+    postcode: offer.dropoff.postcode,
+    point: offer.dropoff.point,
+  },
   distanceMetres: offer.tripDistanceMetres,
   temperature: offer.temperature,
   // Money on the wire, as payouts answers it: minor units as decimal text.
@@ -84,7 +92,9 @@ export class CourierOffersController {
   @ApiOperation({
     summary: "The courier's open offer that expires first, or null",
     description:
-      'Both addresses and points, the trip distance, the temperature, the expiry and ' +
+      "Each stop's suburb (null when unknown), postcode and point, never its address: the " +
+      "address is on the delivery's courier job after accepting. Also the trip distance, the " +
+      'temperature, the expiry and ' +
       '`earnings`: what the courier earns for it, `{ amount, currency }` in minor units as ' +
       'decimal text, tax included and without waiting time; null for an employee, a courier ' +
       'without a payee profile or a vehicle the Market has no courier rate for.',

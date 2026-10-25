@@ -15,7 +15,14 @@ export class DeliveryDispatchFacts implements DeliveryFacts {
   ): Promise<DeliveryForDispatch | undefined> {
     const delivery = await this.view.forDispatch(context, deliveryId);
     if (delivery === undefined) return undefined;
-    const { window, ...rest } = delivery;
-    return window === undefined ? rest : { ...rest, window };
+    // Each stop without its street address: dispatch never holds one (security L3).
+    const stop = (s: typeof delivery.pickup & { readonly suburb?: string | null }) => ({
+      suburb: s.suburb ?? null,
+      postcode: s.postcode,
+      point: s.point,
+    });
+    const { window, pickup, dropoff, ...rest } = delivery;
+    const found = { ...rest, pickup: stop(pickup), dropoff: stop(dropoff) };
+    return window === undefined ? found : { ...found, window };
   }
 }

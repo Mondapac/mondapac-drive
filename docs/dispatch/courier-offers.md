@@ -13,14 +13,23 @@ Key `dispatch.offer.view`. The courier's open offer that expires first, or `{ "o
     "id": "<offer id>",
     "deliveryId": "<delivery id>",
     "expiresAt": "2026-11-02T08:00:30Z",
-    "pickup": { "address": "1 Pickup Street", "point": { "lat": -27.47, "lng": 153.02 } },
-    "dropoff": { "address": "2 Dropoff Road", "point": { "lat": -27.5, "lng": 153.05 } },
+    "pickup": { "suburb": "Fortitude Valley", "postcode": "4006", "point": { "lat": -27.457, "lng": 153.034 } },
+    "dropoff": { "suburb": null, "postcode": "4101", "point": { "lat": -27.488, "lng": 153.012 } },
     "distanceMetres": 4200,
     "temperature": "chilled",
     "earnings": { "amount": "1361", "currency": "AUD" }
   }
 }
 ```
+
+Before accepting, each stop shows only its `suburb`, `postcode` and `point`, never the street
+address (security L3). The drop-off `point` is snapped to the Market's grid
+(`dispatch.offerPointDecimals`: 3 decimals in AU, a cell of about 110 m), so it names a street
+block, not a house; the exact point comes with the job after accept. Render `suburb` as plain
+text. `suburb` is null when delivery has none (a stop booked by its point, or
+no locality from the geocoder): show the postcode then. The full addresses, contacts and notes
+are on delivery's courier job (`/delivery/courier/...`) once the courier has accepted. Dispatch
+itself stores no address, only these areas, and only while the job is offering.
 
 `earnings` is `Money | null`, the payouts wire shape: `amount` is integer minor units as
 decimal text (AUD has 2 decimals, JPY none; format with the Market's currency digits).

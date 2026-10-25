@@ -212,8 +212,8 @@ describe('dispatch API (database integration)', () => {
           id: offerOf(job, courier),
           deliveryId: job.deliveryId,
           expiresAt: job.offers[0]!.expiresAt.toString(),
-          pickup: { address: '1 Pickup Street', point: requirements().pickup },
-          dropoff: { address: '2 Dropoff Road', point: stops().dropoff },
+          pickup: { suburb: 'Pickup Vale', postcode: '4000', point: requirements().pickup },
+          dropoff: { suburb: null, postcode: '4101', point: stops().dropoff },
           distanceMetres: 4200,
           temperature: 'chilled',
           earnings: earningsOf(),
@@ -303,7 +303,7 @@ describe('dispatch API (database integration)', () => {
       expect(viewed.status).toBe(200);
       expect(viewed.body).toMatchObject({ status: 'OFFERING', assignment: null });
       expect((viewed.body as { offers: unknown[] }).offers).toHaveLength(1);
-      expect(JSON.stringify(viewed.body)).not.toContain('Dropoff Road');
+      expect(JSON.stringify(viewed.body)).not.toContain('Pickup Vale');
 
       const assigned = await post(code, `${base}/assign`, dispatcher.headers, {
         courierId: otherCourier.accountId,
@@ -464,10 +464,10 @@ describe('dispatch API (database integration)', () => {
         const { rows } = await sql.query<{
           status: string;
           assigned_courier_id: string | null;
-          dropoff_address: string | null;
+          dropoff_postcode: string | null;
           excluded_courier_ids: string[];
         }>(
-          `SELECT status, assigned_courier_id, dropoff_address, excluded_courier_ids
+          `SELECT status, assigned_courier_id, dropoff_postcode, excluded_courier_ids
              FROM dispatch.jobs WHERE market_id = $1 AND delivery_id = $2`,
           [code, deliveryId],
         );
@@ -483,8 +483,14 @@ describe('dispatch API (database integration)', () => {
         const deliveryId = await book();
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'OFFERING',
-          dropoff_address: '9 Recipient Rd',
+          dropoff_postcode: POSTCODE[code],
         });
+        // Security L3: dispatch keeps no street address, only suburbs and postcodes.
+        const { rows: stored } = await sql.query(
+          'SELECT * FROM dispatch.jobs WHERE market_id = $1 AND delivery_id = $2',
+          [code, deliveryId],
+        );
+        expect(JSON.stringify(stored)).not.toMatch(/Example St|Recipient Rd/);
 
         // A dispatcher assigns through dispatch: the delivery records the courier.
         const assigned = await post(
@@ -526,7 +532,7 @@ describe('dispatch API (database integration)', () => {
         await handleUntil(async () => (await jobStatus(deliveryId)) === 'CANCELLED');
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'CANCELLED',
-          dropoff_address: null,
+          dropoff_postcode: null,
         });
       });
 
