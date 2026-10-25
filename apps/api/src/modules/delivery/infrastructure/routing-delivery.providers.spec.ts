@@ -162,6 +162,27 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
       expect(inner.calls).toBe(1);
     });
 
+    it('answers unavailable without a lookup when too many lookups are in flight', async () => {
+      const inner = new SlowGeocoder(B, 50);
+      const geocoder = new CachingGeocoder(inner, markets, clock);
+      const running = Array.from({ length: 1000 }, (_, i) =>
+        geocoder.locate(market, `${i} Busy St`, '1000'),
+      );
+      await expect(geocoder.locate(market, '1 Late St', '1000')).resolves.toBe('unavailable');
+      expect(inner.calls).toBe(1000);
+      await Promise.all(running);
+    });
+
+    it('forgets expired points when it keeps a new one', async () => {
+      if (budget.geocodeCacheSeconds === 0) return;
+      const inner = new SlowGeocoder(B);
+      const geocoder = new CachingGeocoder(inner, markets, clock);
+      await geocoder.locate(market, '1 Old St', '1000');
+      clock.advance(Temporal.Duration.from({ seconds: budget.geocodeCacheSeconds }));
+      await geocoder.locate(market, '2 New St', '1000');
+      expect(geocoder.size).toBe(1);
+    });
+
     it('drops the oldest entry when full', async () => {
       if (budget.geocodeCacheSeconds === 0) return;
       const inner = new SlowGeocoder(B);
@@ -178,8 +199,9 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
 });
 
 describe('normalisedAddress', () => {
-  it('folds case, punctuation and space', () => {
-    expect(normalisedAddress('  12/3 Queen St., Brisbane  ')).toBe('12 3 queen st brisbane');
+  it('folds case, commas, full stops and space, and keeps / and -', () => {
+    expect(normalisedAddress('  12/3 Queen St., Brisbane  ')).toBe('12/3 queen st brisbane');
+    expect(normalisedAddress('1-23 Smith St')).not.toBe(normalisedAddress('1/23 Smith St'));
     expect(normalisedAddress('Ｑｕｅｅｎ St')).toBe('queen st');
   });
 });

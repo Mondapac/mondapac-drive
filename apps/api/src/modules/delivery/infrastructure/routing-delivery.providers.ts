@@ -83,16 +83,20 @@ export class RoutingGeocoder implements Geocoder {
 }
 
 /**
- * The address as a cache sees it: Unicode-normalised, lower case, punctuation and runs of space
- * folded to one space, so "1 Example St," and "1  example st" are one entry.
+ * The address as a cache sees it: Unicode-normalised, lower case, commas, full stops and runs of
+ * space folded to one space, so "1 Example St," and "1  example st" are one entry. Every other
+ * character is kept: "1/23" and "1-23" are different addresses.
  */
 export function normalisedAddress(address: string): string {
   return address
     .normalize('NFKC')
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/[\s,.]+/gu, ' ')
     .trim();
 }
+
+/** Lookups in flight at once; past it a new address answers `unavailable` without a lookup. */
+const MAX_PENDING_LOOKUPS = 1000;
 
 /**
  * A {@link Geocoder} that keeps found points for the Market's `responseBudget.geocodeCacheSeconds`
@@ -131,6 +135,14 @@ export class CachingGeocoder implements Geocoder {
 
     let lookup = this.#pending.get(key);
     if (lookup === undefined) {
+      if (this.#pending.size >= MAX_PENDING_LOOKUPS) {
+        this.logger.warn({
+          msg: 'geocoding saturated',
+          marketId: market.marketId,
+          code: 'geocode.saturated',
+        });
+        return 'unavailable';
+      }
       lookup = this.inner
         .locate(market, address, postcode)
         .then((found) => {
@@ -139,11 +151,25 @@ export class CachingGeocoder implements Geocoder {
         })
         .finally(() => this.#pending.delete(key));
       this.#pending.set(key, lookup);
+      // A failure after the deadline reaches no caller: log its kind (never the address).
+      lookup.catch((error: unknown) =>
+        this.logger.warn({
+          msg: 'geocoding failed',
+          marketId: market.marketId,
+          code: 'geocode.failed',
+          error: error instanceof Error ? error.name : 'unknown',
+        }),
+      );
     }
     const answered = await within(lookup, geocodeMs);
     if (answered !== TIMED_OUT) return answered;
     this.logger.warn({ msg: 'geocoding slow', marketId: market.marketId, code: 'geocode.slow' });
     return 'unavailable';
+  }
+
+  /** Points kept now, expired ones included until they are dropped. */
+  get size(): number {
+    return this.#entries.size;
   }
 
   #keyOf(market: MarketContext, address: string, postcode: string): string {
@@ -167,6 +193,13 @@ export class CachingGeocoder implements Geocoder {
   #keep(key: string, point: GeoPoint, ttlSeconds: number): void {
     if (ttlSeconds === 0) return;
     this.#entries.delete(key);
+    // Entries are in insertion order: drop expired points from the oldest end, so a point is
+    // not kept in memory long after its TTL (Privacy Act).
+    const nowMs = this.clock.now().epochMilliseconds;
+    for (const [oldKey, entry] of this.#entries) {
+      if (entry.expiresAtMs > nowMs) break;
+      this.#entries.delete(oldKey);
+    }
     if (this.#entries.size >= this.maxEntries) {
       // Map keeps insertion order: drop the oldest entry.
       const oldest = this.#entries.keys().next();

@@ -302,16 +302,16 @@ describe('loadMarketConfigs', () => {
       /delivery\.proofOfDelivery\.pinLength/,
     ],
     [
-      'a geocoding budget over the marketplace timeout',
+      'map provider waits over the 2 s budget',
       delivery({
         responseBudget: {
-          geocodeMs: 3000,
-          routeMs: 700,
+          geocodeMs: 1500,
+          routeMs: 1500,
           estimateRoadFactor: 1.3,
           geocodeCacheSeconds: 0,
         },
       }),
-      /delivery\.responseBudget\.geocodeMs/,
+      /delivery\.responseBudget\.routeMs/,
     ],
     ['no fleet section', { fleet: undefined }, /fleet/],
     [
