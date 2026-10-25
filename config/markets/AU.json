@@ -235,6 +235,10 @@
       },
       "pinText": "Your delivery PIN is {pin}.",
       "trackingPageUrl": "https://track.mondapac.com.au/t/{token}"
+    },
+    "push": {
+      "offerTitle": "New offer",
+      "offerBody": "New offer, expires in {seconds} s"
     }
   },
   "fleet": {

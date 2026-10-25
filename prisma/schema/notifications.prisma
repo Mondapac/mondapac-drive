@@ -92,3 +92,28 @@ model NotificationsInbox {
   @@map("inbox")
   @@schema("notifications")
 }
+
+/// The push device of one courier session (handoff 33). The Expo token is sealed (AES-GCM, bound
+/// to the account) and found by its keyed digest; it is never stored in clear. A session has one
+/// device and a token one session; the row is dropped on sign-out, when identity ends the
+/// account's sessions, and is never used past expires_at (the session's absolute lifetime).
+model NotificationsPushDevice {
+  id           String   @id @db.Uuid
+  marketId     String   @map("market_id") @db.VarChar(8)
+  tenantId     String   @map("tenant_id")
+  /// The courier's identity account id.
+  accountId    String   @map("account_id") @db.Uuid
+  sessionId    String   @map("session_id") @db.Uuid
+  platform     String   @db.VarChar(8)
+  tokenSealed  String   @map("token_sealed") @db.VarChar(512)
+  /// HMAC-SHA256 of the token under a derived key, hex.
+  tokenLookup  String   @map("token_lookup") @db.Char(64)
+  registeredAt DateTime @map("registered_at") @db.Timestamptz(6)
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@unique([marketId, sessionId])
+  @@unique([marketId, tokenLookup])
+  @@index([marketId, accountId])
+  @@map("push_devices")
+  @@schema("notifications")
+}

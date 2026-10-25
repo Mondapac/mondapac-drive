@@ -1,4 +1,4 @@
-import type { Provider } from '@nestjs/common';
+import { Logger, type Provider } from '@nestjs/common';
 import { APP_CONFIG } from '../../../platform/config/config.module';
 import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
@@ -9,6 +9,8 @@ import {
   DELIVERY_CONTACTS,
   NOTIFICATION_SETTINGS,
   OUTBOUND_REPOSITORY,
+  PUSH_DEVICES,
+  PUSH_SENDER,
   SMS_SENDER,
   TRACKING_LINKS,
   WEBHOOK_SIGNER,
@@ -18,17 +20,28 @@ import {
 import { ConfigNotificationSettingsProvider } from './config-notification-settings.provider';
 import { HmacWebhookSigner } from './hmac-webhook-signer';
 import { HttpsWebhookTransport } from './https-webhook-transport';
-import { twilioCredentials, webhookKey } from './notifications-secrets';
+import { ExpoPushSender, DisabledPushSender } from './expo-push-sender';
+import { expoAccessToken, twilioCredentials, webhookKey } from './notifications-secrets';
 import { DeliveryRecipientContacts } from './delivery-contacts';
 import {
   PrismaOutboundRepository,
   PrismaWebhookSubscriptionRepository,
 } from './prisma-notifications.repository';
+import { PrismaPushDeviceRepository } from './prisma-push-devices.repository';
+import { PushTokenSeal } from './push-token-seal';
 import { IssuedTrackingLinks } from './tracking-links';
 import { TwilioSmsSender, UnconfiguredSmsSender } from './twilio-sms-sender';
 
+/** The deployment's notifications key, read once: it signs webhooks and seals push tokens. */
+const NOTIFICATIONS_KEY = Symbol('NotificationsKey');
+
 /** The implementations of the notifications ports. Only infrastructure/ reaches the platform internals. */
 export const notificationsProviders: Provider[] = [
+  {
+    provide: NOTIFICATIONS_KEY,
+    inject: [APP_CONFIG],
+    useFactory: (config: AppConfig) => webhookKey(process.env, config),
+  },
   {
     provide: WEBHOOK_SUBSCRIPTIONS,
     inject: [PrismaService],
@@ -46,8 +59,26 @@ export const notificationsProviders: Provider[] = [
   },
   {
     provide: WEBHOOK_SIGNER,
-    inject: [APP_CONFIG],
-    useFactory: (config: AppConfig) => new HmacWebhookSigner(webhookKey(process.env, config)),
+    inject: [NOTIFICATIONS_KEY],
+    useFactory: (key: Uint8Array) => new HmacWebhookSigner(key),
+  },
+  {
+    provide: PUSH_DEVICES,
+    inject: [PrismaService, NOTIFICATIONS_KEY],
+    useFactory: (prisma: PrismaService, key: Uint8Array) =>
+      new PrismaPushDeviceRepository(prisma, new PushTokenSeal(key)),
+  },
+  {
+    provide: PUSH_SENDER,
+    useFactory: () => {
+      const token = expoAccessToken(process.env);
+      if (token !== null) return new ExpoPushSender(token);
+      new Logger('NotificationsPush').warn({
+        msg: 'notifications.push.disabled',
+        note: 'EXPO_ACCESS_TOKEN is not set: no offer push is sent',
+      });
+      return new DisabledPushSender();
+    },
   },
   { provide: WEBHOOK_TRANSPORT, useValue: new HttpsWebhookTransport() },
   {

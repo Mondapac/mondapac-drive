@@ -28,3 +28,16 @@ export function isAdmin(context: CallContext): boolean {
 export function isSystem(context: CallContext): boolean {
   return context.actor.kind === 'system';
 }
+
+/**
+ * The account and session of a courier actor (its session token), or null for any other actor.
+ * A courier's ids come from the session, never from a path or a body.
+ */
+export function courierSessionOf(
+  context: CallContext,
+): { readonly accountId: string; readonly sessionId: string } | null {
+  const { actor } = context;
+  return actor.kind === 'authenticated' && actor.population === 'courier'
+    ? { accountId: actor.accountId, sessionId: actor.sessionId }
+    : null;
+}

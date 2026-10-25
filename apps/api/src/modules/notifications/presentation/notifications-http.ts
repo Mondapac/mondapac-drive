@@ -10,6 +10,7 @@ const STATUS: Readonly<Record<string, number>> = Object.freeze({
   'webhook-subscription.unknown-event-type': 400,
   'webhook-call.not-found': 404,
   'webhook-call.changed': 409,
+  'push-device.invalid-token': 400,
   ...ACCESS_DENIED_STATUS,
 });
 

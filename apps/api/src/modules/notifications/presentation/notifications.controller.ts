@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { CallContext } from '@mondapac-drive/shared-kernel';
 import { Call } from '../../../platform/call-context/call-context.decorator';
@@ -19,12 +19,16 @@ import {
   type WebhookCall,
 } from '../application/use-cases/resend-webhook-call.use-case';
 import {
+  RegisterPushDevice,
+  RemovePushDevice,
+} from '../application/use-cases/push-devices.use-case';
+import {
   SubscribeToWebhooks,
   type SubscriptionWithSecret,
 } from '../application/use-cases/subscribe-to-webhooks.use-case';
 import type { WebhookSubscription } from '../domain/webhook-subscription';
 import { answer, parsed, pathId } from './notifications-http';
-import { eventTypesBody, subscribeBody } from './notifications.schemas';
+import { eventTypesBody, pushDeviceBody, subscribeBody } from './notifications.schemas';
 
 /** A subscription as its merchant sees it: never a secret. */
 const subscriptionBody = (subscription: WebhookSubscription) => ({
@@ -164,5 +168,45 @@ export class AdminWebhookCallController {
   async again(@Call() context: CallContext, @Param('id') id: string) {
     const callId = pathId(id, 'webhook-call');
     return callBody(answer(await this.resend.execute(context, { callId })));
+  }
+}
+
+/**
+ * The courier app's push device (`Authorization: Bearer <session token>`): the app registers the
+ * Expo push token of its session after sign-in and at each start, and drops it on sign-out. The
+ * courier and the session are the token's, never a path or body field. The token is sealed at
+ * rest and never answered. A new offer then reaches the phone as "New offer, expires in N s",
+ * carrying the offer id only.
+ */
+@ApiTags('notifications')
+@ApiBearerAuth()
+@RoutePopulation('courier')
+@Controller('notifications/courier/me/push-device')
+export class CourierPushDeviceController {
+  constructor(
+    private readonly register: RegisterPushDevice,
+    private readonly remove: RemovePushDevice,
+  ) {}
+
+  @Put()
+  @HttpCode(204)
+  @ReadsSession()
+  @ApiOperation({
+    summary: "Register this session's push device",
+    description:
+      'Replaces the device this session registered before; a token another session held moves ' +
+      'here. 400 `push-device.invalid-token` when the token is not an Expo push token.',
+  })
+  async put(@Call() context: CallContext, @Body() body: unknown): Promise<void> {
+    const input = parsed(() => pushDeviceBody.parse(body));
+    answer(await this.register.execute(context, input));
+  }
+
+  @Delete()
+  @HttpCode(204)
+  @ReadsSession()
+  @ApiOperation({ summary: "Drop this session's push device (on sign-out)" })
+  async drop(@Call() context: CallContext): Promise<void> {
+    answer(await this.remove.execute(context, {}));
   }
 }
