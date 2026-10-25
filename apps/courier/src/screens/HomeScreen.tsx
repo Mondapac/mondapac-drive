@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { ShiftState } from '../api/schemas';
 import { OfferCard } from '../components/OfferCard';
 import { formatMoney } from '../domain/format';
+import { LiveMap, type MapStop } from '../map/LiveMap';
+import { offerArea } from '../components/OfferCard';
 import { devicePush } from '../push/device-push';
 import type { PushService } from '../push/push-service';
 import { useOfferPush } from '../push/use-offer-push';
@@ -111,6 +113,22 @@ export function HomeScreen({
   const shiftState = status.data?.shift ?? 'offline';
   const error = shift.error ?? respond.error ?? status.error;
   const today = earnings.data && settings ? earnings.data : null;
+  // An offer's stops are areas (suburb and postcode), shown as pins until the courier decides.
+  const shown = online && !activeDeliveryId ? offer.data : null;
+  const offerStops: MapStop[] = shown
+    ? [
+        {
+          kind: 'pickup',
+          point: shown.pickup.point,
+          label: t('map.pickup', { place: offerArea(shown.pickup) }),
+        },
+        {
+          kind: 'dropoff',
+          point: shown.dropoff.point,
+          label: t('map.dropoff', { place: offerArea(shown.dropoff) }),
+        },
+      ]
+    : [];
 
   const shiftButton = activeDeliveryId ? null : online ? (
     <Button
@@ -159,6 +177,7 @@ export function HomeScreen({
         </>
       }
     >
+      <LiveMap height={240} label={t('map.label')} stops={offerStops} />
       <View style={styles.hero}>
         <View style={styles.heroHead}>
           <View

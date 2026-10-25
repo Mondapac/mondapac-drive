@@ -24,7 +24,7 @@ interface Props {
 }
 
 /** The suburb and postcode of a stop, or the postcode alone when delivery has no suburb. */
-function area(stop: OfferStop): string {
+export function offerArea(stop: OfferStop): string {
   return stop.suburb
     ? t('offer.area', { suburb: stop.suburb, postcode: stop.postcode })
     : stop.postcode;
@@ -91,9 +91,9 @@ export function OfferCard({ offer, settings, clock, busy, onAccept, onDecline, o
       </View>
 
       <View style={styles.route}>
-        <StopLine kind="pickup" heading={t('offer.pickup')} place={area(offer.pickup)} />
+        <StopLine kind="pickup" heading={t('offer.pickup')} place={offerArea(offer.pickup)} />
         <View style={styles.connector} />
-        <StopLine kind="dropoff" heading={t('offer.dropoff')} place={area(offer.dropoff)} />
+        <StopLine kind="dropoff" heading={t('offer.dropoff')} place={offerArea(offer.dropoff)} />
       </View>
       <Text style={styles.hint}>{t('offer.addressAfterAccept')}</Text>
 

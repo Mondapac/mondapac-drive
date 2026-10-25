@@ -304,5 +304,10 @@
     "limit": "{{temperature}} · at or below {{max}} °C",
     "reading": "Last {{reading}} °C",
     "noReading": "Check at pickup"
+  },
+  "map": {
+    "label": "Map of where you are and your stops",
+    "pickup": "Pickup: {{place}}",
+    "dropoff": "Drop-off: {{place}}"
   }
 }
