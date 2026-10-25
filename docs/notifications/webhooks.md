@@ -78,7 +78,8 @@ Admin panel (session cookie, CSRF on POST), key `notifications.webhook-call.rese
 the Platform Administrator and the default operator role, seed v5, hold it):
 
 - `GET /notifications/admin/webhook-calls/dead`: dead-lettered calls, with ids and codes only,
-  and the `merchantId` of each call's subscription;
+  and the `merchantId` of each call's subscription (intended: a re-sender may already re-send
+  the call; Hassan #51 L1);
 - `POST /notifications/admin/webhook-calls/:id/resend`.
 
 Admin panel, key `notifications.webhook-subscription.view` (platform; the Platform
@@ -89,7 +90,9 @@ not enough:
   subscriptions (one merchant's, or every merchant's without `merchantId`), newest first. `limit`
   is 1 to 100 and defaults to 50. The answer is `{ items, next }`: each item is
   `{ id, merchantId, url, eventTypes, status, secretVersion, previousSecretValidUntil, createdAt }`
-  and never holds a secret. `next` is the `after` of the next page, or null on the last page.
+  and never holds a secret. The `url`'s query is masked as `?…`, because a merchant may put its
+  receiver's own token there (Hassan #51 M1). `next` is the `after` of the next page, or null on
+  the last page.
 
 Every change is audited (`notifications.webhook-subscription.created`, `.event-types-changed`,
 `.secret-rotated`, `.disabled`, `notifications.webhook-call.resent`), without URL or secret.

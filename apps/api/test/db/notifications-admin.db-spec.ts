@@ -49,7 +49,10 @@ describe('notifications admin webhook views (database integration)', () => {
     let resender: AdminActor;
     let merchant: MerchantActor;
     let other: MerchantActor;
+    let foreign: MerchantActor;
+    let foreignId: string;
     const created: string[] = [];
+    const otherCode = TEST_MARKETS.find((market) => market !== code)!;
 
     beforeAll(async () => {
       ({ app } = await createTestApp({
@@ -91,6 +94,21 @@ describe('notifications admin webhook views (database integration)', () => {
         expect(subscribed.status).toBe(201);
         created.push((subscribed.body as { id: string }).id);
       }
+      const abroad = new TestActors(app, otherCode);
+      await abroad.seedRoles();
+      foreign = await abroad.merchant(
+        await abroad.admin(panelHeaders(otherCode).origin),
+        `Merchant ${randomUUID()}`,
+      );
+      const subscribed = await call(
+        otherCode,
+        'post',
+        '/notifications/webhook-subscriptions',
+        foreign.headers,
+        { url: 'https://hooks9.example.com/drive?token=abroad', eventTypes: ['delivery.booked'] },
+      );
+      expect(subscribed.status).toBe(201);
+      foreignId = (subscribed.body as { id: string }).id;
     });
 
     afterAll(async () => {
@@ -139,6 +157,41 @@ describe('notifications admin webhook views (database integration)', () => {
       expect(ids).toEqual(expect.arrayContaining(created));
       const merchants = new Set((all.body as Page).items.map((item) => item.merchantId));
       expect(merchants.has(other.merchantId)).toBe(true);
+    });
+
+    it("never shows another Market's subscriptions", async () => {
+      const all = await call(code, 'get', `${PATH}?limit=100`, operator.headers);
+      expect((all.body as Page).items.map((item) => item.id)).not.toContain(foreignId);
+      const filtered = await call(
+        code,
+        'get',
+        `${PATH}?merchantId=${foreign.merchantId}`,
+        operator.headers,
+      );
+      expect(filtered.body).toEqual({ items: [], next: null });
+    });
+
+    it('masks the query of a URL, which may carry the receiver token', async () => {
+      const subscribed = await call(
+        code,
+        'post',
+        '/notifications/webhook-subscriptions',
+        other.headers,
+        { url: 'https://hooks5.example.com/drive?token=XYZ', eventTypes: ['delivery.booked'] },
+      );
+      expect(subscribed.status).toBe(201);
+      const page = await call(
+        code,
+        'get',
+        `${PATH}?merchantId=${other.merchantId}&limit=1`,
+        admin.headers,
+      );
+      expect(page.status).toBe(200);
+      expect((page.body as Page).items[0]).toMatchObject({
+        id: (subscribed.body as { id: string }).id,
+        url: 'https://hooks5.example.com/drive?…',
+      });
+      expect(JSON.stringify(page.body)).not.toContain('XYZ');
     });
 
     it('refuses a bad query', async () => {

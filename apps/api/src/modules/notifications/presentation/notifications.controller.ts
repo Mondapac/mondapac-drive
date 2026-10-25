@@ -29,6 +29,7 @@ import {
   type SubscriptionWithSecret,
 } from '../application/use-cases/subscribe-to-webhooks.use-case';
 import type { WebhookSubscription } from '../domain/webhook-subscription';
+import { maskedWebhookUrl } from '../domain/webhook-url';
 import { answer, parsed, pathId } from './notifications-http';
 import {
   eventTypesBody,
@@ -226,7 +227,8 @@ export class CourierPushDeviceController {
 
 /**
  * The admin panel's view of merchant webhook subscriptions (the admin session cookie), for
- * support: every merchant's or one merchant's, newest first, a page at a time; never a secret.
+ * support: every merchant's or one merchant's, newest first, a page at a time; never a secret,
+ * and the URL's query masked (it may carry the receiver's token).
  * Rule `permissions [notifications.webhook-subscription.view]`.
  */
 @ApiTags('notifications')
@@ -247,6 +249,7 @@ export class AdminWebhookSubscriptionController {
     return {
       items: page.items.map((subscription) => ({
         ...subscriptionBody(subscription),
+        url: maskedWebhookUrl(subscription.url),
         merchantId: subscription.merchantId,
       })),
       next: page.next,
