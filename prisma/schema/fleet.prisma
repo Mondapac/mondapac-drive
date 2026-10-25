@@ -82,6 +82,42 @@ model FleetDocument {
   @@schema("fleet")
 }
 
+/// Fleet's view of one delivery a courier carries, kept from delivery's events (handoff 31): who
+/// carries it now and the last delivery aggregate version applied. A finished job keeps no
+/// courier. Referenced by delivery id only.
+model FleetCourierJob {
+  marketId         String    @map("market_id") @db.VarChar(8)
+  tenantId         String    @map("tenant_id")
+  deliveryId       String    @map("delivery_id") @db.Uuid
+  /// The identity account of the courier who carries it now; null when nobody does.
+  courierAccountId String?   @map("courier_account_id") @db.VarChar(64)
+  assignedAt       DateTime? @map("assigned_at") @db.Timestamptz(6)
+  ended            Boolean
+  deliveryVersion  Int       @map("delivery_version")
+
+  @@id([marketId, deliveryId])
+  /// A courier's open jobs (their active delivery).
+  @@index([marketId, courierAccountId])
+  @@map("courier_jobs")
+  @@schema("fleet")
+}
+
+/// The events a fleet subscriber has handled (platform persistence design 6.4): `runOnce`
+/// inserts (event_id, handler) in the handler's own unit and skips the work when the row exists.
+/// Written only by platform/persistence/outbox/.
+model FleetInbox {
+  eventId     String   @map("event_id") @db.Uuid
+  /// The subscriber's name, "fleet.<handler>".
+  handler     String
+  marketId    String   @map("market_id") @db.VarChar(8)
+  tenantId    String   @map("tenant_id")
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@id([eventId, handler])
+  @@map("inbox")
+  @@schema("fleet")
+}
+
 /// Events of the fleet module, appended in the transaction of the change and published by the
 /// relay (platform persistence design 5). The columns are the platform's outbox contract.
 model FleetOutbox {

@@ -83,13 +83,18 @@ export class CourierFleetController {
   @ApiOperation({
     summary: "The courier's shift and profile",
     description:
-      '`{ shift, activeDeliveryId, profile }`. `activeDeliveryId` is null until fleet follows ' +
-      "delivery's events; the courier app reads its current job from dispatch and delivery.",
+      '`{ shift, activeDeliveryId, profile }`. `activeDeliveryId` is the delivery the courier ' +
+      "carries now, from delivery's events (assigned until delivered, returned, cancelled or " +
+      'unassigned), or null.',
   })
   async me(@Call() context: CallContext, @Res({ passthrough: true }) res: Response) {
     const courier = await answer(() => this.viewProfile.execute(context, {}));
     res.setHeader('Cache-Control', 'no-store');
-    return { shift: courier.shift, activeDeliveryId: null, profile: courierBody(courier) };
+    return {
+      shift: courier.shift,
+      activeDeliveryId: courier.activeDeliveryId ?? null,
+      profile: courierBody(courier),
+    };
   }
 
   @Get('me/settings')
@@ -103,12 +108,14 @@ export class CourierFleetController {
   @ReadsSession()
   @ApiOperation({
     summary: 'Go online or offline, pause, or start and end a delivery',
-    description: 'Going online needs a vehicle whose required documents are verified and current.',
+    description:
+      'Going online needs a vehicle whose required documents are verified and current. Going ' +
+      'offline while carrying a delivery answers 409 `fleet.shift.active-delivery`.',
   })
   async shift(@Call() context: CallContext, @Body() body: unknown) {
     const { state } = parsed(() => shiftBody.parse(body));
     const courier = await answer(() => this.changeShift.execute(context, { state }));
-    return { shift: courier.shift, activeDeliveryId: null };
+    return { shift: courier.shift, activeDeliveryId: courier.activeDeliveryId ?? null };
   }
 
   @Post('me/vehicles')

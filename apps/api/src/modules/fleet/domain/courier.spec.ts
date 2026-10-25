@@ -171,6 +171,25 @@ describe.each(TEST_MARKET_IDS)('courier in market %s', (marketId) => {
       );
     });
 
+    it('carries a delivery to its end before going offline (409 fleet.shift.active-delivery)', () => {
+      const deliveryId = nextId<'Delivery'>();
+      const online = shifts(activeCourier(), 'online');
+      const carrying: CourierState = { ...online, activeDeliveryId: deliveryId };
+
+      expect(() => changeShift(carrying, 'offline', rules, T0)).toThrow(
+        code('fleet.shift.active-delivery'),
+      );
+      // A break and the delivery shift are still the courier's to choose.
+      const paused = changeShift(carrying, 'paused', rules, T0).courier;
+      expect(paused).toMatchObject({ shift: 'paused', activeDeliveryId: deliveryId });
+      expect(() => changeShift(paused, 'offline', rules, T0)).toThrow(
+        code('fleet.shift.active-delivery'),
+      );
+      expect(changeShift(carrying, 'on_delivery', rules, T0).courier.shift).toBe('on_delivery');
+      // Once the job is over, the courier goes offline as before.
+      expect(changeShift(online, 'offline', rules, T0).courier.shift).toBe('offline');
+    });
+
     it('cannot go online once a required document expired, by the Clock', () => {
       const active = activeCourier();
       const later = IN_A_YEAR.add({ hours: 1 });

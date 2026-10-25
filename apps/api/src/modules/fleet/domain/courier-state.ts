@@ -27,6 +27,11 @@ export interface CourierState {
    * for work. Absent until their first shift.
    */
   readonly idleSince?: Temporal.Instant;
+  /**
+   * The delivery the courier is on now, from delivery's events (`CourierJob`). Read with the
+   * courier, never written with it: fleet's subscriber keeps it.
+   */
+  readonly activeDeliveryId?: Id<'Delivery'>;
   readonly vehicles: readonly Vehicle[];
   readonly documents: readonly CourierDocument[];
   readonly createdAt: Temporal.Instant;

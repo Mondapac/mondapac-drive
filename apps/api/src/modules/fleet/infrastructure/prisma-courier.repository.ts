@@ -3,6 +3,7 @@ import type { PrismaService } from '../../../platform/persistence/prisma.service
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
 import type { CourierRepository } from '../application/ports';
 import type { CourierState } from '../domain/courier';
+import { activeDeliveryOf, type CourierJob } from '../domain/courier-job';
 import type { CourierStatus, EmploymentType } from '../domain/courier-status';
 import type {
   CourierDocument,
@@ -12,6 +13,7 @@ import type {
 } from '../domain/documents';
 import type { ShiftState } from '../domain/shift';
 import type { ColdBox, Vehicle, VehicleType } from '../domain/vehicle';
+import { readCourierJob, SELECT_COURIER_JOB } from './prisma-courier-job.repository';
 
 const toDate = (instant: Temporal.Instant): Date => new Date(instant.epochMilliseconds);
 const toInstant = (date: Date): Temporal.Instant =>
@@ -130,8 +132,12 @@ function readCourier(
   row: CourierRow,
   vehicles: readonly VehicleRow[],
   documents: readonly DocumentRow[],
+  jobs: readonly CourierJob[],
   market: MarketContext,
 ): CourierState {
+  const activeDeliveryId = activeDeliveryOf(
+    jobs.filter((job) => job.courierAccountId === row.actorId),
+  );
   return {
     id: row.id as Id<'Courier'>,
     marketId: market.marketId,
@@ -143,6 +149,7 @@ function readCourier(
     taxRegistered: row.taxRegistered,
     shift: row.shift as ShiftState,
     ...(row.idleSince === null ? {} : { idleSince: toInstant(row.idleSince) }),
+    ...(activeDeliveryId === undefined ? {} : { activeDeliveryId }),
     vehicles: vehicles.filter((v) => v.courierId === row.id).map(readVehicle),
     documents: documents.filter((d) => d.courierId === row.id).map(readDocument),
     createdAt: toInstant(row.createdAt),
@@ -151,7 +158,8 @@ function readCourier(
 }
 
 /**
- * {@link CourierRepository} on `fleet.couriers`, `fleet.vehicles` and `fleet.documents`, through
+ * {@link CourierRepository} on `fleet.couriers`, `fleet.vehicles` and `fleet.documents` (and the
+ * open jobs of `fleet.courier_jobs`, for the courier's active delivery), through
  * the open unit's guarded client: every `where` and every row pins the unit's Market and tenant.
  * A courier and its vehicles and documents are written by separate statements (the guard refuses
  * nested writes). Vehicles are read in id order (UUIDv7, so by creation), documents by the time
@@ -236,6 +244,18 @@ export class PrismaCourierRepository implements CourierRepository {
       select: SELECT_COURIER,
     });
     return this.withChildren(market, rows);
+  }
+
+  async touch(market: MarketContext, actorIds: readonly string[]): Promise<void> {
+    if (actorIds.length === 0) return;
+    await this.prisma.tx(market).fleetCourier.updateMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        actorId: { in: [...actorIds] },
+      },
+      data: { version: { increment: 1 } },
+    });
   }
 
   async insert(market: MarketContext, courier: CourierState): Promise<boolean> {
@@ -384,14 +404,24 @@ export class PrismaCourierRepository implements CourierRepository {
       tenantId: market.tenantId,
       courierId: { in: rows.map((row) => row.id) },
     };
-    const [vehicles, documents] = await Promise.all([
+    const [vehicles, documents, jobs] = await Promise.all([
       tx.fleetVehicle.findMany({ where, orderBy: { id: 'asc' }, select: SELECT_VEHICLE }),
       tx.fleetDocument.findMany({
         where,
         orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
         select: SELECT_DOCUMENT,
       }),
+      // The couriers' open jobs: a finished job keeps no courier.
+      tx.fleetCourierJob.findMany({
+        where: {
+          marketId: market.marketId,
+          tenantId: market.tenantId,
+          courierAccountId: { in: rows.map((row) => row.actorId) },
+        },
+        select: SELECT_COURIER_JOB,
+      }),
     ]);
-    return rows.map((row) => readCourier(row, vehicles, documents, market));
+    const open = jobs.map(readCourierJob);
+    return rows.map((row) => readCourier(row, vehicles, documents, open, market));
   }
 }
