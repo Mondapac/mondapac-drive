@@ -2,6 +2,7 @@ import { Temporal, type MarketContext } from '@mondapac-drive/shared-kernel';
 import type { PrismaService } from '../../../platform/persistence/prisma.service';
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
 import type {
+  DeadWebhookCall,
   OutboundRepository,
   SmsMessage,
   WebhookCall,
@@ -76,6 +77,23 @@ export class PrismaWebhookSubscriptionRepository implements WebhookSubscriptionR
     const rows = await this.prisma.tx(market).notificationsWebhookSubscription.findMany({
       where: { ...scope(market), merchantId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+    return rows.map((row) => readSubscription(row, market));
+  }
+
+  async page(
+    market: MarketContext,
+    filter: { readonly merchantId?: string; readonly after?: string },
+    limit: number,
+  ) {
+    const rows = await this.prisma.tx(market).notificationsWebhookSubscription.findMany({
+      where: {
+        ...scope(market),
+        ...(filter.merchantId === undefined ? {} : { merchantId: filter.merchantId }),
+        ...(filter.after === undefined ? {} : { id: { lt: filter.after } }),
+      },
+      orderBy: [{ id: 'desc' }],
       take: limit,
     });
     return rows.map((row) => readSubscription(row, market));
@@ -257,13 +275,14 @@ export class PrismaOutboundRepository implements OutboundRepository {
     return row === null ? undefined : readCall(row);
   }
 
-  async deadCalls(market: MarketContext, limit: number) {
+  async deadCalls(market: MarketContext, limit: number): Promise<DeadWebhookCall[]> {
     const rows = await this.prisma.tx(market).notificationsWebhookCall.findMany({
       where: { ...scope(market), status: 'dead' },
       orderBy: [{ deadAt: 'desc' }, { id: 'desc' }],
       take: limit,
+      include: { subscription: { select: { merchantId: true } } },
     });
-    return rows.map(readCall);
+    return rows.map((row) => ({ ...readCall(row), merchantId: row.subscription.merchantId }));
   }
 
   async saveCall(market: MarketContext, call: WebhookCall, expectedAttempts: number) {

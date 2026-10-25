@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { CallContext } from '@mondapac-drive/shared-kernel';
 import { Call } from '../../../platform/call-context/call-context.decorator';
 import { CSRF_HEADER } from '../../../platform/call-context/csrf';
@@ -7,6 +7,7 @@ import {
   ReadsSession,
   RoutePopulation,
 } from '../../../platform/call-context/route-population.decorator';
+import { ListAllWebhookSubscriptions } from '../application/use-cases/admin-webhook-subscriptions.use-case';
 import {
   ChangeWebhookEventTypes,
   DisableWebhookSubscription,
@@ -16,6 +17,7 @@ import {
 import {
   ListDeadWebhookCalls,
   ResendWebhookCall,
+  type DeadWebhookCall,
   type WebhookCall,
 } from '../application/use-cases/resend-webhook-call.use-case';
 import {
@@ -27,8 +29,14 @@ import {
   type SubscriptionWithSecret,
 } from '../application/use-cases/subscribe-to-webhooks.use-case';
 import type { WebhookSubscription } from '../domain/webhook-subscription';
+import { maskedWebhookUrl } from '../domain/webhook-url';
 import { answer, parsed, pathId } from './notifications-http';
-import { eventTypesBody, pushDeviceBody, subscribeBody } from './notifications.schemas';
+import {
+  eventTypesBody,
+  pushDeviceBody,
+  subscribeBody,
+  subscriptionPageQuery,
+} from './notifications.schemas';
 
 /** A subscription as its merchant sees it: never a secret. */
 const subscriptionBody = (subscription: WebhookSubscription) => ({
@@ -157,7 +165,13 @@ export class AdminWebhookCallController {
   @ReadsSession()
   @ApiOperation({ summary: 'Dead-lettered webhook calls, the most recently dead first' })
   async dead(@Call() context: CallContext) {
-    return { calls: answer(await this.deadCalls.execute(context, {})).map(callBody) };
+    const calls = answer(await this.deadCalls.execute(context, {}));
+    return {
+      calls: calls.map((call: DeadWebhookCall) => ({
+        ...callBody(call),
+        merchantId: call.merchantId,
+      })),
+    };
   }
 
   @Post(':id/resend')
@@ -208,5 +222,37 @@ export class CourierPushDeviceController {
   @ApiOperation({ summary: "Drop this session's push device (on sign-out)" })
   async drop(@Call() context: CallContext): Promise<void> {
     answer(await this.remove.execute(context, {}));
+  }
+}
+
+/**
+ * The admin panel's view of merchant webhook subscriptions (the admin session cookie), for
+ * support: every merchant's or one merchant's, newest first, a page at a time; never a secret,
+ * and the URL's query masked (it may carry the receiver's token).
+ * Rule `permissions [notifications.webhook-subscription.view]`.
+ */
+@ApiTags('notifications')
+@RoutePopulation('admin')
+@Controller('notifications/admin/webhook-subscriptions')
+export class AdminWebhookSubscriptionController {
+  constructor(private readonly list: ListAllWebhookSubscriptions) {}
+
+  @Get()
+  @ReadsSession()
+  @ApiQuery({ name: 'merchantId', required: false })
+  @ApiQuery({ name: 'after', required: false, description: 'The `next` of the previous page' })
+  @ApiQuery({ name: 'limit', required: false, description: '1 to 100, default 50' })
+  @ApiOperation({ summary: "Merchants' webhook subscriptions, newest first, without secrets" })
+  async index(@Call() context: CallContext, @Query() query: unknown) {
+    const input = parsed(() => subscriptionPageQuery.parse(query));
+    const page = answer(await this.list.execute(context, input));
+    return {
+      items: page.items.map((subscription) => ({
+        ...subscriptionBody(subscription),
+        url: maskedWebhookUrl(subscription.url),
+        merchantId: subscription.merchantId,
+      })),
+      next: page.next,
+    };
   }
 }

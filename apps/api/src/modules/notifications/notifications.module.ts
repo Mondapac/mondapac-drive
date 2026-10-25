@@ -36,6 +36,7 @@ import {
   type WebhookSubscriptionRepository,
   type WebhookTransport,
 } from './application/ports';
+import { ListAllWebhookSubscriptions } from './application/use-cases/admin-webhook-subscriptions.use-case';
 import {
   ChangeWebhookEventTypes,
   DisableWebhookSubscription,
@@ -62,6 +63,7 @@ import { notificationsProviders } from './infrastructure/notifications-providers
 import { smsDispatchJob, webhookDispatchJob } from './presentation/jobs/notifications.jobs';
 import {
   AdminWebhookCallController,
+  AdminWebhookSubscriptionController,
   CourierPushDeviceController,
   MerchantWebhookController,
 } from './presentation/notifications.controller';
@@ -115,7 +117,12 @@ function subscriptionChange<U>(
  */
 @Module({
   imports: [DeliveryModule, TrackingModule, IdentityModule],
-  controllers: [MerchantWebhookController, AdminWebhookCallController, CourierPushDeviceController],
+  controllers: [
+    MerchantWebhookController,
+    AdminWebhookCallController,
+    AdminWebhookSubscriptionController,
+    CourierPushDeviceController,
+  ],
   providers: [
     registerPermissions('notifications', NOTIFICATIONS_PERMISSIONS),
     PersistenceModule.auditWriterFor('notifications'),
@@ -257,6 +264,15 @@ function subscriptionChange<U>(
         unitOfWork: UnitOfWork,
         clock: Clock,
       ) => new ResendWebhookCall(gate, { outbound, audit, unitOfWork, clock }),
+    },
+    {
+      provide: ListAllWebhookSubscriptions,
+      inject: [USE_CASE_GATE, WEBHOOK_SUBSCRIPTIONS, UNIT_OF_WORK],
+      useFactory: (
+        gate: UseCaseGate,
+        subscriptions: WebhookSubscriptionRepository,
+        unitOfWork: UnitOfWork,
+      ) => new ListAllWebhookSubscriptions(gate, { subscriptions, unitOfWork }),
     },
     {
       provide: ListDeadWebhookCalls,

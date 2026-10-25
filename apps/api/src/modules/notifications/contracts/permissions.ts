@@ -25,6 +25,13 @@ export const WEBHOOK_CALL_RESEND = definePermission('notifications', {
   protected: false,
 });
 
+/** See every merchant's webhook subscriptions (never a secret), for support. */
+export const WEBHOOK_SUBSCRIPTION_VIEW = definePermission('notifications', {
+  key: 'notifications.webhook-subscription.view',
+  scope: 'platform',
+  protected: false,
+});
+
 /** Register and drop the push device of the courier's own session. */
 export const PUSH_DEVICE_MANAGE = definePermission('notifications', {
   key: 'notifications.push-device.manage',
@@ -38,4 +45,5 @@ export const NOTIFICATIONS_PERMISSIONS = declarePermissions('notifications', [
   WEBHOOK_MANAGE,
   WEBHOOK_CALL_RESEND,
   PUSH_DEVICE_MANAGE,
+  WEBHOOK_SUBSCRIPTION_VIEW,
 ]);

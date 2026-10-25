@@ -340,11 +340,11 @@ describe.each(TEST_MARKETS)('ListPlatformRoles in market %s (slice 10a)', (code)
       roleId: roleOf('operator'),
       kind: 'default',
       seedCode: 'operator',
-      permissionCount: 11,
+      permissionCount: 12,
       grantable: true,
     });
     expect(byId(items, roleOf('operator')).name).toBeNull();
-    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(11);
+    expect(byId(items, roleOf('operator')).permissionKeys).toHaveLength(12);
     expect(byId(items, LEAD_ROLE)).toMatchObject({
       kind: 'custom',
       seedCode: null,

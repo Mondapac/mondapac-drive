@@ -35,6 +35,15 @@ export interface WebhookSubscriptionRepository {
   activeOf(market: MarketContext, merchantId: string): Promise<WebhookSubscription[]>;
   /** Every subscription of a merchant, active and disabled, newest first, at most `limit`. */
   listOf(market: MarketContext, merchantId: string, limit: number): Promise<WebhookSubscription[]>;
+  /**
+   * A page of the Market's subscriptions, of one merchant or of all, newest first (by id: ids
+   * are time-ordered UUIDv7), starting after the id `after`, at most `limit`.
+   */
+  page(
+    market: MarketContext,
+    filter: { readonly merchantId?: string; readonly after?: string },
+    limit: number,
+  ): Promise<WebhookSubscription[]>;
   insert(market: MarketContext, subscription: WebhookSubscription): Promise<void>;
   /** Saves version n + 1 over n; throws `StaleAggregateError` when the stored one is not n. */
   update(market: MarketContext, subscription: WebhookSubscription): Promise<void>;
@@ -52,6 +61,11 @@ export interface WebhookCall extends OutboundMessage {
   /** The HTTP status of the last answer, when there was one. */
   readonly lastStatusCode: number | null;
   readonly createdAt: Temporal.Instant;
+}
+
+/** A dead-lettered call, with the merchant of its subscription for an operator's support. */
+export interface DeadWebhookCall extends WebhookCall {
+  readonly merchantId: string;
 }
 
 /** One recipient SMS of one delivery. The number is looked up at each attempt, never stored. */
@@ -79,8 +93,8 @@ export interface OutboundRepository {
   dueCalls(market: MarketContext, now: Temporal.Instant, limit: number): Promise<WebhookCall[]>;
   dueSms(market: MarketContext, now: Temporal.Instant, limit: number): Promise<SmsMessage[]>;
   findCall(market: MarketContext, id: string): Promise<WebhookCall | undefined>;
-  /** Dead-lettered calls, the most recently dead first, at most `limit`. */
-  deadCalls(market: MarketContext, limit: number): Promise<WebhookCall[]>;
+  /** Dead-lettered calls with their subscription's merchant, the most recently dead first. */
+  deadCalls(market: MarketContext, limit: number): Promise<DeadWebhookCall[]>;
   saveCall(market: MarketContext, call: WebhookCall, expectedAttempts: number): Promise<boolean>;
   saveSms(market: MarketContext, message: SmsMessage, expectedAttempts: number): Promise<boolean>;
 }

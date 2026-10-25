@@ -3,7 +3,7 @@ import { APP_CONFIG } from '../../../platform/config/config.module';
 import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
-import { DeliveryRecipients } from '../../delivery';
+import { DeliveryRecipients, DeliveryReferences } from '../../delivery';
 import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
 import { IssueTrackingLink } from '../../tracking';
 import {
@@ -98,8 +98,9 @@ export const notificationsProviders: Provider[] = [
   },
   {
     provide: DELIVERY_CONTACTS,
-    inject: [DeliveryRecipients],
-    useFactory: (recipients: DeliveryRecipients) => new DeliveryRecipientContacts(recipients),
+    inject: [DeliveryRecipients, DeliveryReferences],
+    useFactory: (recipients: DeliveryRecipients, references: DeliveryReferences) =>
+      new DeliveryRecipientContacts(recipients, references),
   },
   {
     provide: TRACKING_LINKS,

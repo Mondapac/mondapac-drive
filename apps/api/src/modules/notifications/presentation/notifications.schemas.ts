@@ -18,3 +18,12 @@ export const pushDeviceBody = z.strictObject({
   token: z.string().min(1).max(200),
   platform: z.enum(PUSH_PLATFORMS),
 });
+
+const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
+/** The query of the operator's subscription list. */
+export const subscriptionPageQuery = z.strictObject({
+  merchantId: uuid.optional(),
+  after: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
