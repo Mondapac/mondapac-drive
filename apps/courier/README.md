@@ -118,7 +118,8 @@ poll stays as the fallback). Push tokens need the EAS project id in the app conf
 builds); without it, or on a simulator or with notifications refused, the app just polls. A stop without a point
 (not geocoded) is navigated to by its address.
 
-Store builds (EAS: identifiers, icons, signing, push) are a later package.
+Release builds (EAS profiles, the CI preview APK, store listing and what the owner must provide):
+[RELEASE.md](RELEASE.md).
 
 ## Onboarding (handoff 38)
 

@@ -152,7 +152,7 @@
       "notificationBody": "Sharing your location with Mondapac dispatch."
     },
     "camera": {
-      "ios": "The camera is used to take a photo as proof of delivery."
+      "ios": "The camera is used to take a photo as proof of delivery and of your courier documents."
     }
   },
   "errors": {
