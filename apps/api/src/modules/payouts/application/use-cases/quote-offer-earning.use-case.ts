@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   addMoney,
   err,
@@ -32,8 +33,10 @@ export interface OfferToQuote {
  * What the signed-in courier will earn for an offered delivery if they take it and deliver it,
  * for the courier app's offer card: the earning `RecordDeliveryEarning` will record, from the
  * same Market rates and the same fleet payee profile, with the tax Drive adds on top (AU: GST
- * for a registered contractor), so it equals what lands in the courier's balance. Waiting time
- * is not known before the delivery, so none is quoted; the recorded earning may add it.
+ * for a registered contractor): an estimate of what lands in the courier's balance, equal to it
+ * unless the Market's rates or the courier's tax registration change before the delivery.
+ * Waiting time is not known before the delivery, so none is quoted; the recorded earning may
+ * add it.
  *
  * Null when there is nothing to quote: an employee (paid through payroll), a courier fleet does
  * not know, a vehicle the Market has no courier rate for, or a fleet read that failed (the offer
@@ -47,6 +50,8 @@ export class EarningsQuote extends UseCase<OfferToQuote, Money | null, PayoutsFa
     rule: { kind: 'permissions', allOf: [EARNINGS_VIEW.key] },
   };
 
+  readonly #logger = new Logger('EarningsQuote');
+
   constructor(
     gate: UseCaseGate,
     private readonly deps: PayoutsDependencies,
@@ -59,8 +64,18 @@ export class EarningsQuote extends UseCase<OfferToQuote, Money | null, PayoutsFa
     try {
       const quoted = await this.execute(context, offer);
       return quoted.ok ? quoted.value : null;
-    } catch {
-      // A fleet outage: the offer is still worth showing, without its pay.
+    } catch (error) {
+      // The offer is still worth showing, without its pay; the failure is logged so an outage
+      // or a bug never looks like "no pay" with nobody told. No amount or payee fact is logged.
+      const outage = error instanceof Error && error.message === 'fleet.payee-profiles.unavailable';
+      const entry = {
+        msg: 'payouts.quote.unavailable',
+        marketId: context.market.marketId,
+        correlationId: context.correlationId,
+        error: error instanceof Error ? error.name : typeof error,
+      };
+      if (outage) this.#logger.warn(entry);
+      else this.#logger.error(entry);
       return null;
     }
   }

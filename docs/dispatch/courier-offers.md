@@ -29,12 +29,13 @@ decimal text (AUD has 2 decimals, JPY none; format with the Market's currency di
   for the vehicle the delivery was quoted for, the distance and the cold-chain bonus, plus the
   tax Drive adds for a registered contractor (AU: GST). It comes from payouts' `EarningsQuote`,
   which uses the same rates and fleet payee profile as the `payouts.delivery-earning`
-  subscriber, so the offer equals the recorded earning.
+  subscriber, so the offer equals the recorded earning unless the Market's rates or the
+  courier's tax registration change before delivery. Present it as an estimate ("about").
 - Waiting time is not known before the delivery and is not quoted; the recorded earning may be
   higher by the waiting pay once delivery reports waiting time.
 - `null` for an employee (paid through payroll), a courier fleet has no payee profile for, a
   vehicle the Market has no courier rate for, or when fleet could not be read. The offer is
-  still shown.
+  still shown. A contractor who gets `null` should see "pay unavailable", never a zero.
 
 ## `POST /dispatch/courier/offers/:id/accept` and `/decline`
 
