@@ -8,8 +8,10 @@ import {
 } from '../../../platform/routing';
 import type {
   DistanceProvider,
+  GeocodeAsker,
   GeocodeMiss,
   Geocoder,
+  LocatedStop,
   MarketSettingsProvider,
   MeasuredDistance,
 } from '../application/ports';
@@ -70,10 +72,13 @@ export class RoutingGeocoder implements Geocoder {
     market: MarketContext,
     address: string,
     postcode: string,
-  ): Promise<GeoPoint | GeocodeMiss> {
+  ): Promise<LocatedStop | GeocodeMiss> {
     try {
       const found = await this.routing.geocode(market, { address, postcode });
-      return found === undefined ? 'not-found' : found.point;
+      if (found === undefined) return 'not-found';
+      return found.locality === undefined
+        ? { point: found.point }
+        : { point: found.point, suburb: found.locality };
     } catch (error) {
       if (error instanceof GeocodingUnavailableError) return 'unavailable';
       if (error instanceof InvalidAddressQueryError) return 'not-found';
@@ -113,8 +118,8 @@ const MAX_PENDING_LOOKUPS = 1000;
 export class CachingGeocoder implements Geocoder {
   private readonly logger = new Logger('DeliveryGeocoding');
   readonly #secret = randomBytes(32);
-  readonly #entries = new Map<string, { point: GeoPoint; expiresAtMs: number }>();
-  readonly #pending = new Map<string, Promise<GeoPoint | GeocodeMiss>>();
+  readonly #entries = new Map<string, { located: LocatedStop; expiresAtMs: number }>();
+  readonly #pending = new Map<string, Promise<LocatedStop | GeocodeMiss>>();
 
   constructor(
     private readonly inner: Geocoder,
@@ -127,9 +132,10 @@ export class CachingGeocoder implements Geocoder {
     market: MarketContext,
     address: string,
     postcode: string,
-  ): Promise<GeoPoint | GeocodeMiss> {
+    asker?: GeocodeAsker,
+  ): Promise<LocatedStop | GeocodeMiss> {
     const { geocodeMs, geocodeCacheSeconds } = this.markets.get(market.marketId).responseBudget;
-    const key = this.#keyOf(market, address, postcode);
+    const key = this.#keyOf(market, address, postcode, asker?.merchantId ?? null);
     const cached = this.#cached(key);
     if (cached !== undefined) return cached;
 
@@ -144,7 +150,7 @@ export class CachingGeocoder implements Geocoder {
         return 'unavailable';
       }
       lookup = this.inner
-        .locate(market, address, postcode)
+        .locate(market, address, postcode, asker)
         .then((found) => {
           if (typeof found !== 'string') this.#keep(key, found, geocodeCacheSeconds);
           return found;
@@ -172,25 +178,36 @@ export class CachingGeocoder implements Geocoder {
     return this.#entries.size;
   }
 
-  #keyOf(market: MarketContext, address: string, postcode: string): string {
+  /**
+   * A full address is kept per merchant, so a cache hit's speed tells no merchant which addresses
+   * another one sent (Hassan L2). A postcode alone, as the marketplace quotes, is no one's
+   * address and is shared.
+   */
+  #keyOf(
+    market: MarketContext,
+    address: string,
+    postcode: string,
+    merchantId: string | null,
+  ): string {
+    const place = normalisedAddress(address);
+    const code = postcode.trim().toUpperCase();
+    const scope = place === code.toLowerCase() ? '' : (merchantId ?? '');
     return createHmac('sha256', this.#secret)
-      .update(
-        [market.marketId, normalisedAddress(address), postcode.trim().toUpperCase()].join('|'),
-      )
+      .update([market.marketId, scope, place, code].join('|'))
       .digest('base64url');
   }
 
-  #cached(key: string): GeoPoint | undefined {
+  #cached(key: string): LocatedStop | undefined {
     const entry = this.#entries.get(key);
     if (entry === undefined) return undefined;
     if (entry.expiresAtMs <= this.clock.now().epochMilliseconds) {
       this.#entries.delete(key);
       return undefined;
     }
-    return entry.point;
+    return entry.located;
   }
 
-  #keep(key: string, point: GeoPoint, ttlSeconds: number): void {
+  #keep(key: string, located: LocatedStop, ttlSeconds: number): void {
     if (ttlSeconds === 0) return;
     this.#entries.delete(key);
     // Entries are in insertion order: drop expired points from the oldest end, so a point is
@@ -206,7 +223,7 @@ export class CachingGeocoder implements Geocoder {
       if (oldest.done !== true) this.#entries.delete(oldest.value);
     }
     this.#entries.set(key, {
-      point,
+      located,
       expiresAtMs: this.clock.now().epochMilliseconds + ttlSeconds * 1000,
     });
   }

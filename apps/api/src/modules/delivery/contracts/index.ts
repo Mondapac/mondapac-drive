@@ -27,9 +27,12 @@ export type {
 export {
   DeliveryDispatchView,
   DeliveryRecipients,
+  DeliveryReferences,
 } from '../application/use-cases/system-reads.use-case';
 export type {
   DeliveryForDispatch,
   DeliveryForNotification,
+  DeliveryReference,
   DispatchStop,
 } from '../application/use-cases/system-reads.use-case';
+export type { WaitingSeconds } from '../domain/waiting-time';

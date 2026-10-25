@@ -31,6 +31,8 @@ const toInstant = (date: Date): Temporal.Instant =>
 interface StoredStop {
   readonly address: string;
   readonly postcode: string;
+  /** Absent on stops booked with a point, or stored before suburbs were kept. */
+  readonly suburb?: string;
   readonly contactName: string;
   readonly contactPhone: string;
   readonly notes?: string;
@@ -62,6 +64,7 @@ function storedStop(stop: Stop): StoredStop {
   return {
     address: stop.address,
     postcode: stop.postcode,
+    ...(stop.suburb === undefined ? {} : { suburb: stop.suburb }),
     contactName: stop.contactName,
     contactPhone: stop.contactPhone,
     ...(stop.notes === undefined ? {} : { notes: stop.notes }),

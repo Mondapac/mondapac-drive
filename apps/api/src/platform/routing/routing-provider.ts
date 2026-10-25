@@ -28,6 +28,11 @@ export interface GeocodedAddress {
    * point is the centre of its postcode, good for a quote but not for a drop-off pin.
    */
   readonly precision: 'address' | 'postcode';
+  /**
+   * The locality (in AU, the suburb) of an `address` answer, when the provider names one; never
+   * set on a `postcode` answer, whose centre may lie in another suburb.
+   */
+  readonly locality?: string;
 }
 
 /**

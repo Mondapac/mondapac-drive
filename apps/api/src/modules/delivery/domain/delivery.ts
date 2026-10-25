@@ -12,6 +12,8 @@ export interface Stop {
   readonly address: string;
   readonly postcode: string;
   readonly point: GeoPoint;
+  /** The suburb the geocoder named for the address; absent when the stop came with a point. */
+  readonly suburb?: string;
   readonly contactName: string;
   readonly contactPhone: string;
   readonly notes?: string;
