@@ -61,7 +61,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -80,6 +79,9 @@ jobs:
       - name: Generate the native Android project
         working-directory: apps/courier
         run: pnpm prebuild:android
+
+      # Caches Gradle's downloads; set up after prebuild, once the Gradle files exist.
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Build the release APK
         working-directory: apps/courier/android
