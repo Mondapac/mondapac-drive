@@ -1421,7 +1421,10 @@
     },
     "resend": {
       "button": "Send again",
-      "done": "The {event} call is queued to be sent again."
+      "done": "The {event} call is queued to be sent again.",
+      "title": "Send the {event} call again?",
+      "body": "The merchant receives the same body and event id again, so it can ignore a repeat. The re-send is recorded.",
+      "keep": "Keep as is"
     },
     "subscriptions": {
       "title": "Webhook subscriptions",

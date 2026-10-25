@@ -64,14 +64,28 @@ function show(node: ReactElement) {
   );
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // jsdom has no modal <dialog>.
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute('open');
+  };
+});
 afterEach(cleanup);
 
 describe('dead webhook calls', () => {
   it('finds the merchant on the call first, then through its subscription', () => {
     const bySubscription = new Map([[SUB, MERCHANT]]);
     expect(merchantOfCall(dead(), bySubscription)).toBe(MERCHANT);
-    expect(merchantOfCall(dead({ merchantId: 'own' }), bySubscription)).toBe('own');
+    const own = '0190a000-0000-7000-8000-0000000000e2';
+    expect(merchantOfCall(dead({ merchantId: own.toUpperCase() }), bySubscription)).toBe(own);
+    // Anything but a UUID never becomes a link.
+    expect(
+      merchantOfCall(dead({ merchantId: 'javascript:alert(1)' }), bySubscription),
+    ).toBeUndefined();
     expect(merchantOfCall(dead(), new Map())).toBeUndefined();
   });
 
@@ -105,6 +119,10 @@ describe('dead webhook calls', () => {
     expect(within(second).getByText('Timed out')).toBeTruthy();
 
     fireEvent.click(within(first).getByRole('button', { name: 'Send again' }));
+    expect(call).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Send the delivery.status-changed call again?')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send again' }));
     await waitFor(() =>
       expect(call).toHaveBeenCalledWith(
         'POST',
@@ -155,12 +173,20 @@ describe('webhook subscriptions of a merchant', () => {
       await SubscriptionsTable({
         subscriptions: [
           subscription({ previousSecretValidUntil: '2026-10-26T00:00:00Z' }),
-          subscription({ id: 'other', status: 'disabled', secretVersion: 1 }),
+          subscription({
+            id: 'other',
+            url: 'https://user:pass@hooks.example/in?token=secret-token',
+            status: 'disabled',
+            secretVersion: 1,
+          }),
         ],
       }),
     );
     expect(screen.queryByRole('link')).toBeNull();
-    expect(screen.getAllByText('https://market.example/hooks/drive')).toHaveLength(2);
+    expect(screen.getByText('https://market.example/hooks/drive')).toBeTruthy();
+    // Credentials and the query of a merchant's URL are never shown.
+    expect(screen.getByText('https://hooks.example/in?…')).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/secret-token|user:pass/);
     expect(screen.getByText(/Version 2; the previous one works until/)).toBeTruthy();
     expect(screen.getByText('Disabled')).toBeTruthy();
     expect(screen.getAllByText('delivery.booked, delivery.status-changed')).toHaveLength(2);

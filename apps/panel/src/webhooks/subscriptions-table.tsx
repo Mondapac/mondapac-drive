@@ -1,6 +1,7 @@
 import { Badge, CARD_TABLE, EmptyState } from '@mondapac-drive/ui';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { formatInstant, shortInstant } from '../shared/format.ts';
+import { endpointText } from './endpoint.ts';
 import type { WebhookSubscription } from './types.ts';
 
 /**
@@ -52,7 +53,7 @@ export async function SubscriptionsTable({
             <tr key={row.id} className={CARD_TABLE.row}>
               <td className={CARD_TABLE.cell}>
                 {/* Text, never a link: the panel does not send operators to a merchant's URL. */}
-                <span className="break-all font-medium">{row.url}</span>
+                <span className="break-all font-medium">{endpointText(row.url)}</span>
               </td>
               <td className={CARD_TABLE.corner}>
                 <Badge tone={row.status === 'active' ? 'success' : 'neutral'}>

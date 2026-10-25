@@ -1,6 +1,7 @@
 import { CARD_TABLE, EmptyState } from '@mondapac-drive/ui';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { ActionButton } from '../ops/action-button.tsx';
+import { UUID } from '../ops/types.ts';
 import { shortInstant } from '../shared/format.ts';
 import { shortId } from '../shared/short-id.ts';
 import type { DeadWebhookCall } from './types.ts';
@@ -10,7 +11,9 @@ export function merchantOfCall(
   call: DeadWebhookCall,
   merchantBySubscription: ReadonlyMap<string, string>,
 ): string | undefined {
-  return call.merchantId ?? merchantBySubscription.get(call.subscriptionId);
+  const id = call.merchantId ?? merchantBySubscription.get(call.subscriptionId);
+  // The id becomes a link: only a UUID may (security review, L2).
+  return id !== undefined && UUID.test(id) ? id.toLowerCase() : undefined;
 }
 
 /**
@@ -128,6 +131,12 @@ export async function DeadCallsTable({
                       path={`notifications/admin/webhook-calls/${call.id}/resend`}
                       csrfToken={csrfToken}
                       done={t('resend.done', { event: call.eventType })}
+                      confirm={{
+                        title: t('resend.title', { event: call.eventType }),
+                        body: t('resend.body'),
+                        action: t('resend.button'),
+                        keep: t('resend.keep'),
+                      }}
                       errorScope="webhooks"
                     />
                   </td>
