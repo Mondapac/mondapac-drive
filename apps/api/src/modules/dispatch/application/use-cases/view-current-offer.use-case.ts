@@ -6,6 +6,7 @@ import {
   type Clock,
   type GeoPoint,
   type Id,
+  type Money,
   type Result,
 } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
@@ -15,7 +16,7 @@ import type { Temperature } from '../../domain/courier';
 import { openOfferOf } from '../../domain/dispatch-job';
 import { courierOf } from '../callers';
 import { accessDenied, type DispatchFailure } from '../failure';
-import type { DispatchJobRepository } from '../ports';
+import type { DispatchJobRepository, OfferEarnings } from '../ports';
 
 /** What the courier app shows of an offer: where, how far, how cold, and until when. */
 export interface CourierOffer {
@@ -26,10 +27,16 @@ export interface CourierOffer {
   readonly dropoff: { readonly address: string; readonly point: GeoPoint };
   readonly tripDistanceMetres: number;
   readonly temperature: Temperature;
+  /**
+   * What the courier earns for it, tax included, without waiting time (payouts' quote); null for
+   * an employee, a courier without a payee profile or a vehicle the Market has no rate for.
+   */
+  readonly earnings: Money | null;
 }
 
 export interface ViewCurrentOfferDependencies {
   readonly jobs: DispatchJobRepository;
+  readonly earnings: OfferEarnings;
   readonly unitOfWork: UnitOfWork;
   readonly clock: Clock;
 }
@@ -37,7 +44,8 @@ export interface ViewCurrentOfferDependencies {
 /**
  * The signed-in courier's open offer, the one that expires first, or null: the courier app
  * polls it. Only the courier who holds an offer sees the delivery's addresses, and only while
- * the offer is open. Rule `permissions [dispatch.offer.view]`, couriers only.
+ * the offer is open. The offer carries what the courier will earn for it, priced by payouts
+ * after the read unit closes. Rule `permissions [dispatch.offer.view]`, couriers only.
  */
 export class ViewCurrentOffer extends UseCase<
   Record<string, never>,
@@ -61,7 +69,7 @@ export class ViewCurrentOffer extends UseCase<
   ): Promise<Result<CourierOffer | null, DispatchFailure>> {
     const courierId = courierOf(context);
     if (courierId === null) return err(accessDenied());
-    const { jobs, unitOfWork, clock } = this.deps;
+    const { jobs, earnings, unitOfWork, clock } = this.deps;
     const { market } = context;
     const read = await unitOfWork.run(
       market,
@@ -83,10 +91,20 @@ export class ViewCurrentOffer extends UseCase<
           dropoff: { address: stops.dropoffAddress, point: stops.dropoff },
           tripDistanceMetres: stops.tripDistanceMetres,
           temperature: job.requirements.temperature,
+          vehicle: job.requirements.minimumVehicle,
         },
       ];
     });
     open.sort((a, b) => Temporal.Instant.compare(a.expiresAt, b.expiresAt));
-    return ok(open[0] ?? null);
+    const first = open[0];
+    if (first === undefined) return ok(null);
+    const { vehicle, ...offer } = first;
+    const pay = await earnings.forOffer(context, {
+      deliveryId: offer.deliveryId,
+      vehicle,
+      distanceMetres: offer.tripDistanceMetres,
+      temperature: offer.temperature,
+    });
+    return ok({ ...offer, earnings: pay });
   }
 }
