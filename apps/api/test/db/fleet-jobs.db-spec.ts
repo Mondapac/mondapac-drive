@@ -281,7 +281,12 @@ describe('fleet follows the jobs couriers carry (database integration)', () => {
       expect(await activeDelivery()).toBeNull();
       expect(await available()).toBe(true);
       // Every status change from the assignment on was handled once; handling again changes
-      // nothing (booking, version 1, is not followed).
+      // nothing (booking, version 1, is not followed). Version 6 can apply while another spec's
+      // dispatcher still holds an older event, which then lands in the inbox as a no-op.
+      for (let attempt = 0; attempt < 50 && (await handled(id)).length < 5; attempt += 1) {
+        await handleAll();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
       const handlers = await handled(id);
       expect(handlers).toEqual(Array<string>(5).fill('fleet.follow-delivery-status'));
       await handleAll();
