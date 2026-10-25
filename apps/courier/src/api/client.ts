@@ -8,6 +8,7 @@ import type {
   Job,
   LocationPing,
   Offer,
+  PushDevice,
   ShiftState,
   SignInInput,
   ApplyInput,
@@ -73,6 +74,10 @@ export interface CourierApi {
   payoutOnboardingLink(): Promise<PayoutOnboardingLink>;
   /** The balance and the latest `limit` ledger entries (1 to 200), newest first. */
   balance(limit: number): Promise<EarningsBalance>;
+  /** Registers this device for offer pushes; one device per session, replaced on each call. */
+  registerPushDevice(device: PushDevice): Promise<void>;
+  /** Stops offer pushes to this session's device; idempotent. */
+  removePushDevice(): Promise<void>;
 }
 
 /**

@@ -55,6 +55,8 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
   check, the offer countdown, money and distance formatting, the map deep link.
 - `src/location/`: background location (expo-location + expo-task-manager) and permissions.
 - `src/session/`: the session token in expo-secure-store.
+- `src/push/`: offer pushes (expo-notifications) behind a `PushService` port, and the hook that
+  registers the device.
 - `src/platform/clock/`: the only reader of the wall clock; everything else takes a `Clock`.
 - `src/i18n/en.json`: every piece of copy, including the native permission texts that
   `app.config.ts` reads.
@@ -104,7 +106,16 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
   { amount, tax, total }, entries }`, newest first; amounts are signed, a payout is negative).
   The Earnings screen shows both; an entry kind the app does not know shows as "Other".
 
-Offers are polled every 5 s while online until dispatch pushes them. A stop without a point
+- Notifications: `PUT /notifications/courier/me/push-device { token, platform }` (an Expo push
+  token, `ios` or `android`) when the home screen opens with a session and each time the app
+  returns to the foreground (the server drops a courier's devices when identity ends sessions),
+  and `DELETE` on sign-out before the session ends. An offer push carries only
+  `{ kind: 'offer', offerId }`: the app brings the home screen forward and fetches the current
+  offer, once per offer id (a push can arrive twice).
+
+Offers are polled every 5 s while online, or every 30 s once this device gets offer pushes (the
+poll stays as the fallback). Push tokens need the EAS project id in the app config (release
+builds); without it, or on a simulator or with notifications refused, the app just polls. A stop without a point
 (not geocoded) is navigated to by its address.
 
 Store builds (EAS: identifiers, icons, signing, push) are a later package.

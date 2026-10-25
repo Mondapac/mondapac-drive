@@ -287,5 +287,8 @@
       "documentMediaType": "Upload a PDF, JPEG or PNG.",
       "storage": "Documents cannot be saved right now. Try again in a minute."
     }
+  },
+  "push": {
+    "channel": "Delivery offers"
   }
 }
