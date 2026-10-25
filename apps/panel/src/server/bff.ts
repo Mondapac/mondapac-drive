@@ -80,6 +80,10 @@ const ALLOWED_WITH_ID: Readonly<Record<string, readonly string[]>> = {
     'fleet/admin/couriers/:id/documents/:id/reject',
     'fleet/admin/couriers/:id/documents/:id/revoke',
     'fleet/admin/couriers/:id/vehicles/:id/deactivate',
+    // Drive dispatch: a dispatcher assigns or reassigns a delivery's courier, or offers it again
+    // once every round lapsed (both audited; dispatch.job.assign).
+    'dispatch/admin/deliveries/:id/assign',
+    'dispatch/admin/deliveries/:id/redispatch',
   ],
   PUT: [
     'identity/admin/roles/:id',

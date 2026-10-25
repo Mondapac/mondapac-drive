@@ -4,6 +4,7 @@ import type {
   Id,
   MarketContext,
   MarketId,
+  Money,
   Temporal,
 } from '@mondapac-drive/shared-kernel';
 import type { Temperature, VehicleType } from '../domain/courier';
@@ -121,3 +122,20 @@ export interface DispatchSettingsProvider {
   get(marketId: MarketId): DispatchSettings;
 }
 export const DISPATCH_SETTINGS = Symbol('DispatchSettingsProvider');
+
+/** The delivery an offer prices: the facts delivery quoted it with. */
+export interface OfferToPrice {
+  readonly deliveryId: Id<'Delivery'>;
+  readonly vehicle: VehicleType;
+  readonly distanceMetres: number;
+  readonly temperature: Temperature;
+}
+
+/**
+ * What the signed-in courier will earn for an offered delivery (payouts' `EarningsQuote`), asked
+ * as the courier; null when there is nothing to show (an employee, no payee profile, no rate).
+ */
+export interface OfferEarnings {
+  forOffer(context: CallContext, offer: OfferToPrice): Promise<Money | null>;
+}
+export const OFFER_EARNINGS = Symbol('OfferEarnings');

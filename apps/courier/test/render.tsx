@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { createMockCourierApi } from '../src/api/mock/mock-client';
-import type { CourierSession, CourierSettings } from '../src/api/schemas';
+import type { CourierSession, CourierSettings, OnboardingRules } from '../src/api/schemas';
 import type { LocationAccess } from '../src/location/tracking';
 import { fakeClock } from '../src/platform/clock/clock';
 import { AppProviders, createQueryClient, type SessionStorage } from '../src/providers';
@@ -10,12 +10,19 @@ export const START = Date.parse('2026-10-24T09:00:00Z');
 
 /** The mock backend, a fake clock and fake tracking, signed in. */
 export async function createHarness(
-  options: { settings?: CourierSettings; access?: LocationAccess } = {},
+  options: {
+    settings?: CourierSettings;
+    access?: LocationAccess;
+    onboardingRules?: OnboardingRules | null;
+    newCourier?: boolean;
+  } = {},
 ) {
   const clock = fakeClock(START);
   const mock = createMockCourierApi({
     clock,
     ...(options.settings ? { settings: options.settings } : {}),
+    ...(options.onboardingRules === undefined ? {} : { onboardingRules: options.onboardingRules }),
+    ...(options.newCourier ? { newCourier: true } : {}),
   });
   const session = await mock.api.signIn({ email: 'courier@example.test', password: 'secret-1' });
   let stored: CourierSession | null = session;

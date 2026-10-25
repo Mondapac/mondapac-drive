@@ -56,6 +56,7 @@ export class ConfigFleetRulesProvider implements FleetRulesProvider {
   courierAppSettings(marketId: MarketId): CourierAppSettings {
     const market = this.markets.get(marketId);
     const { chilled, frozen } = market.delivery.coldChain;
+    const rules = this.get(marketId);
     return {
       marketId,
       locale: market.defaultLocale,
@@ -67,6 +68,16 @@ export class ConfigFleetRulesProvider implements FleetRulesProvider {
         chilled: { maxCelsius: chilled.maxCelsius },
         frozen: { maxCelsius: frozen.maxCelsius },
       },
+      serviceAreas: this.areas
+        .areasOf(marketId)
+        .filter((area) => area.deliveryEnabled)
+        .map(({ code }) => ({ code })),
+      vehicleClasses: VEHICLE_TYPES.flatMap((type) => {
+        const vehicleClass = rules.vehicleClasses[type];
+        return vehicleClass === undefined ? [] : [{ type, ...vehicleClass }];
+      }),
+      documents: rules.documents,
+      businessIdDocumentType: rules.businessIdDocumentType ?? null,
     };
   }
 

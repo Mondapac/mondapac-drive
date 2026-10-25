@@ -39,8 +39,8 @@ export interface StatCardProps {
   readonly value: string;
   /** What the figure covers ("all sellers", "the first 50 held prices"). Always shown. */
   readonly scope: string;
-  /** The page that lists what is counted. */
-  readonly href: string;
+  /** The page that lists what is counted; without one the card is a plain figure. */
+  readonly href?: string;
   readonly tone?: StatTone;
   /** Shown instead of the figure when it could not be read; the card then does not link. */
   readonly error?: string;
@@ -82,7 +82,7 @@ export function StatCard({
     'flex w-full min-w-0 flex-col gap-1 rounded-lg border border-line bg-surface p-3 sm:gap-2 sm:p-4';
   return (
     <li className="flex">
-      {error === undefined ? (
+      {error === undefined && href !== undefined ? (
         <a href={href} className={`${frame} hover:bg-muted`}>
           {body}
         </a>

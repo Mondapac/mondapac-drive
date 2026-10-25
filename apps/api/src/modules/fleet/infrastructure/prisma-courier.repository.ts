@@ -3,6 +3,7 @@ import type { PrismaService } from '../../../platform/persistence/prisma.service
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
 import type { CourierRepository } from '../application/ports';
 import type { CourierState } from '../domain/courier';
+import { activeDeliveryOf, type CourierJob } from '../domain/courier-job';
 import type { CourierStatus, EmploymentType } from '../domain/courier-status';
 import type {
   CourierDocument,
@@ -12,6 +13,7 @@ import type {
 } from '../domain/documents';
 import type { ShiftState } from '../domain/shift';
 import type { ColdBox, Vehicle, VehicleType } from '../domain/vehicle';
+import { readCourierJob, SELECT_COURIER_JOB } from './prisma-courier-job.repository';
 
 const toDate = (instant: Temporal.Instant): Date => new Date(instant.epochMilliseconds);
 const toInstant = (date: Date): Temporal.Instant =>
@@ -130,8 +132,12 @@ function readCourier(
   row: CourierRow,
   vehicles: readonly VehicleRow[],
   documents: readonly DocumentRow[],
+  jobs: readonly CourierJob[],
   market: MarketContext,
 ): CourierState {
+  const activeDeliveryId = activeDeliveryOf(
+    jobs.filter((job) => job.courierAccountId === row.actorId),
+  );
   return {
     id: row.id as Id<'Courier'>,
     marketId: market.marketId,
@@ -143,6 +149,7 @@ function readCourier(
     taxRegistered: row.taxRegistered,
     shift: row.shift as ShiftState,
     ...(row.idleSince === null ? {} : { idleSince: toInstant(row.idleSince) }),
+    ...(activeDeliveryId === undefined ? {} : { activeDeliveryId }),
     vehicles: vehicles.filter((v) => v.courierId === row.id).map(readVehicle),
     documents: documents.filter((d) => d.courierId === row.id).map(readDocument),
     createdAt: toInstant(row.createdAt),
@@ -151,7 +158,8 @@ function readCourier(
 }
 
 /**
- * {@link CourierRepository} on `fleet.couriers`, `fleet.vehicles` and `fleet.documents`, through
+ * {@link CourierRepository} on `fleet.couriers`, `fleet.vehicles` and `fleet.documents` (and the
+ * open jobs of `fleet.courier_jobs`, for the courier's active delivery), through
  * the open unit's guarded client: every `where` and every row pins the unit's Market and tenant.
  * A courier and its vehicles and documents are written by separate statements (the guard refuses
  * nested writes). Vehicles are read in id order (UUIDv7, so by creation), documents by the time
@@ -212,6 +220,66 @@ export class PrismaCourierRepository implements CourierRepository {
     return this.withChildren(market, rows);
   }
 
+  async expiringDocuments(
+    market: MarketContext,
+    query: {
+      readonly before: Temporal.Instant;
+      readonly after?: Id<'CourierDocument'>;
+      readonly limit: number;
+    },
+  ) {
+    const tx = this.prisma.tx(market);
+    const scope = { marketId: market.marketId, tenantId: market.tenantId };
+    let from: { readonly expiresAt: Date; readonly id: string } | undefined;
+    if (query.after !== undefined) {
+      const cursor = await tx.fleetDocument.findFirst({
+        where: { ...scope, id: query.after },
+        select: { id: true, expiresAt: true },
+      });
+      // A cursor that names no expiring document ends the listing.
+      if (cursor === null || cursor.expiresAt === null) return [];
+      from = { expiresAt: cursor.expiresAt, id: cursor.id };
+    }
+    const rows = await tx.fleetDocument.findMany({
+      where: {
+        ...scope,
+        status: 'verified',
+        expiresAt: { lt: toDate(query.before) },
+        courier: { status: { not: 'offboarded' } },
+        ...(from === undefined
+          ? {}
+          : {
+              OR: [
+                { expiresAt: { gt: from.expiresAt } },
+                { expiresAt: from.expiresAt, id: { gt: from.id } },
+              ],
+            }),
+      },
+      orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
+      take: query.limit,
+      select: { id: true, courierId: true, type: true, expiresAt: true },
+    });
+    const couriers = await tx.fleetCourier.findMany({
+      where: { ...scope, id: { in: [...new Set(rows.map((row) => row.courierId))] } },
+      select: { id: true, actorId: true },
+    });
+    const accounts = new Map(couriers.map((row) => [row.id, row.actorId]));
+    return rows.flatMap((row) => {
+      const accountId = accounts.get(row.courierId);
+      // A courier of another tenant (the foreign key holds no tenant) is never answered.
+      if (accountId === undefined || row.expiresAt === null) return [];
+      return [
+        {
+          documentId: row.id as Id<'CourierDocument'>,
+          courierId: row.courierId as Id<'Courier'>,
+          accountId,
+          type: row.type,
+          expiresAt: toInstant(row.expiresAt),
+        },
+      ];
+    });
+  }
+
   async namedFileKeys(market: MarketContext, fileKeys: readonly string[]) {
     if (fileKeys.length === 0) return new Set<string>();
     const rows = await this.prisma.tx(market).fleetDocument.findMany({
@@ -236,6 +304,18 @@ export class PrismaCourierRepository implements CourierRepository {
       select: SELECT_COURIER,
     });
     return this.withChildren(market, rows);
+  }
+
+  async touch(market: MarketContext, actorIds: readonly string[]): Promise<void> {
+    if (actorIds.length === 0) return;
+    await this.prisma.tx(market).fleetCourier.updateMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        actorId: { in: [...actorIds] },
+      },
+      data: { version: { increment: 1 } },
+    });
   }
 
   async insert(market: MarketContext, courier: CourierState): Promise<boolean> {
@@ -384,14 +464,24 @@ export class PrismaCourierRepository implements CourierRepository {
       tenantId: market.tenantId,
       courierId: { in: rows.map((row) => row.id) },
     };
-    const [vehicles, documents] = await Promise.all([
+    const [vehicles, documents, jobs] = await Promise.all([
       tx.fleetVehicle.findMany({ where, orderBy: { id: 'asc' }, select: SELECT_VEHICLE }),
       tx.fleetDocument.findMany({
         where,
         orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
         select: SELECT_DOCUMENT,
       }),
+      // The couriers' open jobs: a finished job keeps no courier.
+      tx.fleetCourierJob.findMany({
+        where: {
+          marketId: market.marketId,
+          tenantId: market.tenantId,
+          courierAccountId: { in: rows.map((row) => row.actorId) },
+        },
+        select: SELECT_COURIER_JOB,
+      }),
     ]);
-    return rows.map((row) => readCourier(row, vehicles, documents, market));
+    const open = jobs.map(readCourierJob);
+    return rows.map((row) => readCourier(row, vehicles, documents, open, market));
   }
 }

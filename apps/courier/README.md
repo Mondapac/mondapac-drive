@@ -99,10 +99,33 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
   `activeDeliveryId: null` for now, so the app keeps the delivery it accepted in the secure
   store (with the session) and returns to it after a restart, until the job ends or answers 404.
 - Payouts: `GET /payouts/courier/me/summary` (`{ today, week, deliveriesToday }` in the
-  Market's time zone, the week from Monday).
+  Market's time zone, the week from Monday) and `GET …/me/balance?limit=20` (`{ balance:
+  { amount, tax, total }, entries }`, newest first; amounts are signed, a payout is negative).
+  The Earnings screen shows both; an entry kind the app does not know shows as "Other".
 
 Offers are polled every 5 s while online until dispatch pushes them. A stop without a point
 (not geocoded) is navigated to by its address.
 
 Release builds (EAS profiles, the CI preview APK, store listing and what the owner must provide):
-[RELEASE.md](RELEASE.md). Push notifications are a later package.
+[RELEASE.md](RELEASE.md).
+
+## Onboarding (handoff 38)
+
+After sign-in the app opens `/onboarding`, a gate that sends an active courier straight home.
+A new courier goes through four steps, each derived from the server's profile, so the app keeps
+no progress of its own and resumes at the right step after a restart or on another phone:
+
+1. Profile: employment type, service area and cold chain (`POST /fleet/courier/me`).
+2. Vehicle: type and plate (`POST …/me/vehicles`); the capacity is the rate card's default.
+3. Documents: the Market's required types for this courier (`POST …/me/documents`, multipart
+   `file` + `type`, `vehicleId?`, `expiresAt?`), from the camera or the phone's files (PDF,
+   JPEG, PNG, at most 10 MB). Images are re-encoded as JPEG, which drops EXIF; the local copy is
+   deleted after the upload, on replace, on cancel and when the form closes, and the picker's
+   cache folder is swept when onboarding opens.
+4. Waiting for an operator (polled every 30 s). A contractor sets up payouts on the provider's
+   page in the system browser (`POST /payouts/courier/me/onboarding-link`, https only).
+
+The Market's rules (service areas, vehicle classes, documents, business id type) come from
+`GET /fleet/courier/me/settings`. While the API does not send them, a new courier is asked to call
+support. In the mock, an email starting with `new` signs in as a courier who has not applied;
+the mock's operator approves everything submitted 10 s after the last upload.
