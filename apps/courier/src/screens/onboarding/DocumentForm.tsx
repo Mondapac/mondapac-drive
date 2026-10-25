@@ -147,7 +147,12 @@ export function DocumentForm({ slot, onDone, onCancel }: Props) {
       {problem && <Notice tone="warning" text={problem} />}
       {upload.error && <Notice tone="danger" text={onboardingError(upload.error)} />}
       <Button label={t('onboarding.upload.submit')} busy={upload.isPending} onPress={submit} />
-      <Button label={t('common.cancel')} variant="secondary" onPress={onCancel} />
+      <Button
+        label={t('common.cancel')}
+        variant="secondary"
+        disabled={upload.isPending}
+        onPress={onCancel}
+      />
     </View>
   );
 }

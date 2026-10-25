@@ -404,7 +404,7 @@ export function createMockCourierApi(options: MockOptions) {
         return Promise.reject(new ApiError(409, 'payouts.not-a-contractor'));
       }
       return Promise.resolve({
-        url: 'https://connect.example.test/onboarding/mock-courier-1',
+        url: 'https://connect.stripe.com/setup/e/mock-courier-1',
         expiresAt: new Date(clock.now() + 5 * 60 * 1000).toISOString(),
       });
     },

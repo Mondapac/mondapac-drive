@@ -252,8 +252,13 @@ export type OnboardingRules = z.infer<typeof onboardingRules>;
 export type VehicleClass = OnboardingRules['vehicleClasses'][number];
 
 /** Payouts' hosted onboarding page for a contractor (`POST /payouts/courier/me/onboarding-link`). */
+/** Hosts of the payment provider's hosted onboarding (Stripe Connect); anything else is refused. */
+export const PAYOUT_ONBOARDING_HOSTS: readonly string[] = ['connect.stripe.com'];
+
 export const payoutOnboardingLink = z.object({
-  url: z.url({ protocol: /^https$/ }),
+  url: z
+    .url({ protocol: /^https$/ })
+    .refine((url) => PAYOUT_ONBOARDING_HOSTS.includes(new URL(url).hostname)),
   expiresAt: z.iso.datetime({ offset: true }),
 });
 export type PayoutOnboardingLink = z.infer<typeof payoutOnboardingLink>;

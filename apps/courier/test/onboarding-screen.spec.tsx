@@ -117,9 +117,7 @@ describe.each(ONBOARDING_MARKETS)('onboarding in $settings.marketId', ({ setting
     await screen.findByText('Step 4 of 4');
     await press('Set up payouts');
     await waitFor(() =>
-      expect(openUrl).toHaveBeenCalledWith(
-        'https://connect.example.test/onboarding/mock-courier-1',
-      ),
+      expect(openUrl).toHaveBeenCalledWith('https://connect.stripe.com/setup/e/mock-courier-1'),
     );
     expect(onReady).not.toHaveBeenCalled();
 

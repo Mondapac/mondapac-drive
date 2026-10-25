@@ -115,7 +115,7 @@ describe('HTTP adapter: onboarding', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('takes only an https payout onboarding link', async () => {
+  it('takes only an https payout onboarding link on the provider host', async () => {
     const good = setup({
       body: {
         url: 'https://connect.stripe.com/setup/e/acct_1/abc',
@@ -127,9 +127,11 @@ describe('HTTP adapter: onboarding', () => {
     });
     expect(good.fetch.mock.calls[0]![0]).toBe(`https://api.example.test${ROUTES.payoutOnboarding}`);
 
-    const bad = setup({ body: { url: 'javascript:alert(1)', expiresAt: '2026-10-24T09:05:00Z' } });
-    await expect(bad.api.payoutOnboardingLink()).rejects.toMatchObject({
-      code: 'response.invalid',
-    });
+    for (const url of ['javascript:alert(1)', 'https://connect.stripe.com.evil.test/setup']) {
+      const bad = setup({ body: { url, expiresAt: '2026-10-24T09:05:00Z' } });
+      await expect(bad.api.payoutOnboardingLink()).rejects.toMatchObject({
+        code: 'response.invalid',
+      });
+    }
   });
 });
