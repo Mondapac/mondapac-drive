@@ -37,7 +37,8 @@ export class QuoteDelivery extends UseCase<
     context: CallContext,
     input: QuoteDeliveryInput,
   ): Promise<Result<QuoteDeliveryResult, DeliveryFailure>> {
-    if (merchantOf(context) === null) return Promise.resolve(err(ACCESS_DENIED));
-    return this.deps.pricing.price(context.market, input);
+    const merchantId = merchantOf(context);
+    if (merchantId === null) return Promise.resolve(err(ACCESS_DENIED));
+    return this.deps.pricing.price(context.market, input, merchantId);
   }
 }

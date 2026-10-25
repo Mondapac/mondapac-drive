@@ -49,6 +49,7 @@ import { QuoteDelivery } from './application/use-cases/quote-delivery.use-case';
 import {
   DeliveryDispatchView,
   DeliveryRecipients,
+  DeliveryReferences,
 } from './application/use-cases/system-reads.use-case';
 import { DELIVERY_PERMISSIONS } from './contracts/permissions';
 import { DELIVERY_EVENTS } from './domain/events/delivery-events';
@@ -221,6 +222,7 @@ function deliveryUseCase<U>(
     deliveryUseCase(RecordDispatchAssignment),
     deliveryUseCase(RecordDispatchExhausted),
     deliveryUseCase(DeliveryDispatchView),
+    deliveryUseCase(DeliveryReferences),
     {
       provide: DeliveryRecipients,
       inject: [...DELIVERY_DEPENDENCIES, RECIPIENT_PINS],
@@ -243,6 +245,6 @@ function deliveryUseCase<U>(
         dispatchSubscriptions(assignment, exhausted),
     ),
   ],
-  exports: [DeliveryDispatchView, DeliveryRecipients],
+  exports: [DeliveryDispatchView, DeliveryRecipients, DeliveryReferences],
 })
 export class DeliveryModule {}

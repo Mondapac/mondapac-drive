@@ -1,4 +1,4 @@
-import { geoPoint, Temporal, type GeoPoint } from '@mondapac-drive/shared-kernel';
+import { geoPoint, Temporal } from '@mondapac-drive/shared-kernel';
 import { FixedClock, testMarketContext } from '@mondapac-drive/shared-kernel/testing';
 import {
   GeocodingUnavailableError,
@@ -7,7 +7,7 @@ import {
 } from '../../../platform/routing';
 import { markets } from '../../../../test/support/delivery-markets';
 import { TEST_MARKETS } from '../../../../test/support/test-config';
-import type { GeocodeMiss, Geocoder } from '../application/ports';
+import type { GeocodeMiss, Geocoder, LocatedStop } from '../application/ports';
 import { estimatedRoadMetres } from '../domain/geo-distance';
 import {
   CachingGeocoder,
@@ -18,6 +18,7 @@ import {
 
 const A = geoPoint(-27.47, 153.02);
 const B = geoPoint(-27.49, 153.03);
+const AT_B: LocatedStop = { point: B, suburb: 'Newstead' };
 
 function routing(overrides: Partial<RoutingProvider>): RoutingProvider {
   return {
@@ -35,10 +36,10 @@ const after = <T>(ms: number, value: T): Promise<T> =>
 class SlowGeocoder implements Geocoder {
   calls = 0;
   constructor(
-    private readonly answer: GeoPoint | GeocodeMiss,
+    private readonly answer: LocatedStop | GeocodeMiss,
     private readonly delayMs = 0,
   ) {}
-  locate(): Promise<GeoPoint | GeocodeMiss> {
+  locate(): Promise<LocatedStop | GeocodeMiss> {
     this.calls += 1;
     return after(this.delayMs, this.answer);
   }
@@ -104,7 +105,19 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
           geocode: () => Promise.resolve({ point: B, postcode: '1000', precision: 'postcode' }),
         }),
       );
-      await expect(found.locate(market, '1 Road', '1000')).resolves.toEqual(B);
+      await expect(found.locate(market, '1 Road', '1000')).resolves.toEqual({ point: B });
+      const suburb = new RoutingGeocoder(
+        routing({
+          geocode: () =>
+            Promise.resolve({
+              point: B,
+              postcode: '1000',
+              precision: 'address',
+              locality: 'Newstead',
+            }),
+        }),
+      );
+      await expect(suburb.locate(market, '1 Road', '1000')).resolves.toEqual(AT_B);
       const none = new RoutingGeocoder(routing({ geocode: () => Promise.resolve(undefined) }));
       await expect(none.locate(market, '1 Road', '1000')).resolves.toBe('not-found');
       const down = new RoutingGeocoder(
@@ -128,10 +141,10 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
     });
 
     it('keeps a found point for the Market TTL, by normalised address and postcode', async () => {
-      const inner = new SlowGeocoder(B);
+      const inner = new SlowGeocoder(AT_B);
       const geocoder = new CachingGeocoder(inner, markets, clock);
-      await expect(geocoder.locate(market, '1 Example St, ', '1000')).resolves.toEqual(B);
-      await expect(geocoder.locate(market, '1  EXAMPLE st', ' 1000 ')).resolves.toEqual(B);
+      await expect(geocoder.locate(market, '1 Example St, ', '1000')).resolves.toEqual(AT_B);
+      await expect(geocoder.locate(market, '1  EXAMPLE st', ' 1000 ')).resolves.toEqual(AT_B);
       expect(inner.calls).toBe(budget.geocodeCacheSeconds === 0 ? 2 : 1);
 
       // Another postcode is another entry.
@@ -140,6 +153,20 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
       clock.advance(Temporal.Duration.from({ seconds: budget.geocodeCacheSeconds }));
       await geocoder.locate(market, '1 Example St', '1000');
       expect(inner.calls).toBe(calls + 1);
+    });
+
+    it('keeps a full address per merchant, and a postcode alone for every merchant', async () => {
+      const inner = new SlowGeocoder(AT_B);
+      const geocoder = new CachingGeocoder(inner, markets, clock);
+      await geocoder.locate(market, '1 Private Rd', '1000', { merchantId: 'm-1' });
+      await geocoder.locate(market, '1 Private Rd', '1000', { merchantId: 'm-1' });
+      expect(inner.calls).toBe(1);
+      await geocoder.locate(market, '1 Private Rd', '1000', { merchantId: 'm-2' });
+      expect(inner.calls).toBe(2);
+
+      await geocoder.locate(market, '1000', '1000', { merchantId: 'm-1' });
+      await geocoder.locate(market, '1000', '1000', { merchantId: 'm-2' });
+      expect(inner.calls).toBe(3);
     });
 
     it.each(['not-found', 'unavailable'] as const)('does not keep a miss (%s)', async (miss) => {
@@ -151,19 +178,19 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
     });
 
     it('answers unavailable at the deadline, and the late point serves the retry', async () => {
-      const inner = new SlowGeocoder(B, budget.geocodeMs + 200);
+      const inner = new SlowGeocoder(AT_B, budget.geocodeMs + 200);
       const geocoder = new CachingGeocoder(inner, markets, clock);
       const started = performance.now();
       await expect(geocoder.locate(market, '1 Slow St', '1000')).resolves.toBe('unavailable');
       expect(performance.now() - started).toBeLessThan(budget.geocodeMs + 150);
 
       // The retry joins the running lookup instead of starting a second one.
-      await expect(geocoder.locate(market, '1 Slow St', '1000')).resolves.toEqual(B);
+      await expect(geocoder.locate(market, '1 Slow St', '1000')).resolves.toEqual(AT_B);
       expect(inner.calls).toBe(1);
     });
 
     it('answers unavailable without a lookup when too many lookups are in flight', async () => {
-      const inner = new SlowGeocoder(B, 50);
+      const inner = new SlowGeocoder(AT_B, 50);
       const geocoder = new CachingGeocoder(inner, markets, clock);
       const running = Array.from({ length: 1000 }, (_, i) =>
         geocoder.locate(market, `${i} Busy St`, '1000'),
@@ -175,7 +202,7 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
 
     it('forgets expired points when it keeps a new one', async () => {
       if (budget.geocodeCacheSeconds === 0) return;
-      const inner = new SlowGeocoder(B);
+      const inner = new SlowGeocoder(AT_B);
       const geocoder = new CachingGeocoder(inner, markets, clock);
       await geocoder.locate(market, '1 Old St', '1000');
       clock.advance(Temporal.Duration.from({ seconds: budget.geocodeCacheSeconds }));
@@ -185,7 +212,7 @@ describe.each(TEST_MARKETS)('delivery routing adapters (%s)', (code) => {
 
     it('drops the oldest entry when full', async () => {
       if (budget.geocodeCacheSeconds === 0) return;
-      const inner = new SlowGeocoder(B);
+      const inner = new SlowGeocoder(AT_B);
       const geocoder = new CachingGeocoder(inner, markets, clock, 2);
       for (const street of ['1 A St', '2 B St', '3 C St']) {
         await geocoder.locate(market, street, '1000');
