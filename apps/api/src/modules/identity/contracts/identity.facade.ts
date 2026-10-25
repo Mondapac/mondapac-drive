@@ -48,12 +48,13 @@ export interface IdentityFacade {
   /**
    * Which of `sessionIds` of `accountId` are live now (not revoked, expired or idle), for the
    * `system` caller only: notifications pushes only to the device of a live courier session.
+   * `identity.unavailable` when the read failed; never an empty set for a failure.
    */
   liveSessionsOf(
     context: CallContext,
     accountId: Id<'Account'>,
     sessionIds: readonly string[],
-  ): Promise<Result<ReadonlySet<string>, AccessDenied>>;
+  ): Promise<Result<ReadonlySet<string>, AccessDenied | { readonly code: 'identity.unavailable' }>>;
 }
 
 /** Nest token of the {@link IdentityFacade}, provided and exported by `IdentityModule`. */

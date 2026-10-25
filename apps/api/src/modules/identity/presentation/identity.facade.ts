@@ -57,7 +57,9 @@ export class IdentityFacadeImplementation implements IdentityFacade {
     context: CallContext,
     accountId: Id<'Account'>,
     sessionIds: readonly string[],
-  ): Promise<Result<ReadonlySet<string>, AccessDenied>> {
+  ): Promise<
+    Result<ReadonlySet<string>, AccessDenied | { readonly code: 'identity.unavailable' }>
+  > {
     return this.useCases.liveSessionsOf.execute(context, { accountId, sessionIds });
   }
 }

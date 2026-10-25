@@ -13,7 +13,12 @@ export class IdentityCourierSessions implements CourierSessions {
   ): Promise<ReadonlySet<string> | undefined> {
     const id = parseId<'Account'>(accountId);
     if (!id.ok) return new Set();
-    const answer = await this.identity.liveSessionsOf(context, id.value, sessionIds);
-    return answer.ok ? answer.value : undefined;
+    try {
+      const answer = await this.identity.liveSessionsOf(context, id.value, sessionIds);
+      return answer.ok ? answer.value : undefined;
+    } catch {
+      // A failed read is "unknown", never "none live": the push is retried, no device dropped.
+      return undefined;
+    }
   }
 }

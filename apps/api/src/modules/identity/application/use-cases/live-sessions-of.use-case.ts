@@ -13,7 +13,8 @@ export interface LiveSessionsOfInput {
   readonly sessionIds: readonly string[];
 }
 
-export type LiveSessionsOfFailure = { readonly code: 'access.denied' };
+export type LiveSessionsOfFailure =
+  { readonly code: 'access.denied' } | { readonly code: 'identity.unavailable' };
 
 export interface LiveSessionsOfDependencies {
   readonly unitOfWork: UnitOfWork;
@@ -67,7 +68,8 @@ export class LiveSessionsOf extends UseCase<
         ),
       { readOnly: true },
     );
-    if (!read.ok) return ok(new Set());
+    // Never "no session lives" for a read that failed: the caller would drop live devices.
+    if (!read.ok) return err({ code: 'identity.unavailable' });
     return ok(
       new Set(
         read.value
