@@ -42,6 +42,7 @@ export function deliveryJobSubscriptions(follow: FollowDelivery): RegisteredSubs
             status: event.payload.status,
             // The courier after the change: null when nobody carries the delivery.
             courierAccountId: event.payload.courierId ?? null,
+            occurredAt: event.occurredAt,
           },
           context,
         ),
@@ -58,6 +59,7 @@ export function deliveryJobSubscriptions(follow: FollowDelivery): RegisteredSubs
             deliveryVersion: event.aggregateVersion,
             status: 'cancelled',
             courierAccountId: null,
+            occurredAt: event.occurredAt,
           },
           context,
         ),

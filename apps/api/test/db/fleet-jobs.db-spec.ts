@@ -122,6 +122,7 @@ describe('fleet follows the jobs couriers carry (database integration)', () => {
     let admin: AdminActor;
     let merchant: MerchantActor;
     let courier: CourierActor;
+    let other: CourierActor;
 
     /** Takes the courier from application to online: a van, its documents verified, approved. */
     async function onlineCourier(actor: CourierActor): Promise<void> {
@@ -229,6 +230,12 @@ describe('fleet follows the jobs couriers carry (database integration)', () => {
       merchant = await actors.merchant(admin, `Merchant ${randomUUID()}`);
       courier = await actors.courier();
       await onlineCourier(courier);
+      other = await actors.courier();
+      const applied = await http()
+        .post('/fleet/courier/me')
+        .set(as(other.headers))
+        .send({ employmentType: 'contractor', serviceAreaCode: area, coldChainCapable: false });
+      expect(applied.status).toBe(201);
     });
 
     it('gives the courier the job from assignment to DELIVERED, then frees them', async () => {
@@ -250,6 +257,9 @@ describe('fleet follows the jobs couriers carry (database integration)', () => {
       });
 
       expect(await activeDelivery()).toBe(id);
+      // Another courier never sees it.
+      const theirs = await http().get('/fleet/courier/me').set(as(other.headers));
+      expect((theirs.body as { activeDeliveryId: unknown }).activeDeliveryId).toBeNull();
       expect(await shift('offline', 409)).toMatchObject({ code: 'fleet.shift.active-delivery' });
       expect(await shift('paused', 200)).toEqual({ shift: 'paused', activeDeliveryId: id });
       expect(await shift('online', 200)).toEqual({ shift: 'online', activeDeliveryId: id });

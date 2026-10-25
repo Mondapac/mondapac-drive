@@ -246,6 +246,18 @@ export class PrismaCourierRepository implements CourierRepository {
     return this.withChildren(market, rows);
   }
 
+  async touch(market: MarketContext, actorIds: readonly string[]): Promise<void> {
+    if (actorIds.length === 0) return;
+    await this.prisma.tx(market).fleetCourier.updateMany({
+      where: {
+        marketId: market.marketId,
+        tenantId: market.tenantId,
+        actorId: { in: [...actorIds] },
+      },
+      data: { version: { increment: 1 } },
+    });
+  }
+
   async insert(market: MarketContext, courier: CourierState): Promise<boolean> {
     const created = await this.prisma.tx(market).fleetCourier.createMany({
       data: [

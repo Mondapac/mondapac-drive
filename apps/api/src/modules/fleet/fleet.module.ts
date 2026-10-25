@@ -135,13 +135,13 @@ function fleetUseCase<U>(
     ...fleetProviders,
     {
       provide: FollowDelivery,
-      inject: [USE_CASE_GATE, COURIER_JOB_REPOSITORY, UNIT_OF_WORK, CLOCK],
+      inject: [USE_CASE_GATE, COURIER_JOB_REPOSITORY, COURIER_REPOSITORY, UNIT_OF_WORK],
       useFactory: (
         gate: UseCaseGate,
         jobs: CourierJobRepository,
+        couriers: CourierRepository,
         unitOfWork: UnitOfWork,
-        clock: Clock,
-      ) => new FollowDelivery(gate, { jobs, unitOfWork, clock }),
+      ) => new FollowDelivery(gate, { jobs, couriers, unitOfWork }),
     },
     registerSubscriptionsFrom('fleet', [FollowDelivery], (follow: FollowDelivery) =>
       deliveryJobSubscriptions(follow),

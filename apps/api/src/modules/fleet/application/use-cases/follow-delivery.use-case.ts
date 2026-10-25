@@ -1,11 +1,11 @@
-import { err, ok, type CallContext, type Clock, type Result } from '@mondapac-drive/shared-kernel';
+import { err, ok, type CallContext, type Result } from '@mondapac-drive/shared-kernel';
 import { UseCase, type AccessDeclaration, type UseCaseGate } from '../../../../platform/authz';
 import type { EventDelivery } from '../../../../platform/events/event-delivery';
 import type { UnitOfWork } from '../../../../platform/unit-of-work/unit-of-work';
 import { followJob, type CourierJob, type DeliveryReport } from '../../domain/courier-job';
 import { isSystem } from '../access';
 import { forbidden, refusingBrokenRules, type FleetFailure } from '../failure';
-import type { CourierJobRepository } from '../ports';
+import type { CourierJobRepository, CourierRepository } from '../ports';
 
 export interface FollowDeliveryInput extends DeliveryReport {
   /** The event's delivery, handed on unchanged so the unit records it in fleet's inbox. */
@@ -14,8 +14,8 @@ export interface FollowDeliveryInput extends DeliveryReport {
 
 export interface FollowDeliveryDependencies {
   readonly jobs: CourierJobRepository;
+  readonly couriers: CourierRepository;
   readonly unitOfWork: UnitOfWork;
-  readonly clock: Clock;
 }
 
 /**
@@ -48,13 +48,22 @@ export class FollowDelivery extends UseCase<
   ): Promise<Result<CourierJob | undefined, FleetFailure>> {
     if (!isSystem(context)) return err(forbidden());
     const { market } = context;
-    const { jobs, unitOfWork, clock } = this.deps;
+    const { jobs, couriers, unitOfWork } = this.deps;
     const { delivery, ...report } = input;
     const handled = await unitOfWork.runOnce(market, delivery, () =>
       refusingBrokenRules(async () => {
         const current = await jobs.find(market, report.deliveryId);
-        const next = followJob(current, report, clock.now());
-        if (next !== current) await jobs.save(market, next, current?.deliveryVersion);
+        const next = followJob(current, report);
+        if (next === current) return ok(next);
+        // The couriers whose open jobs change: their next shift change, if it read the jobs
+        // before this unit commits, fails as stale and reads them again (no offline with a job).
+        const moved = [current?.courierAccountId, next.courierAccountId].filter(
+          (account): account is string => account !== undefined,
+        );
+        if (current?.courierAccountId !== next.courierAccountId) {
+          await couriers.touch(market, [...new Set(moved)]);
+        }
+        await jobs.save(market, next, current?.deliveryVersion);
         return ok(next);
       }),
     );

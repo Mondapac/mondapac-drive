@@ -37,6 +37,11 @@ export interface CourierRepository {
   ): Promise<CourierState[]>;
   /** Which of these file keys a document row of the Market names, in any tenant. */
   namedFileKeys(market: MarketContext, fileKeys: readonly string[]): Promise<Set<string>>;
+  /**
+   * Adds one to the version of the couriers of these accounts, changing nothing else: a change of
+   * a courier's jobs then conflicts with a shift change read before it (handoff 31, Hassan M1).
+   */
+  touch(market: MarketContext, actorIds: readonly string[]): Promise<void>;
   /** The active couriers who are online in a service area, with their vehicles and documents. */
   findOnlineInArea(market: MarketContext, serviceAreaCode: string): Promise<CourierState[]>;
 }

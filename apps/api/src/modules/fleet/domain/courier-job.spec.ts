@@ -7,25 +7,25 @@ const code = (code: string) => expect.objectContaining({ code }) as Error;
 
 // Fleet's view of a delivery a courier carries, from delivery's events (handoff 31). The rule
 // knows no Market; it runs for each fixture so a Market-shaped assumption would show.
-describe.each(TEST_MARKET_IDS)('courier jobs in market %s', (marketId) => {
-  const courierA = `courier-a-${marketId.toLowerCase()}`;
-  const courierB = `courier-b-${marketId.toLowerCase()}`;
+describe.each(TEST_MARKET_IDS)('courier jobs in market %s', () => {
+  const courierA: string = nextId<'Account'>();
+  const courierB: string = nextId<'Account'>();
   const T1 = T0.add({ minutes: 5 });
   const T2 = T0.add({ minutes: 10 });
 
   function reports(deliveryId = nextId<'Delivery'>()) {
     let version = 1;
-    return (status: string, courierAccountId: string | null): DeliveryReport => {
+    return (status: string, courierAccountId: string | null, occurredAt = T0): DeliveryReport => {
       version += 1;
-      return { deliveryId, deliveryVersion: version, status, courierAccountId };
+      return { deliveryId, deliveryVersion: version, status, courierAccountId, occurredAt };
     };
   }
 
   /** Applies the reports in order, each at the next instant. */
   function follow(...steps: DeliveryReport[]): CourierJob {
     let job: CourierJob | undefined;
-    steps.forEach((step, index) => {
-      job = followJob(job, step, T0.add({ minutes: index }));
+    steps.forEach((step) => {
+      job = followJob(job, step);
     });
     return job!;
   }
@@ -33,7 +33,7 @@ describe.each(TEST_MARKET_IDS)('courier jobs in market %s', (marketId) => {
   it('holds the job for the assigned courier until delivered, then keeps no courier', () => {
     const next = reports();
     const assigned = next('assigned', courierA);
-    const job = followJob(undefined, assigned, T0);
+    const job = followJob(undefined, assigned);
     expect(job).toEqual({
       deliveryId: assigned.deliveryId,
       courierAccountId: courierA,
@@ -43,11 +43,11 @@ describe.each(TEST_MARKET_IDS)('courier jobs in market %s', (marketId) => {
     });
 
     // The same courier keeps the time they were given it.
-    const atPickup = followJob(job, next('at-pickup', courierA), T1);
+    const atPickup = followJob(job, next('at-pickup', courierA, T1));
     expect(atPickup).toMatchObject({ courierAccountId: courierA, assignedAt: T0 });
 
     const steps = ['picked-up', 'at-dropoff', 'delivered'].reduce(
-      (current, status) => followJob(current, next(status, courierA), T2),
+      (current, status) => followJob(current, next(status, courierA, T2)),
       atPickup,
     );
     expect(steps).toEqual({
@@ -68,22 +68,22 @@ describe.each(TEST_MARKET_IDS)('courier jobs in market %s', (marketId) => {
     );
     expect(failed).toMatchObject({ courierAccountId: courierA, ended: false });
 
-    expect(followJob(failed, next('returned', courierA), T2)).toMatchObject({
+    expect(followJob(failed, next('returned', courierA, T2))).toMatchObject({
       ended: true,
       deliveryVersion: 7,
     });
-    expect(followJob(failed, next('returned', courierA), T2).courierAccountId).toBeUndefined();
+    expect(followJob(failed, next('returned', courierA, T2)).courierAccountId).toBeUndefined();
   });
 
   it('frees the courier on an unassign and gives a reassignment to the new courier', () => {
     const next = reports();
     const assigned = follow(next('assigned', courierA));
-    const unassigned = followJob(assigned, next('dispatching', null), T1);
+    const unassigned = followJob(assigned, next('dispatching', null, T1));
     expect(unassigned).toMatchObject({ ended: false, deliveryVersion: 3 });
     expect(unassigned.courierAccountId).toBeUndefined();
     expect(unassigned.assignedAt).toBeUndefined();
 
-    const reassigned = followJob(unassigned, next('assigned', courierB), T2);
+    const reassigned = followJob(unassigned, next('assigned', courierB, T2));
     expect(reassigned).toMatchObject({ courierAccountId: courierB, assignedAt: T2 });
   });
 
@@ -93,24 +93,24 @@ describe.each(TEST_MARKET_IDS)('courier jobs in market %s', (marketId) => {
     expect(cancelled).toMatchObject({ ended: true, deliveryVersion: 3 });
     expect(cancelled.courierAccountId).toBeUndefined();
 
-    expect(followJob(cancelled, next('assigned', courierB), T2)).toBe(cancelled);
+    expect(followJob(cancelled, next('assigned', courierB, T2))).toBe(cancelled);
   });
 
   it('changes nothing for a late or repeated event', () => {
     const next = reports();
     const first = next('assigned', courierA);
     const unassign = next('dispatching', null);
-    const job = followJob(followJob(undefined, first, T0), unassign, T1);
+    const job = followJob(followJob(undefined, first), unassign);
 
-    expect(followJob(job, unassign, T2)).toBe(job);
-    expect(followJob(job, first, T2)).toBe(job);
+    expect(followJob(job, { ...unassign, occurredAt: T2 })).toBe(job);
+    expect(followJob(job, { ...first, occurredAt: T2 })).toBe(job);
   });
 
   it('starts from whatever event it hears first', () => {
     // A delivery assigned before fleet followed delivery's events: its next step opens the job.
     const next = reports();
     next('assigned', courierA);
-    expect(followJob(undefined, next('picked-up', courierA), T1)).toMatchObject({
+    expect(followJob(undefined, next('picked-up', courierA, T1))).toMatchObject({
       courierAccountId: courierA,
       assignedAt: T1,
       ended: false,
@@ -124,22 +124,23 @@ describe.each(TEST_MARKET_IDS)('courier jobs in market %s', (marketId) => {
       deliveryVersion: 2,
       status: 'assigned',
       courierAccountId: courierA,
+      occurredAt: T0,
     };
-    expect(() => followJob(undefined, { ...good, deliveryVersion: 0 }, T0)).toThrow(
+    expect(() => followJob(undefined, { ...good, deliveryVersion: 0 })).toThrow(
       code('fleet.job.version-invalid'),
     );
-    expect(() => followJob(undefined, { ...good, deliveryVersion: 1.5 }, T0)).toThrow(
+    expect(() => followJob(undefined, { ...good, deliveryVersion: 1.5 })).toThrow(
       code('fleet.job.version-invalid'),
     );
-    expect(() => followJob(undefined, { ...good, courierAccountId: '' }, T0)).toThrow(
+    expect(() => followJob(undefined, { ...good, courierAccountId: '' })).toThrow(
       code('fleet.job.courier-invalid'),
     );
-    expect(() => followJob(undefined, { ...good, courierAccountId: 'x'.repeat(65) }, T0)).toThrow(
+    expect(() => followJob(undefined, { ...good, courierAccountId: 'not-an-account-id' })).toThrow(
       code('fleet.job.courier-invalid'),
     );
-    const job = followJob(undefined, good, T0);
+    const job = followJob(undefined, good);
     expect(() =>
-      followJob(job, { ...good, deliveryId: nextId<'Delivery'>(), deliveryVersion: 3 }, T0),
+      followJob(job, { ...good, deliveryId: nextId<'Delivery'>(), deliveryVersion: 3 }),
     ).toThrow(code('fleet.job.delivery-mismatch'));
   });
 
