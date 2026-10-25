@@ -96,26 +96,52 @@ export type DeliverySummary = Pick<
 };
 export const DELIVERY_REPOSITORY = Symbol('DeliveryRepository');
 
-/** Road distance between two points for a vehicle, in metres. Always answers (an estimate at worst). */
+/** A distance between two stops, in whole metres, and whether it is an estimate. */
+export interface MeasuredDistance {
+  readonly metres: number;
+  /** True when no road route answered in time: the straight line times a road factor. */
+  readonly estimated: boolean;
+}
+
+/**
+ * Road distance between two points for a vehicle. Always answers, within the Market's
+ * `responseBudget.routeMs`: an estimate at worst.
+ */
 export interface DistanceProvider {
-  roadDistanceMetres(
+  distance(
     market: MarketContext,
     from: GeoPoint,
     to: GeoPoint,
     vehicle: VehicleType,
-  ): Promise<number>;
+  ): Promise<MeasuredDistance>;
 }
 export const DISTANCE_PROVIDER = Symbol('DistanceProvider');
 
 /** What {@link Geocoder} answers for an address it cannot place. */
 export type GeocodeMiss = 'not-found' | 'unavailable';
 
+/** Where a geocoded stop is: its point, and its suburb when the address itself was found. */
+export interface LocatedStop {
+  readonly point: GeoPoint;
+  readonly suburb?: string;
+}
+
+/** Who asks for a lookup: the merchant, so one merchant cannot time another's cache entries. */
+export interface GeocodeAsker {
+  readonly merchantId: string | null;
+}
+
 /**
  * The point of a stop given by address and postcode, for a request without coordinates. The
  * point may be the postcode's centre when the address itself is not found.
  */
 export interface Geocoder {
-  locate(market: MarketContext, address: string, postcode: string): Promise<GeoPoint | GeocodeMiss>;
+  locate(
+    market: MarketContext,
+    address: string,
+    postcode: string,
+    asker?: GeocodeAsker,
+  ): Promise<LocatedStop | GeocodeMiss>;
 }
 export const GEOCODER = Symbol('Geocoder');
 

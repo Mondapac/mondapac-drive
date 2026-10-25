@@ -32,6 +32,12 @@ const DELIVERY = {
   coldChain: { chilled: { maxCelsius: 5 }, frozen: { maxCelsius: -15 } },
   scheduling: { minLeadMinutes: 60, maxDaysAhead: 7, minWindowMinutes: 60 },
   proofOfDelivery: { pinLength: 4, maxPinAttempts: 5 },
+  responseBudget: {
+    geocodeMs: 900,
+    routeMs: 700,
+    estimateRoadFactor: 1.3,
+    geocodeCacheSeconds: 86400,
+  },
 };
 
 /** The identity and origin sections of the ZZ fixture: this spec checks the other sections. */
@@ -45,6 +51,7 @@ const DISPATCH = {
   scheduledLeadMinutes: 45,
   searchRadiusMetres: 8000,
   candidateLimit: 20,
+  offerPointDecimals: 3,
 };
 
 const TRACKING = {
@@ -84,6 +91,7 @@ const NOTIFICATIONS = {
     pinText: 'PIN {pin}.',
     trackingPageUrl: 'https://track.example.com/t/{token}',
   },
+  push: { offerTitle: 'New offer', offerBody: 'New offer, expires in {seconds} s' },
 };
 
 const FLEET = {
@@ -135,6 +143,7 @@ const VALID = {
   notifications: NOTIFICATIONS,
   fleet: FLEET,
   payouts: PAYOUTS,
+  events: { inboxRetentionDays: 30 },
 };
 
 function directoryWith(files: Record<string, unknown>): string {
@@ -294,6 +303,18 @@ describe('loadMarketConfigs', () => {
       'a PIN shorter than 4 digits',
       delivery({ proofOfDelivery: { pinLength: 3, maxPinAttempts: 5 } }),
       /delivery\.proofOfDelivery\.pinLength/,
+    ],
+    [
+      'map provider waits over the 2 s budget',
+      delivery({
+        responseBudget: {
+          geocodeMs: 1500,
+          routeMs: 1500,
+          estimateRoadFactor: 1.3,
+          geocodeCacheSeconds: 0,
+        },
+      }),
+      /delivery\.responseBudget\.routeMs/,
     ],
     ['no fleet section', { fleet: undefined }, /fleet/],
     [

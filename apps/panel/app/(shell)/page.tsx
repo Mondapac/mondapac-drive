@@ -1,7 +1,18 @@
-import { LoadError, ShortcutGrid, type Shortcut, visibleNavItems } from '@mondapac-drive/ui';
-import { getTranslations } from 'next-intl/server';
+import {
+  LoadError,
+  ShortcutGrid,
+  StatCard,
+  StatGrid,
+  formatCount,
+  type Shortcut,
+  visibleNavItems,
+} from '@mondapac-drive/ui';
+import { redirect } from 'next/navigation';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { adminNav } from '../../src/nav.ts';
+import { cardHref, countReadsFor } from '../../src/ops/home-counts.ts';
 import { AdminShell } from '../../src/server/admin-shell.tsx';
+import { serverGet } from '../../src/server/server-fetch.ts';
 import { requireSession } from '../../src/server/session.ts';
 
 export async function generateMetadata() {
@@ -9,14 +20,33 @@ export async function generateMetadata() {
   return { title: t('home.title') };
 }
 
-/** Home: one card per section the session's role includes (the nav, without Home itself). */
+/**
+ * Home: what needs the operator now (a figure per list the session may read, each linking to
+ * that list), then one card per section the session's role includes (the nav, without Home).
+ */
 export default async function HomePage() {
   const gate = await requireSession();
   const t = await getTranslations();
   if (gate.kind === 'unavailable') {
     return <LoadError message={t('identity.error.unknown')} retryLabel={t('load.retry')} />;
   }
-  const items: Shortcut[] = visibleNavItems(adminNav, new Set(gate.session.permissionKeys))
+  const locale = await getLocale();
+  const keys = new Set(gate.session.permissionKeys);
+  const nav = visibleNavItems(adminNav, keys);
+  const navHrefs = new Set(nav.map((item) => item.href));
+  const reads = countReadsFor(keys);
+  const now = new Date();
+  const results = await Promise.all(reads.map((read) => serverGet<unknown>(read.path(now))));
+  if (results.some((result) => result.kind === 'signed-out')) redirect('/session-ended');
+  const figures = reads.map((read, index) => {
+    const result = results[index];
+    return { read, figure: result?.kind === 'ok' ? read.count(result.body) : null };
+  });
+  const allClear =
+    figures.length > 0 && figures.every(({ figure }) => figure !== null && figure.count === 0);
+  // One message when no figure could be read, instead of the same error on every card.
+  const allFailed = figures.length > 0 && figures.every(({ figure }) => figure === null);
+  const items: Shortcut[] = nav
     .filter((item) => item.id !== 'home')
     .map((item) => ({
       id: item.id,
@@ -32,6 +62,37 @@ export default async function HomePage() {
           <h1 className="break-words text-2xl font-semibold">{t('home.title')}</h1>
           <p className="text-fg-muted">{t('home.intro', { name: gate.session.displayName })}</p>
         </div>
+        {figures.length === 0 ? null : (
+          <section aria-labelledby="home-now" className="flex flex-col gap-3">
+            <h2 id="home-now" className="text-lg font-semibold">
+              {t('home-now.title')}
+            </h2>
+            {allClear ? <p className="text-fg-muted">{t('home-now.all-clear')}</p> : null}
+            {allFailed ? (
+              <LoadError message={t('identity.error.unknown')} retryLabel={t('load.retry')} />
+            ) : (
+              <StatGrid label={t('home-now.title')}>
+                {figures.map(({ read, figure }) => {
+                  const href = cardHref(read, navHrefs);
+                  return (
+                    <StatCard
+                      key={read.id}
+                      icon={read.icon}
+                      label={t(`home-now.${read.id}.label`)}
+                      value={
+                        figure === null ? '' : formatCount(figure.count, figure.hasMore, locale)
+                      }
+                      scope={t(`home-now.${read.id}.scope`)}
+                      tone={figure !== null && figure.count > 0 ? read.tone : 'neutral'}
+                      {...(href === null ? {} : { href })}
+                      {...(figure === null ? { error: t('home-now.error') } : {})}
+                    />
+                  );
+                })}
+              </StatGrid>
+            )}
+          </section>
+        )}
         <ShortcutGrid label={t('home.shortcuts')} items={items} />
       </div>
     </AdminShell>

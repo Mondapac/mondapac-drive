@@ -50,6 +50,39 @@
     "payouts": "Courier payouts that are held or need a decision, and each courier's balance.",
     "fleet": "Approve applicants, review courier documents and look after their vehicles."
   },
+  "home-now": {
+    "title": "Needs you now",
+    "all-clear": "Nothing is waiting for you right now.",
+    "error": "Could not load this figure. Reload the page to try again.",
+    "deliveries-attention": {
+      "label": "Deliveries needing attention",
+      "scope": "Failed, cold chain breached or no courier found, among the latest 100"
+    },
+    "deliveries-waiting": {
+      "label": "Deliveries waiting for a courier",
+      "scope": "Dispatch open, no courier yet"
+    },
+    "fleet-applicants": {
+      "label": "Couriers waiting for approval",
+      "scope": "Applicants, oldest first"
+    },
+    "fleet-documents": {
+      "label": "Courier documents to review",
+      "scope": "Submitted, not yet verified or rejected"
+    },
+    "fleet-expiring": {
+      "label": "Courier documents expiring soon",
+      "scope": "Verified documents expiring in the next 30 days, or already expired"
+    },
+    "payout-lines": {
+      "label": "Payout lines held or unresolved",
+      "scope": "Need a decision before they pay"
+    },
+    "dead-webhooks": {
+      "label": "Dead webhook calls",
+      "scope": "Gave up after every retry; send again or fix"
+    }
+  },
   "showcase": {
     "title": "Every delivery of the Market, in one place.",
     "cards": {
@@ -445,7 +478,7 @@
         "delete-body": "This can't be undone. A role that someone still holds can't be deleted: give those people another role first.",
         "delete-confirm": "Delete role",
         "keep": "Keep role",
-        "dispatch-needs-courier-view": "Dispatching needs “view couriers” too: without it, assigning a courier is refused."
+        "dispatch-needs-courier-view": "“Dispatch, assign and unassign a courier” needs “View courier accounts” too: without it, assigning a courier is refused."
       },
       "reason": {
         "role": {
@@ -1100,7 +1133,8 @@
       "active": "Active",
       "suspended": "Suspended",
       "offboarded": "Offboarded",
-      "all": "All"
+      "all": "All",
+      "expiring": "Documents expiring"
     },
     "empty": {
       "title": "No couriers here",
@@ -1327,6 +1361,16 @@
         },
         "storage-unavailable": "Document storage isn't available right now. Try again shortly."
       }
+    },
+    "expiring": {
+      "intro": "Verified documents that expire in the next 30 days or have expired, soonest first. Ask the courier for a new one before it lapses.",
+      "caption": "Courier documents expiring soon",
+      "document": "Document",
+      "courier": "Courier",
+      "expires": "Expires",
+      "expired": "Expired",
+      "empty-title": "No documents expiring soon",
+      "empty-body": "Every verified document is valid for at least 30 more days."
     }
   },
   "payouts": {
@@ -1450,5 +1494,188 @@
         "currency-mismatch": "The amount must be in the courier's balance currency."
       }
     }
+  },
+  "permission": {
+    "resource": {
+      "delivery": {
+        "delivery": "Deliveries"
+      },
+      "dispatch": {
+        "job": "Dispatch jobs"
+      },
+      "fleet": {
+        "courier": "Fleet couriers",
+        "document": "Courier documents",
+        "vehicle": "Courier vehicles"
+      },
+      "identity": {
+        "admin-account": "Team",
+        "courier-account": "Courier accounts",
+        "merchant": "Merchants",
+        "merchant-api-key": "Merchant API keys",
+        "platform-role": "Roles"
+      },
+      "notifications": {
+        "webhook-call": "Webhook calls",
+        "webhook": "Webhook subscriptions"
+      },
+      "payouts": {
+        "ledger": "Payout ledger",
+        "line": "Payout lines",
+        "adjustment": "Balance adjustments"
+      },
+      "tracking": {
+        "map": "Live map"
+      }
+    },
+    "delivery": {
+      "delivery": {
+        "view": {
+          "label": "View deliveries"
+        },
+        "dispatch": {
+          "label": "Dispatch, assign and unassign a courier"
+        },
+        "cancel": {
+          "label": "Cancel a delivery"
+        }
+      }
+    },
+    "dispatch": {
+      "job": {
+        "view": {
+          "label": "View dispatch jobs"
+        },
+        "assign": {
+          "label": "Assign a courier to a job"
+        }
+      }
+    },
+    "fleet": {
+      "courier": {
+        "view": {
+          "label": "View fleet couriers"
+        },
+        "decide": {
+          "label": "Approve, suspend, reinstate and offboard couriers"
+        }
+      },
+      "document": {
+        "review": {
+          "label": "Download, verify, reject and revoke documents"
+        }
+      },
+      "vehicle": {
+        "manage": {
+          "label": "Set capacity and take vehicles out of use"
+        }
+      }
+    },
+    "identity": {
+      "admin-account": {
+        "view": {
+          "label": "View the team"
+        },
+        "invite": {
+          "label": "Invite admins"
+        },
+        "disable": {
+          "label": "Turn admin accounts off and on"
+        },
+        "reset-second-factor": {
+          "label": "Reset an admin's two-step sign-in"
+        }
+      },
+      "courier-account": {
+        "view": {
+          "label": "View courier accounts"
+        },
+        "invite": {
+          "label": "Invite couriers"
+        },
+        "disable": {
+          "label": "Turn courier accounts off and on"
+        }
+      },
+      "merchant": {
+        "view": {
+          "label": "View merchants"
+        },
+        "create": {
+          "label": "Add merchants"
+        },
+        "suspend": {
+          "label": "Suspend and reinstate merchants"
+        }
+      },
+      "merchant-api-key": {
+        "issue": {
+          "label": "Issue and revoke merchant API keys"
+        }
+      },
+      "platform-role": {
+        "view": {
+          "label": "View roles"
+        },
+        "create": {
+          "label": "Create roles"
+        },
+        "edit": {
+          "label": "Edit roles"
+        },
+        "delete": {
+          "label": "Delete roles"
+        },
+        "assign": {
+          "label": "Give admins a role"
+        }
+      }
+    },
+    "notifications": {
+      "webhook-call": {
+        "resend": {
+          "label": "View and resend dead webhook calls"
+        }
+      },
+      "webhook": {
+        "view": {
+          "label": "View webhook subscriptions"
+        },
+        "manage": {
+          "label": "Change webhook subscriptions"
+        }
+      }
+    },
+    "payouts": {
+      "ledger": {
+        "view": {
+          "label": "View payout lines and courier balances"
+        }
+      },
+      "line": {
+        "settle": {
+          "label": "Settle an unresolved payout line"
+        }
+      },
+      "adjustment": {
+        "record": {
+          "label": "Record a balance adjustment"
+        }
+      }
+    },
+    "tracking": {
+      "map": {
+        "view": {
+          "label": "View the live map"
+        }
+      }
+    }
+  },
+  "row-action": "{action}: {item}",
+  "courier-links": {
+    "label": "This courier's other pages",
+    "fleet": "Fleet profile",
+    "payouts": "Payouts",
+    "delivery": "Current delivery"
   }
 }

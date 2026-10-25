@@ -122,6 +122,15 @@ function parseV6(text: string): number[] | undefined {
 }
 
 /**
+ * A webhook URL as someone other than its merchant sees it: the query, which may carry the
+ * receiver's own token, is replaced by `?…` (Hassan, #51 M1).
+ */
+export function maskedWebhookUrl(url: string): string {
+  const query = url.indexOf('?');
+  return query === -1 ? url : `${url.slice(0, query)}?…`;
+}
+
+/**
  * Whether an address resolved for a webhook host is on the public Internet. IPv4 outside the
  * private, loopback, link-local, shared, documentation, multicast and reserved ranges; IPv6
  * only in global unicast (2000::/3), outside documentation and the IETF block, with the IPv4

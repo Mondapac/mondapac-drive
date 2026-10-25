@@ -2,13 +2,20 @@ import type {
   CourierSession,
   CourierSettings,
   CourierStatus,
+  EarningsBalance,
   EarningsSummary,
   FailureReason,
   Job,
   LocationPing,
   Offer,
+  PushDevice,
   ShiftState,
   SignInInput,
+  ApplyInput,
+  CourierProfile,
+  OnboardingRules,
+  PayoutOnboardingLink,
+  VehicleInput,
 } from './schemas';
 
 /** Proof the courier collected at the door. The server checks the PIN, never the app. */
@@ -57,6 +64,20 @@ export interface CourierApi {
   uploadProofPhoto(deliveryId: string, photo: PhotoFile): Promise<{ photoRef: string }>;
   sendPings(pings: readonly LocationPing[]): Promise<void>;
   earnings(): Promise<EarningsSummary>;
+  /** The courier's fleet profile; null before the courier has applied (404 from fleet). */
+  profile(): Promise<CourierProfile | null>;
+  /** The Market's onboarding rules; null while the API does not send them yet. */
+  onboardingRules(): Promise<OnboardingRules | null>;
+  applyAsCourier(input: ApplyInput): Promise<CourierProfile>;
+  addVehicle(input: VehicleInput): Promise<CourierProfile>;
+  submitDocument(upload: DocumentUpload): Promise<CourierProfile>;
+  payoutOnboardingLink(): Promise<PayoutOnboardingLink>;
+  /** The balance and the latest `limit` ledger entries (1 to 200), newest first. */
+  balance(limit: number): Promise<EarningsBalance>;
+  /** Registers this device for offer pushes; one device per session, replaced on each call. */
+  registerPushDevice(device: PushDevice): Promise<void>;
+  /** Stops offer pushes to this session's device; idempotent. */
+  removePushDevice(): Promise<void>;
 }
 
 /**
@@ -73,4 +94,21 @@ export interface ActiveJobMemory {
 /** The session the adapters attach to every call (bearer token and `x-market-id`). */
 export interface SessionSource {
   current(): CourierSession | null;
+}
+
+/** A document file on the device, ready to upload (PDF, or an image re-encoded on the device). */
+export interface DocumentFile {
+  readonly uri: string;
+  readonly name: string;
+  readonly mimeType: 'application/pdf' | 'image/jpeg' | 'image/png';
+}
+
+/** One document the courier submits for review (`POST /fleet/courier/me/documents`). */
+export interface DocumentUpload {
+  readonly type: string;
+  readonly file: DocumentFile;
+  /** For a document of one vehicle, such as its registration. */
+  readonly vehicleId?: string;
+  /** For a document that expires: an instant with an offset. */
+  readonly expiresAt?: string;
 }

@@ -4,6 +4,7 @@ import type { AccessDenied } from '../../../platform/authz';
 import type { ContactEmailOf } from '../application/use-cases/contact-email-of.use-case';
 import type { DescribeActor } from '../application/use-cases/describe-actor.use-case';
 import type { IsActiveCourier } from '../application/use-cases/is-active-courier.use-case';
+import type { LiveSessionsOf } from '../application/use-cases/live-sessions-of.use-case';
 import type { ActorDescription, IdentityFacade } from '../contracts/identity.facade';
 
 /** The use cases behind the facade, one per method. */
@@ -11,6 +12,7 @@ export interface IdentityFacadeUseCases {
   readonly describeActor: DescribeActor;
   readonly contactEmailOf: ContactEmailOf;
   readonly isActiveCourier: IsActiveCourier;
+  readonly liveSessionsOf: LiveSessionsOf;
 }
 
 /**
@@ -49,5 +51,15 @@ export class IdentityFacadeImplementation implements IdentityFacade {
     accountId: Id<'Account'>,
   ): Promise<Result<boolean, AccessDenied>> {
     return this.useCases.isActiveCourier.execute(context, { accountId });
+  }
+
+  liveSessionsOf(
+    context: CallContext,
+    accountId: Id<'Account'>,
+    sessionIds: readonly string[],
+  ): Promise<
+    Result<ReadonlySet<string>, AccessDenied | { readonly code: 'identity.unavailable' }>
+  > {
+    return this.useCases.liveSessionsOf.execute(context, { accountId, sessionIds });
   }
 }

@@ -1,4 +1,4 @@
-import { isPublicAddress, parseWebhookUrl } from './webhook-url';
+import { isPublicAddress, maskedWebhookUrl, parseWebhookUrl } from './webhook-url';
 
 describe('webhook URL rules (SSRF)', () => {
   it.each([
@@ -87,5 +87,16 @@ describe('public address check (each resolved address)', () => {
 
   it('checks the IPv4 inside a 6to4 address as IPv4', () => {
     expect(isPublicAddress('2002:0808:0808::1')).toBe(true);
+  });
+});
+
+describe('masked webhook URL (what an operator sees)', () => {
+  it('masks the query, which may carry the receiver token, and keeps the rest', () => {
+    expect(maskedWebhookUrl('https://hooks.example.com/drive?token=XYZ&a=1')).toBe(
+      'https://hooks.example.com/drive?…',
+    );
+    expect(maskedWebhookUrl('https://hooks.example.com/drive')).toBe(
+      'https://hooks.example.com/drive',
+    );
   });
 });

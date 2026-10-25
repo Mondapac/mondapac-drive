@@ -1,5 +1,5 @@
 import type { GeoPoint } from '@mondapac-drive/shared-kernel';
-import { geoPoint } from '@mondapac-drive/shared-kernel';
+import { geoPoint, parsePlainText } from '@mondapac-drive/shared-kernel';
 import type { RoutingConfig, RoutingVehicleType } from './routing-config';
 import type { GeocodedAddress } from './routing-provider';
 
@@ -211,10 +211,20 @@ export class GoogleRoutesClient {
     } catch {
       throw malformed();
     }
-    const found = (first.address_components ?? []).find(
-      (component) => Array.isArray(component.types) && component.types.includes('postal_code'),
-    )?.long_name;
-    return { point, postcode: typeof found === 'string' ? found : undefined, precision };
+    const component = (type: string): string | undefined => {
+      const name = (first.address_components ?? []).find(
+        (candidate) => Array.isArray(candidate.types) && candidate.types.includes(type),
+      )?.long_name;
+      return typeof name === 'string' ? name : undefined;
+    };
+    const found = component('postal_code');
+    const locality = precision === 'address' ? localityOf(component('locality')) : undefined;
+    return {
+      point,
+      postcode: found,
+      precision,
+      ...(locality === undefined ? {} : { locality }),
+    };
   }
 
   #modeFields(vehicle: RoutingVehicleType): Record<string, string> {
@@ -298,4 +308,14 @@ function isTimeout(error: unknown): boolean {
   const name =
     typeof error === 'object' && error !== null ? (error as { name?: unknown }).name : undefined;
   return name === 'TimeoutError' || name === 'AbortError';
+}
+
+/** The longest locality kept; a longer one is not a suburb name and is dropped. */
+const MAX_LOCALITY_LENGTH = 80;
+
+/** A provider's locality as plain text: trimmed and bounded; one with a hidden character is dropped. */
+function localityOf(raw: string | undefined): string | undefined {
+  const name = raw?.trim();
+  if (name === undefined || name === '' || name.length > MAX_LOCALITY_LENGTH) return undefined;
+  return parsePlainText(name).ok ? name : undefined;
 }

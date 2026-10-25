@@ -2,6 +2,8 @@ import { BackLink, LoadError } from '@mondapac-drive/ui';
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { namesFor } from '../../../../../src/deliveries/names.ts';
+import { fleetIdsByAccount } from '../../../../../src/fleet/fleet-ids.ts';
+import { CourierLinks } from '../../../../../src/ops/courier-links.tsx';
 import { NoAccess } from '../../../../../src/ops/no-access.tsx';
 import { NoticeProvider } from '../../../../../src/ops/notice.tsx';
 import { UUID } from '../../../../../src/ops/types.ts';
@@ -40,9 +42,10 @@ export default async function CourierPayoutsPage({
       </AdminShell>
     );
   }
-  const [result, names] = await Promise.all([
+  const [result, names, fleetIds] = await Promise.all([
     serverGet<CourierBalance>(`payouts/admin/couriers/${courierId}/balance?limit=100`),
     namesFor(keys),
+    fleetIdsByAccount(keys),
   ]);
   if (result.kind === 'signed-out') redirect('/session-ended');
   if (result.kind === 'not-found') notFound();
@@ -61,6 +64,14 @@ export default async function CourierPayoutsPage({
               csrfToken={session.csrfToken}
             />
           ) : null}
+        </div>
+        <div className="mb-4">
+          <CourierLinks
+            accountId={courierId}
+            fleetId={fleetIds.get(courierId) ?? null}
+            keys={keys}
+            current="payouts"
+          />
         </div>
         {result.kind === 'ok' ? (
           <BalanceView found={result.body} />

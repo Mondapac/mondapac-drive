@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { StyleSheet, Text } from 'react-native';
 import type { ShiftState } from '../api/schemas';
 import { OfferCard } from '../components/OfferCard';
+import { devicePush } from '../push/device-push';
+import type { PushService } from '../push/push-service';
+import { useOfferPush } from '../push/use-offer-push';
 import { t, type TranslationKey } from '../i18n';
 import { queryKeys, useServices, useSession, useSettings } from '../providers';
 import { Button } from '../ui/Button';
@@ -10,8 +13,10 @@ import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
 import { colors } from '../ui/theme';
 
-/** How often the app asks for a new offer while online (dispatch pushes later; see README). */
+/** How often the app asks for a new offer while online and offer pushes are off. */
 export const OFFER_POLL_MS = 5_000;
+/** The fallback poll once this device gets offer pushes. */
+export const OFFER_POLL_PUSH_MS = 30_000;
 
 const SHIFT_LABEL: Readonly<Record<ShiftState, TranslationKey>> = {
   offline: 'home.offline',
@@ -24,11 +29,21 @@ interface Props {
   readonly onOpenJob: (deliveryId: string) => void;
   readonly onOpenEarnings: () => void;
   readonly onNeedLocation: () => void;
+  /** Brings the home screen forward when an offer push arrives or is tapped. */
+  readonly onOfferPush?: () => void;
+  /** The device's push notifications; tests pass a fake. */
+  readonly push?: PushService;
 }
 
-export function HomeScreen({ onOpenJob, onOpenEarnings, onNeedLocation }: Props) {
+export function HomeScreen({
+  onOpenJob,
+  onOpenEarnings,
+  onNeedLocation,
+  onOfferPush,
+  push = devicePush,
+}: Props) {
   const { api, clock, tracking } = useServices();
-  const { signOut } = useSession();
+  const { session, signOut } = useSession();
   const settings = useSettings();
   const queryClient = useQueryClient();
 
@@ -36,11 +51,17 @@ export function HomeScreen({ onOpenJob, onOpenEarnings, onNeedLocation }: Props)
   const online = status.data?.shift === 'online';
   const activeDeliveryId = status.data?.activeDeliveryId ?? null;
 
+  const { registered } = useOfferPush(push, api, session !== null, () => {
+    onOfferPush?.();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.offer });
+  });
+
   const offer = useQuery({
     queryKey: queryKeys.offer,
     queryFn: () => api.currentOffer(),
     enabled: online && !activeDeliveryId,
-    refetchInterval: OFFER_POLL_MS,
+    // Pushes bring offers in at once; polling stays as the fallback.
+    refetchInterval: registered ? OFFER_POLL_PUSH_MS : OFFER_POLL_MS,
   });
 
   const shift = useMutation({
@@ -126,7 +147,17 @@ export function HomeScreen({ onOpenJob, onOpenEarnings, onNeedLocation }: Props)
       )}
 
       <Button label={t('home.earnings')} variant="secondary" onPress={onOpenEarnings} />
-      <Button label={t('home.signOut')} variant="secondary" onPress={() => void signOut()} />
+      <Button
+        label={t('home.signOut')}
+        variant="secondary"
+        onPress={() =>
+          // Offer pushes stop while the session is still valid, then the session ends.
+          void api
+            .removePushDevice()
+            .catch(() => undefined)
+            .then(signOut)
+        }
+      />
     </Screen>
   );
 }

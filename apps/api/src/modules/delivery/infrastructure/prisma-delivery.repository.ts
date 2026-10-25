@@ -31,6 +31,8 @@ const toInstant = (date: Date): Temporal.Instant =>
 interface StoredStop {
   readonly address: string;
   readonly postcode: string;
+  /** Absent on stops booked with a point, or stored before suburbs were kept. */
+  readonly suburb?: string;
   readonly contactName: string;
   readonly contactPhone: string;
   readonly notes?: string;
@@ -45,6 +47,8 @@ interface StoredMoney {
 interface StoredQuote {
   readonly vehicle: VehicleType;
   readonly distanceMetres: number;
+  /** Absent on quotes stored before it existed: those were road distances. */
+  readonly distanceEstimated?: boolean;
   readonly breakdown: Record<keyof DeliveryQuote['breakdown'], StoredMoney>;
   readonly total: StoredMoney;
   readonly tax: StoredMoney;
@@ -60,6 +64,7 @@ function storedStop(stop: Stop): StoredStop {
   return {
     address: stop.address,
     postcode: stop.postcode,
+    ...(stop.suburb === undefined ? {} : { suburb: stop.suburb }),
     contactName: stop.contactName,
     contactPhone: stop.contactPhone,
     ...(stop.notes === undefined ? {} : { notes: stop.notes }),
@@ -70,6 +75,7 @@ function storedQuote(quote: DeliveryQuote): StoredQuote {
   return {
     vehicle: quote.vehicle,
     distanceMetres: quote.distanceMetres,
+    distanceEstimated: quote.distanceEstimated,
     breakdown: {
       base: storedMoney(quote.breakdown.base),
       distance: storedMoney(quote.breakdown.distance),
@@ -85,6 +91,7 @@ function readQuote(stored: StoredQuote): DeliveryQuote {
   return {
     vehicle: stored.vehicle,
     distanceMetres: stored.distanceMetres,
+    distanceEstimated: stored.distanceEstimated ?? false,
     breakdown: {
       base: readMoney(stored.breakdown.base),
       distance: readMoney(stored.breakdown.distance),

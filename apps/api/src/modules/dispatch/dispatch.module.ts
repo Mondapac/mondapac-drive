@@ -14,6 +14,7 @@ import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-
 import { DeliveryModule } from '../delivery';
 import { FleetModule } from '../fleet';
 import { IdentityModule } from '../identity';
+import { PayoutsModule } from '../payouts';
 import { TrackingModule } from '../tracking';
 import { JobAdvancer } from './application/job-advancer';
 import {
@@ -21,10 +22,12 @@ import {
   DELIVERY_FACTS,
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
+  OFFER_EARNINGS,
   type CourierAccounts,
   type DeliveryFacts,
   type DispatchJobRepository,
   type DispatchSettingsProvider,
+  type OfferEarnings,
 } from './application/ports';
 import { AdvanceDispatchJobs } from './application/use-cases/advance-dispatch-jobs.use-case';
 import { AnswerOffer } from './application/use-cases/answer-offer.use-case';
@@ -53,7 +56,7 @@ import { deliverySubscriptions } from './presentation/subscribers/delivery.subsc
  * events and the sweep run as the system.
  */
 @Module({
-  imports: [DeliveryModule, FleetModule, TrackingModule, IdentityModule],
+  imports: [DeliveryModule, FleetModule, TrackingModule, IdentityModule, PayoutsModule],
   controllers: [CourierOffersController, DispatcherController],
   providers: [
     JobAdvancer,
@@ -103,6 +106,7 @@ import { deliverySubscriptions } from './presentation/subscribers/delivery.subsc
         USE_CASE_GATE,
         DISPATCH_JOB_REPOSITORY,
         DELIVERY_FACTS,
+        DISPATCH_SETTINGS,
         OUTBOX_WRITER,
         UNIT_OF_WORK,
         CLOCK,
@@ -112,11 +116,21 @@ import { deliverySubscriptions } from './presentation/subscribers/delivery.subsc
         gate: UseCaseGate,
         jobs: DispatchJobRepository,
         facts: DeliveryFacts,
+        settings: DispatchSettingsProvider,
         outbox: OutboxWriter,
         unitOfWork: UnitOfWork,
         clock: Clock,
         advancer: JobAdvancer,
-      ) => new FollowDeliveryStatus(gate, { jobs, facts, outbox, unitOfWork, clock, advancer }),
+      ) =>
+        new FollowDeliveryStatus(gate, {
+          jobs,
+          facts,
+          settings,
+          outbox,
+          unitOfWork,
+          clock,
+          advancer,
+        }),
     },
     {
       provide: CancelDispatchJob,
@@ -131,13 +145,14 @@ import { deliverySubscriptions } from './presentation/subscribers/delivery.subsc
     },
     {
       provide: ViewCurrentOffer,
-      inject: [USE_CASE_GATE, DISPATCH_JOB_REPOSITORY, UNIT_OF_WORK, CLOCK],
+      inject: [USE_CASE_GATE, DISPATCH_JOB_REPOSITORY, OFFER_EARNINGS, UNIT_OF_WORK, CLOCK],
       useFactory: (
         gate: UseCaseGate,
         jobs: DispatchJobRepository,
+        earnings: OfferEarnings,
         unitOfWork: UnitOfWork,
         clock: Clock,
-      ) => new ViewCurrentOffer(gate, { jobs, unitOfWork, clock }),
+      ) => new ViewCurrentOffer(gate, { jobs, earnings, unitOfWork, clock }),
     },
     {
       provide: AnswerOffer,

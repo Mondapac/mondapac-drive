@@ -10,25 +10,33 @@ import { PersistenceModule } from '../../platform/persistence/persistence.module
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import { DeliveryModule } from '../delivery';
+import { IdentityModule } from '../identity';
 import { TrackingModule } from '../tracking';
 import {
   DELIVERY_CONTACTS,
   NOTIFICATION_SETTINGS,
+  COURIER_SESSIONS,
   OUTBOUND_REPOSITORY,
+  PUSH_DEVICES,
+  PUSH_SENDER,
   SMS_SENDER,
   TRACKING_LINKS,
   WEBHOOK_SIGNER,
   WEBHOOK_SUBSCRIPTIONS,
   WEBHOOK_TRANSPORT,
+  type CourierSessions,
   type DeliveryContacts,
   type NotificationSettingsProvider,
   type OutboundRepository,
+  type PushDeviceRepository,
+  type PushSender,
   type SmsSender,
   type TrackingLinks,
   type WebhookSigner,
   type WebhookSubscriptionRepository,
   type WebhookTransport,
 } from './application/ports';
+import { ListAllWebhookSubscriptions } from './application/use-cases/admin-webhook-subscriptions.use-case';
 import {
   ChangeWebhookEventTypes,
   DisableWebhookSubscription,
@@ -37,11 +45,17 @@ import {
 } from './application/use-cases/change-webhook-subscription.use-case';
 import { DispatchSms } from './application/use-cases/dispatch-sms.use-case';
 import { DispatchWebhooks } from './application/use-cases/dispatch-webhooks.use-case';
+import {
+  ForgetPushDevices,
+  RegisterPushDevice,
+  RemovePushDevice,
+} from './application/use-cases/push-devices.use-case';
 import { RecordDeliveryChange } from './application/use-cases/record-delivery-change.use-case';
 import {
   ListDeadWebhookCalls,
   ResendWebhookCall,
 } from './application/use-cases/resend-webhook-call.use-case';
+import { SendOfferPush } from './application/use-cases/send-offer-push.use-case';
 import { SubscribeToWebhooks } from './application/use-cases/subscribe-to-webhooks.use-case';
 import { NOTIFICATIONS_PERMISSIONS } from './contracts/permissions';
 import { NOTIFICATIONS_AUDIT_ACTIONS } from './domain/audit';
@@ -49,9 +63,12 @@ import { notificationsProviders } from './infrastructure/notifications-providers
 import { smsDispatchJob, webhookDispatchJob } from './presentation/jobs/notifications.jobs';
 import {
   AdminWebhookCallController,
+  AdminWebhookSubscriptionController,
+  CourierPushDeviceController,
   MerchantWebhookController,
 } from './presentation/notifications.controller';
 import { deliveryChangeSubscriptions } from './presentation/subscribers/delivery-change.subscriptions';
+import { pushSubscriptions } from './presentation/subscribers/push.subscriptions';
 
 /** A merchant's change of its own subscription: the gate, the store, the signer, the audit. */
 function subscriptionChange<U>(
@@ -92,14 +109,20 @@ function subscriptionChange<U>(
 
 /**
  * Notifications: signed status webhooks to merchants and recipient SMS for delivery changes,
- * queued in PostgreSQL from the delivery events and sent with retries by two worker jobs. Every
- * entry is a use case behind the UseCaseGate: the subscriptions and jobs run as the Market's
- * system actor, a merchant manages its own webhook subscriptions with its API key, and an
- * operator re-sends a dead-lettered call. Changes are audited.
+ * queued in PostgreSQL from the delivery events and sent with retries by two worker jobs, and
+ * courier push for new offers. Every entry is a use case behind the UseCaseGate: the
+ * subscriptions and jobs run as the Market's system actor, a merchant manages its own webhook
+ * subscriptions with its API key, a courier registers its session's push device, and an
+ * operator re-sends a dead-lettered call. Webhook changes are audited.
  */
 @Module({
-  imports: [DeliveryModule, TrackingModule],
-  controllers: [MerchantWebhookController, AdminWebhookCallController],
+  imports: [DeliveryModule, TrackingModule, IdentityModule],
+  controllers: [
+    MerchantWebhookController,
+    AdminWebhookCallController,
+    AdminWebhookSubscriptionController,
+    CourierPushDeviceController,
+  ],
   providers: [
     registerPermissions('notifications', NOTIFICATIONS_PERMISSIONS),
     PersistenceModule.auditWriterFor('notifications'),
@@ -243,15 +266,79 @@ function subscriptionChange<U>(
       ) => new ResendWebhookCall(gate, { outbound, audit, unitOfWork, clock }),
     },
     {
+      provide: ListAllWebhookSubscriptions,
+      inject: [USE_CASE_GATE, WEBHOOK_SUBSCRIPTIONS, UNIT_OF_WORK],
+      useFactory: (
+        gate: UseCaseGate,
+        subscriptions: WebhookSubscriptionRepository,
+        unitOfWork: UnitOfWork,
+      ) => new ListAllWebhookSubscriptions(gate, { subscriptions, unitOfWork }),
+    },
+    {
       provide: ListDeadWebhookCalls,
       inject: [USE_CASE_GATE, OUTBOUND_REPOSITORY, UNIT_OF_WORK],
       useFactory: (gate: UseCaseGate, outbound: OutboundRepository, unitOfWork: UnitOfWork) =>
         new ListDeadWebhookCalls(gate, { outbound, unitOfWork }),
     },
+    {
+      provide: RegisterPushDevice,
+      inject: [
+        USE_CASE_GATE,
+        PUSH_DEVICES,
+        NOTIFICATION_SETTINGS,
+        UNIT_OF_WORK,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+      useFactory: (
+        gate: UseCaseGate,
+        devices: PushDeviceRepository,
+        settings: NotificationSettingsProvider,
+        unitOfWork: UnitOfWork,
+        ids: IdGenerator,
+        clock: Clock,
+      ) => new RegisterPushDevice(gate, { devices, settings, unitOfWork, ids, clock }),
+    },
+    {
+      provide: RemovePushDevice,
+      inject: [USE_CASE_GATE, PUSH_DEVICES, UNIT_OF_WORK],
+      useFactory: (gate: UseCaseGate, devices: PushDeviceRepository, unitOfWork: UnitOfWork) =>
+        new RemovePushDevice(gate, { devices, unitOfWork }),
+    },
+    {
+      provide: ForgetPushDevices,
+      inject: [USE_CASE_GATE, PUSH_DEVICES, UNIT_OF_WORK],
+      useFactory: (gate: UseCaseGate, devices: PushDeviceRepository, unitOfWork: UnitOfWork) =>
+        new ForgetPushDevices(gate, { devices, unitOfWork }),
+    },
+    {
+      provide: SendOfferPush,
+      inject: [
+        USE_CASE_GATE,
+        PUSH_DEVICES,
+        PUSH_SENDER,
+        COURIER_SESSIONS,
+        NOTIFICATION_SETTINGS,
+        UNIT_OF_WORK,
+        CLOCK,
+      ],
+      useFactory: (
+        gate: UseCaseGate,
+        devices: PushDeviceRepository,
+        sender: PushSender,
+        sessions: CourierSessions,
+        settings: NotificationSettingsProvider,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+      ) => new SendOfferPush(gate, { devices, sender, sessions, settings, unitOfWork, clock }),
+    },
     registerSubscriptionsFrom(
       'notifications',
-      [RecordDeliveryChange],
-      (record: RecordDeliveryChange) => deliveryChangeSubscriptions(record),
+      [RecordDeliveryChange, SendOfferPush, ForgetPushDevices],
+      (record: RecordDeliveryChange, push: SendOfferPush, forget: ForgetPushDevices) => [
+        ...deliveryChangeSubscriptions(record),
+        ...pushSubscriptions(push, forget),
+      ],
     ),
     registerJobsFrom(
       'notifications',

@@ -26,11 +26,40 @@ describe.each(MARKETS)('home in $marketId', (settings) => {
       currency: settings.currency,
     });
     expect(offer!.earnings!.currency).toBe(settings.currency);
-    expect(screen.getByText(/^You earn /).props.children).toContain(
+    expect(screen.getByText(/^You earn about /).props.children).toContain(
       pay.format(settings.currency === 'JPY' ? 950 : 9.5),
     );
     expect(screen.getByText('30 s to respond')).toBeOnTheScreen();
   });
+
+  it('names only the suburb and postcode of each stop before accept', async () => {
+    const harness = await createHarness({ settings });
+    await renderHome(harness);
+    await screen.findByText('You are offline');
+    await press('Go online');
+    await screen.findByText('New delivery offer');
+    expect(screen.getByText('Woolloongabba 4102')).toBeOnTheScreen();
+    expect(screen.getByText('Coorparoo 4151')).toBeOnTheScreen();
+    expect(screen.getByText('You see the full address once you accept.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Logan Rd|Sample St/)).toBeNull();
+  });
+});
+
+it('says pay is unavailable when the offer has none, and shows the postcode without a suburb', async () => {
+  const harness = await createHarness();
+  const real = harness.api.currentOffer.bind(harness.api);
+  jest.spyOn(harness.api, 'currentOffer').mockImplementation(async () => {
+    const offer = await real();
+    return offer && { ...offer, earnings: null, dropoff: { ...offer.dropoff, suburb: null } };
+  });
+  await renderHome(harness);
+  await screen.findByText('You are offline');
+  await press('Go online');
+  await screen.findByText('New delivery offer');
+  expect(screen.queryByText(/^You earn /)).toBeNull();
+  expect(screen.getByText('Pay unavailable for this offer')).toBeOnTheScreen();
+  expect(screen.getByText('4151')).toBeOnTheScreen();
+  expect(screen.getByText('Woolloongabba 4102')).toBeOnTheScreen();
 });
 
 it('accepts an offer and opens its job', async () => {
@@ -121,4 +150,17 @@ it('stops tracking when going offline', async () => {
   await press('Go offline');
   await screen.findByText('You are offline');
   expect(harness.tracking.stop).toHaveBeenCalledTimes(1);
+});
+
+it('explains that an open job keeps the courier online', async () => {
+  const harness = await createHarness();
+  await renderHome(harness);
+  await screen.findByText('You are offline');
+  await press('Go online');
+  await screen.findByText('You are online');
+  jest
+    .spyOn(harness.api, 'setShift')
+    .mockRejectedValueOnce(new ApiError(409, 'fleet.shift.active-delivery'));
+  await press('Go offline');
+  await screen.findByText('Finish your active delivery before you go offline.');
 });

@@ -495,6 +495,10 @@ describe('notifications (database integration)', () => {
 
       const dead = await deadCalls.execute(admin(), {});
       expect(dead.ok && dead.value.some((call) => call.id === queued!.id)).toBe(true);
+      // Each dead call names its subscription's merchant, for the operator's support.
+      expect(dead.ok && dead.value.find((call) => call.id === queued!.id)?.merchantId).toBe(
+        subscription.merchantId,
+      );
       expect(await resend.execute(merchantContext(merchant), { callId: queued!.id })).toMatchObject(
         {
           ok: false,

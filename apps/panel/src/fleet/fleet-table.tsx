@@ -17,9 +17,12 @@ export const STATUS_TONE: Readonly<Record<CourierStatus, BadgeTone>> = {
  */
 export async function FleetTable({
   couriers,
+  names,
   firstPage,
 }: {
   readonly couriers: readonly CourierSummary[];
+  /** Courier names by identity account id; a missing name shows the fleet short id. */
+  readonly names: ReadonlyMap<string, string>;
   readonly firstPage: boolean;
 }) {
   const t = await getTranslations();
@@ -68,7 +71,8 @@ export async function FleetTable({
                   className="inline-flex min-h-12 items-center break-words font-medium text-link underline"
                   href={`/fleet/couriers/${courier.id}`}
                 >
-                  {t('fleet.courier-ref', { id: shortId(courier.id) })}
+                  {names.get(courier.accountId) ??
+                    t('fleet.courier-ref', { id: shortId(courier.id) })}
                 </a>
                 <div className="break-words text-xs text-fg-muted">{courier.serviceAreaCode}</div>
               </td>

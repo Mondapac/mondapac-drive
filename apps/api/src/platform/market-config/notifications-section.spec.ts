@@ -24,9 +24,15 @@ const VALID = {
     pinText: 'PIN {pin}.',
     trackingPageUrl: 'https://track.example.com/t/{token}',
   },
+  push: { offerTitle: 'New offer', offerBody: 'New offer, expires in {seconds} s' },
 };
 
 const withSms = (sms: Record<string, unknown>) => ({ ...VALID, sms: { ...VALID.sms, ...sms } });
+
+const withPush = (push: Record<string, unknown>) => ({
+  ...VALID,
+  push: { ...VALID.push, ...push },
+});
 
 const withTemplate = (booked: string) => ({
   ...VALID,
@@ -74,6 +80,11 @@ describe('notifications section of a Market file', () => {
       'a tracking page with credentials',
       withSms({ trackingPageUrl: 'https://u:p@track.example.com/t/{token}' }),
     ],
+    ['an offer push without {seconds}', withPush({ offerBody: 'New offer' })],
+    ['an offer push naming {seconds} twice', withPush({ offerBody: '{seconds} {seconds}' })],
+    ['an offer push naming an address', withPush({ offerBody: '{seconds} s to {address}' })],
+    ['an offer push title naming a value', withPush({ offerTitle: 'Offer {seconds}' })],
+    ['a section without push', { webhooks: VALID.webhooks, sms: VALID.sms }],
   ])('refuses %s', (_name, section) => {
     expect(notificationsSchema.safeParse(section).success).toBe(false);
   });

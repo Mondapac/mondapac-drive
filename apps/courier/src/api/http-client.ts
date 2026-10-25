@@ -6,6 +6,7 @@ import {
   type JobEvent,
   type PhotoFile,
   type SessionSource,
+  type DocumentUpload,
 } from './client';
 import {
   apiError,
@@ -14,12 +15,19 @@ import {
   courierSettings,
   courierStatus,
   currentOffer,
+  earningsBalance,
   earningsSummary,
   job,
   offerAccepted,
   proofPhoto,
+  pushDevice,
   type CourierStatus,
   type Job,
+  courierMe,
+  documentSubmitted,
+  courierProfile,
+  onboardingRules,
+  payoutOnboardingLink,
 } from './schemas';
 
 /** Statuses after which the courier has nothing left to do on a delivery. */
@@ -52,6 +60,12 @@ export const ROUTES = {
   proofPhotos: (id: string) => `/delivery/courier/deliveries/${segment(id)}/proof-photos`,
   pings: '/tracking/courier/pings',
   earnings: '/payouts/courier/me/summary',
+  profile: '/fleet/courier/me',
+  vehicles: '/fleet/courier/me/vehicles',
+  documents: '/fleet/courier/me/documents',
+  payoutOnboarding: '/payouts/courier/me/onboarding-link',
+  balance: (limit: number) => `/payouts/courier/me/balance?limit=${Math.trunc(limit)}`,
+  pushDevice: '/notifications/courier/me/push-device',
 } as const;
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -162,11 +176,18 @@ export function createHttpCourierApi(options: Options): CourierApi {
     return parsed.data;
   }
 
-  /** The server's active delivery, or the one the courier accepted on this device. */
-  function withActiveJob(status: CourierStatus): CourierStatus {
-    return status.activeDeliveryId
-      ? status
-      : { ...status, activeDeliveryId: activeJob?.current() ?? null };
+  /**
+   * The server's active delivery (fleet, from delivery's events), or else the one the courier
+   * accepted on this device, kept as a fallback for the moment fleet has not caught up. Once the
+   * server names a delivery, a different device copy is stale and is dropped.
+   */
+  async function withActiveJob(status: CourierStatus): Promise<CourierStatus> {
+    const remembered = activeJob?.current() ?? null;
+    if (status.activeDeliveryId) {
+      if (remembered && remembered !== status.activeDeliveryId) await activeJob?.forget();
+      return status;
+    }
+    return { ...status, activeDeliveryId: remembered };
   }
 
   return {
@@ -206,6 +227,40 @@ export function createHttpCourierApi(options: Options): CourierApi {
     },
     sendPings: (pings) => call('POST', ROUTES.pings, null, { pings }),
     earnings: () => call('GET', ROUTES.earnings, earningsSummary),
+    profile: async () => {
+      try {
+        return (await call('GET', ROUTES.profile, courierMe)).profile;
+      } catch (error) {
+        // Before the courier applies, fleet has no profile for the account.
+        if (error instanceof ApiError && error.code === 'fleet.courier.not-found') return null;
+        throw error;
+      }
+    },
+    // The settings answer carries the rules once fleet sends them; until then there are none.
+    onboardingRules: () => call('GET', ROUTES.settings, onboardingRules.nullable().catch(null)),
+    applyAsCourier: (input) => call('POST', ROUTES.profile, courierProfile, input),
+    addVehicle: (input) => call('POST', ROUTES.vehicles, courierProfile, input),
+    submitDocument: async (upload: DocumentUpload) => {
+      const form = new FormData();
+      form.append('type', upload.type);
+      if (upload.vehicleId !== undefined) form.append('vehicleId', segment(upload.vehicleId));
+      if (upload.expiresAt !== undefined) form.append('expiresAt', upload.expiresAt);
+      // React Native's FormData takes a file as { uri, name, type }.
+      form.append('file', {
+        uri: upload.file.uri,
+        name: upload.file.name,
+        type: upload.file.mimeType,
+      } as unknown as Blob);
+      return (await call('POST', ROUTES.documents, documentSubmitted, form)).profile;
+    },
+    payoutOnboardingLink: () => call('POST', ROUTES.payoutOnboarding, payoutOnboardingLink, {}),
+    balance: (limit) => call('GET', () => ROUTES.balance(limit), earningsBalance),
+    registerPushDevice: async (device) => {
+      const parsed = pushDevice.safeParse(device);
+      if (!parsed.success) throw new ApiError(400, 'push-device.invalid-token');
+      await call('PUT', ROUTES.pushDevice, null, parsed.data);
+    },
+    removePushDevice: () => call('DELETE', ROUTES.pushDevice, null),
   };
 }
 

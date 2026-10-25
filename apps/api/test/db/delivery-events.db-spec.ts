@@ -4,7 +4,11 @@ import { ok, Temporal, type Id, type IdGenerator } from '@mondapac-drive/shared-
 import { testCallContext } from '@mondapac-drive/shared-kernel/testing';
 import { Client } from 'pg';
 import request from 'supertest';
-import { DeliveryDispatchView, DeliveryRecipients } from '../../src/modules/delivery';
+import {
+  DeliveryDispatchView,
+  DeliveryRecipients,
+  DeliveryReferences,
+} from '../../src/modules/delivery';
 import {
   DISPATCH_COURIER_ASSIGNED,
   DISPATCH_JOB_EXHAUSTED,
@@ -225,6 +229,16 @@ describe('delivery events (database integration)', () => {
           .status,
       ).toBe(200);
 
+      // The waiting time at each stop comes from the recorded steps (whole seconds).
+      const waited = await app
+        .get(DeliveryDispatchView, { strict: false })
+        .forDispatch(testCallContext(marketOf(code), 'system'), id as Id<'Delivery'>);
+      expect(waited?.waitingSeconds).toEqual({
+        pickup: expect.any(Number) as unknown,
+        dropoff: expect.any(Number) as unknown,
+      });
+      expect(Number.isInteger(waited!.waitingSeconds.pickup)).toBe(true);
+
       const rows = await outbox(id);
       expect(rows.map((row) => [row.type, row.aggregate_version])).toEqual([
         ['delivery.booked.v1', 1],
@@ -397,12 +411,23 @@ describe('delivery events (database integration)', () => {
         status: 'DISPATCHING',
         pickup: {
           address: '1 Example St',
+          // Booked with a point: no geocoding, so no suburb.
+          suburb: null,
           postcode: POSTCODE[code],
           point: { lat: -27.47, lng: 153.02 },
         },
         weightGrams: 2000,
         window: undefined,
+        waitingSeconds: { pickup: 0, dropoff: 0 },
       });
+      const references = app.get(DeliveryReferences, { strict: false });
+      await expect(references.referenceFor(system, id as Id<'Delivery'>)).resolves.toEqual({
+        merchantId,
+        externalReference: expect.stringMatching(/^order-/) as unknown,
+      });
+      await expect(
+        references.referenceFor(system, randomUUID() as Id<'Delivery'>),
+      ).resolves.toBeUndefined();
       await expect(
         view.forDispatch(system, randomUUID() as Id<'Delivery'>),
       ).resolves.toBeUndefined();
@@ -416,6 +441,9 @@ describe('delivery events (database integration)', () => {
       const anonymous = testCallContext(marketOf(code), 'anonymous');
       await expect(view.forDispatch(anonymous, id as Id<'Delivery'>)).rejects.toThrow(/refused/);
       await expect(recipients.forNotification(anonymous, id as Id<'Delivery'>)).rejects.toThrow(
+        /refused/,
+      );
+      await expect(references.referenceFor(anonymous, id as Id<'Delivery'>)).rejects.toThrow(
         /refused/,
       );
     });

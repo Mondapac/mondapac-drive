@@ -169,6 +169,40 @@ describe.each(TEST_MARKET_IDS)('GoogleRoutesClient (%s)', (marketId) => {
     expect(query.get('key')).toBe('test-key');
   });
 
+  it("keeps the address's locality as plain text, never a postcode centre's", async () => {
+    const answer = (locality: string) => ({
+      body: {
+        status: 'OK',
+        results: [
+          {
+            geometry: { location: { lat: B.lat, lng: B.lng } },
+            address_components: [
+              { long_name: locality, types: ['locality', 'political'] },
+              { long_name: '1234', types: ['postal_code'] },
+            ],
+          },
+        ],
+      },
+    });
+    server.on(GEOCODE_PATH, () => answer(' Fortitude Valley '));
+    await expect(client.geocode('1 Example Street', '1234')).resolves.toEqual({
+      point: B,
+      postcode: '1234',
+      precision: 'address',
+      locality: 'Fortitude Valley',
+    });
+    server.on(GEOCODE_PATH, () => answer('Fortitude\u0007 Valley'));
+    await expect(client.geocode('1 Example Street', '1234')).resolves.not.toHaveProperty(
+      'locality',
+    );
+    server.on(GEOCODE_PATH, () => answer('x'.repeat(81)));
+    await expect(client.geocode('1 Example Street', '1234')).resolves.not.toHaveProperty(
+      'locality',
+    );
+    server.on(GEOCODE_PATH, () => answer('Fortitude Valley'));
+    await expect(client.geocodePostcode('1234')).resolves.not.toHaveProperty('locality');
+  });
+
   it('geocodes a postcode alone as its centre', async () => {
     server.on(GEOCODE_PATH, () => ({
       body: { status: 'OK', results: [{ geometry: { location: { lat: A.lat, lng: A.lng } } }] },

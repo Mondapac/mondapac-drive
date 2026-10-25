@@ -115,3 +115,26 @@ jest.mock('expo-camera', () => {
     ],
   };
 });
+
+// Offer pushes: no permission and no token unless a test says otherwise (screens take a fake
+// PushService; this only keeps the device adapter loadable).
+jest.mock('expo-notifications', () => ({
+  AndroidImportance: { HIGH: 4 },
+  AndroidNotificationVisibility: { PRIVATE: 0 },
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, canAskAgain: false })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, canAskAgain: false })),
+  getExpoPushTokenAsync: jest.fn(() => Promise.reject(new Error('no push in tests'))),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
+}));
+
+// React Native's Jest preset answers AppState listeners with nothing; the home screen removes
+// its foreground listener on unmount.
+beforeEach(() => {
+  const { AppState } = jest.requireActual<typeof ReactNative>('react-native');
+  jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+});

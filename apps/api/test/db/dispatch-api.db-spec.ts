@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Clock, IdGenerator } from '@mondapac-drive/shared-kernel';
+import { addMoney, type Clock, type IdGenerator } from '@mondapac-drive/shared-kernel';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Client } from 'pg';
 import request from 'supertest';
@@ -10,12 +10,17 @@ import {
   type DispatchSettingsProvider,
 } from '../../src/modules/dispatch/application/ports';
 import { openDispatchJob, sendWave, sweep } from '../../src/modules/dispatch/domain/dispatch-job';
+import { PAYEE_DIRECTORY } from '../../src/modules/payouts/application/ports';
+import { earningFor } from '../../src/modules/payouts/domain/earnings';
+import { payTaxOn } from '../../src/modules/payouts/domain/tax';
+import { InMemoryPayeeDirectory } from '../../src/modules/payouts/infrastructure/in-memory-payee-directory';
 import { CLOCK } from '../../src/platform/clock/clock.module';
 import { OUTBOX_RELAY, type OutboxRelay } from '../../src/platform/events/event-bus';
 import { EVENT_DISPATCHER, type EventDispatcher } from '../../src/platform/events/event-delivery';
 import { ID_GENERATOR } from '../../src/platform/ids/ids.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../src/platform/unit-of-work/unit-of-work';
 import { requirements, stops } from '../support/dispatch-markets';
+import { payoutMarkets } from '../support/payouts-markets';
 import { createTestApp } from '../support/test-app';
 import { panelHeaders, TEST_MARKETS } from '../support/test-config';
 import {
@@ -98,12 +103,17 @@ describe('dispatch API (database integration)', () => {
     let operator: AdminActor;
     let courier: CourierActor;
     let otherCourier: CourierActor;
+    let unoffered: CourierActor;
+    // Fleet's payee profiles, held here: `courier` is a GST-registered contractor, the other
+    // courier has no profile.
+    const payees = new InMemoryPayeeDirectory();
 
     // One application per Market: its in-memory rate limiter starts empty for each.
     beforeAll(async () => {
       ({ app } = await createTestApp({
         panelOrigins: true,
         env: { DATABASE_URL: testDatabaseUrl(), HOSTED_MARKETS: TEST_MARKETS.join(',') },
+        override: (builder) => builder.overrideProvider(PAYEE_DIRECTORY).useValue(payees),
       }));
       const actors = new TestActors(app, code);
       await actors.seedRoles();
@@ -111,6 +121,13 @@ describe('dispatch API (database integration)', () => {
       operator = await actors.admin(panelHeaders(code).origin, 'operator');
       courier = await actors.courier();
       otherCourier = await actors.courier();
+      unoffered = await actors.courier();
+      payees.add(market.marketId, {
+        courierId: courier.accountId,
+        engagement: 'contractor',
+        taxRegistered: true,
+        businessIdVerified: true,
+      });
     });
 
     afterAll(async () => {
@@ -161,8 +178,32 @@ describe('dispatch API (database integration)', () => {
     const offerOf = (job: Awaited<ReturnType<typeof offeredTo>>, c: CourierActor) =>
       job.offers.find((o) => o.courierId === (c.accountId as string))!.id;
 
-    it('shows a courier its own offer with both stops, and nothing to another courier', async () => {
-      const job = await offeredTo(courier);
+    /** What `courier` earns for the offered delivery: the Market's rates for it, with GST. */
+    const earningsOf = () => {
+      const settings = payoutMarkets.get(market.marketId);
+      const payee = { engagement: 'contractor', taxRegistered: true } as const;
+      const { total } = earningFor(settings, payee.engagement, {
+        deliveryId: 'quoted',
+        courierId: courier.accountId,
+        vehicle: requirements().minimumVehicle,
+        distanceMetres: stops().tripDistanceMetres,
+        temperature: requirements().temperature,
+        deliveredAt: app.get<Clock>(CLOCK, { strict: false }).now(),
+      });
+      const paid = addMoney(
+        total,
+        payTaxOn(
+          settings,
+          { ...payee, courierId: courier.accountId, businessIdVerified: true },
+          'service',
+          total,
+        ),
+      );
+      return { amount: paid.amount.toString(), currency: paid.currency };
+    };
+
+    it('shows a courier its own offer with both stops and its pay, and nothing to another courier', async () => {
+      const job = await offeredTo(courier, otherCourier);
 
       const mine = await get(code, '/dispatch/courier/offers/current', courier.headers);
       expect(mine.status).toBe(200);
@@ -171,14 +212,21 @@ describe('dispatch API (database integration)', () => {
           id: offerOf(job, courier),
           deliveryId: job.deliveryId,
           expiresAt: job.offers[0]!.expiresAt.toString(),
-          pickup: { address: '1 Pickup Street', point: requirements().pickup },
-          dropoff: { address: '2 Dropoff Road', point: stops().dropoff },
+          pickup: { suburb: 'Pickup Vale', postcode: '4000', point: requirements().pickup },
+          dropoff: { suburb: null, postcode: '4101', point: stops().dropoff },
           distanceMetres: 4200,
           temperature: 'chilled',
+          earnings: earningsOf(),
         },
       });
+      expect(Number(earningsOf().amount)).toBeGreaterThan(0);
+      // A courier without a payee profile sees the offer without its pay.
       const theirs = await get(code, '/dispatch/courier/offers/current', otherCourier.headers);
-      expect(theirs.body).toEqual({ offer: null });
+      expect(theirs.body).toMatchObject({
+        offer: { id: offerOf(job, otherCourier), earnings: null },
+      });
+      const nobody = await get(code, '/dispatch/courier/offers/current', unoffered.headers);
+      expect(nobody.body).toEqual({ offer: null });
     });
 
     it("refuses another courier's offer with 404, then lets its holder accept it", async () => {
@@ -255,7 +303,7 @@ describe('dispatch API (database integration)', () => {
       expect(viewed.status).toBe(200);
       expect(viewed.body).toMatchObject({ status: 'OFFERING', assignment: null });
       expect((viewed.body as { offers: unknown[] }).offers).toHaveLength(1);
-      expect(JSON.stringify(viewed.body)).not.toContain('Dropoff Road');
+      expect(JSON.stringify(viewed.body)).not.toContain('Pickup Vale');
 
       const assigned = await post(code, `${base}/assign`, dispatcher.headers, {
         courierId: otherCourier.accountId,
@@ -284,6 +332,73 @@ describe('dispatch API (database integration)', () => {
       expect((notACourier.body as { code: string }).code).toBe('dispatch.courier-not-active');
       const exhaustedOnly = await post(code, `${base}/redispatch`, dispatcher.headers);
       expect(exhaustedOnly.status).toBe(409);
+    });
+
+    it('lets a dispatcher restart an exhausted job, with an audit row (security L4)', async () => {
+      const ids = app.get<IdGenerator>(ID_GENERATOR, { strict: false });
+      const clock = app.get<Clock>(CLOCK, { strict: false });
+      const settings = app
+        .get<DispatchSettingsProvider>(DISPATCH_SETTINGS, { strict: false })
+        .get(market.marketId);
+      const jobs = app.get<DispatchJobRepository>(DISPATCH_JOB_REPOSITORY, { strict: false });
+      const opened = openDispatchJob(
+        {
+          id: ids.next<'DispatchJob'>(),
+          marketId: market.marketId,
+          deliveryId: ids.next<'Delivery'>(),
+          requirements: requirements(),
+          stops: stops(),
+          deliveryVersion: 1,
+        },
+        clock.now(),
+        settings,
+      );
+      // Every round went unanswered: the offer stops are gone and the sweep has nothing to do.
+      const exhausted = {
+        ...opened,
+        stops: undefined,
+        nextActionAt: undefined,
+        status: 'EXHAUSTED' as const,
+        round: 3,
+        version: 2,
+      };
+      const unit = app.get<UnitOfWork>(UNIT_OF_WORK, { strict: false });
+      await unit.run(market, async () => {
+        await jobs.insert(market, opened);
+        await jobs.update(market, exhausted);
+        return { ok: true as const, value: undefined };
+      });
+      const base = `/dispatch/admin/deliveries/${opened.deliveryId}`;
+
+      expect((await post(code, `${base}/redispatch`, operator.headers)).status).toBe(403);
+      const restarted = await post(code, `${base}/redispatch`, dispatcher.headers);
+      expect(restarted.status).toBe(200);
+      expect(restarted.body).toMatchObject({ status: 'OFFERING', round: 0 });
+      const { rows } = await sql.query<{
+        action: string;
+        actor_id: string;
+        before: unknown;
+        after: unknown;
+      }>(
+        `SELECT action, actor_id, before, after FROM platform.audit_log
+          WHERE market_id = $1 AND target_id = $2 ORDER BY occurred_at, id`,
+        [code, opened.id],
+      );
+      expect(rows).toEqual([
+        {
+          action: 'dispatch.job.offering-restarted',
+          actor_id: dispatcher.accountId,
+          before: { status: 'exhausted' },
+          after: { status: 'offering' },
+        },
+      ]);
+      // Restarted once: a second restart is refused and audits nothing.
+      expect((await post(code, `${base}/redispatch`, dispatcher.headers)).status).toBe(409);
+      const after = await sql.query(
+        'SELECT 1 FROM platform.audit_log WHERE market_id = $1 AND target_id = $2',
+        [code, opened.id],
+      );
+      expect(after.rowCount).toBe(1);
     });
 
     it('refuses an operator without the assign key, a courier and an anonymous caller', async () => {
@@ -349,10 +464,10 @@ describe('dispatch API (database integration)', () => {
         const { rows } = await sql.query<{
           status: string;
           assigned_courier_id: string | null;
-          dropoff_address: string | null;
+          dropoff_postcode: string | null;
           excluded_courier_ids: string[];
         }>(
-          `SELECT status, assigned_courier_id, dropoff_address, excluded_courier_ids
+          `SELECT status, assigned_courier_id, dropoff_postcode, excluded_courier_ids
              FROM dispatch.jobs WHERE market_id = $1 AND delivery_id = $2`,
           [code, deliveryId],
         );
@@ -368,8 +483,14 @@ describe('dispatch API (database integration)', () => {
         const deliveryId = await book();
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'OFFERING',
-          dropoff_address: '9 Recipient Rd',
+          dropoff_postcode: POSTCODE[code],
         });
+        // Security L3: dispatch keeps no street address, only suburbs and postcodes.
+        const { rows: stored } = await sql.query(
+          'SELECT * FROM dispatch.jobs WHERE market_id = $1 AND delivery_id = $2',
+          [code, deliveryId],
+        );
+        expect(JSON.stringify(stored)).not.toMatch(/Example St|Recipient Rd/);
 
         // A dispatcher assigns through dispatch: the delivery records the courier.
         const assigned = await post(
@@ -411,7 +532,7 @@ describe('dispatch API (database integration)', () => {
         await handleUntil(async () => (await jobStatus(deliveryId)) === 'CANCELLED');
         expect(await jobOf(deliveryId)).toMatchObject({
           status: 'CANCELLED',
-          dropoff_address: null,
+          dropoff_postcode: null,
         });
       });
 

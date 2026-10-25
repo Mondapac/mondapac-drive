@@ -147,14 +147,15 @@ describe('HTTP adapter', () => {
     expect(init.headers).not.toHaveProperty('content-type');
   });
 
-  it("reads dispatch's current offer, which has no pay until payouts quotes it", async () => {
+  it("reads dispatch's current offer: the area of each stop and the pay, or null", async () => {
     const offer = {
       id: 'o-1',
       deliveryId: 'd-1',
       expiresAt: '2026-10-24T09:00:30Z',
-      pickup: { address: 'a', point: { lat: 1, lng: 2 } },
-      dropoff: { address: 'b', point: { lat: 1, lng: 2 } },
+      pickup: { suburb: 'Sample', postcode: '1000', point: { lat: 1, lng: 2 } },
+      dropoff: { suburb: null, postcode: '1001', point: { lat: 1, lng: 2 } },
       distanceMetres: 2300,
+      earnings: { amount: '950', currency: 'JPY' },
       temperature: 'chilled',
     };
     const { api, fetch } = setup({ body: { offer } });
@@ -162,6 +163,31 @@ describe('HTTP adapter', () => {
     expect(fetch.mock.calls[0]![0]).toBe(
       'https://api.example.test/dispatch/courier/offers/current',
     );
+    const unpaid = setup({ body: { offer: { ...offer, earnings: null } } });
+    expect((await unpaid.api.currentOffer())!.earnings).toBeNull();
+  });
+
+  it('refuses an offer that names a full address before accept', async () => {
+    const offer = {
+      id: 'o-1',
+      deliveryId: 'd-1',
+      expiresAt: '2026-10-24T09:00:30Z',
+      pickup: { address: '1 Sample St', point: { lat: 1, lng: 2 } },
+      dropoff: { address: '2 Sample St', point: { lat: 1, lng: 2 } },
+      distanceMetres: 2300,
+      earnings: null,
+      temperature: 'chilled',
+    };
+    const { api } = setup({ body: { offer } });
+    await expect(api.currentOffer()).rejects.toEqual(new ApiError(200, 'response.invalid'));
+
+    const withArea = {
+      ...offer,
+      pickup: { suburb: 'Sample', postcode: '1000', point: { lat: 1, lng: 2 } },
+      dropoff: { suburb: 'Sample', postcode: '1001', point: { lat: 1, lng: 2 }, address: '2 St' },
+    };
+    const extra = setup({ body: { offer: withArea } });
+    await expect(extra.api.currentOffer()).rejects.toEqual(new ApiError(200, 'response.invalid'));
   });
 
   it('joins the failure reason and the details into the reason text', async () => {
@@ -264,6 +290,22 @@ describe('the accepted delivery while fleet reports none', () => {
     });
   });
 
+  it("drops a remembered delivery the server's differs from, and keeps it while fleet has none", async () => {
+    const stale = memory('d-1');
+    await api(respond({ body: { shift: 'on_delivery', activeDeliveryId: 'd-2' } }), stale).status();
+    expect(stale.forget).toHaveBeenCalled();
+
+    const same = memory('d-2');
+    await api(respond({ body: { shift: 'on_delivery', activeDeliveryId: 'd-2' } }), same).status();
+    expect(same.forget).not.toHaveBeenCalled();
+
+    const fallback = memory('d-3');
+    await expect(
+      api(respond({ body: { shift: 'on_delivery', activeDeliveryId: null } }), fallback).status(),
+    ).resolves.toMatchObject({ activeDeliveryId: 'd-3' });
+    expect(fallback.forget).not.toHaveBeenCalled();
+  });
+
   it('forgets the delivery once it is finished or no longer the courier’s', async () => {
     const finished = memory('d-1');
     await api(respond({ body: { ...job, status: 'DELIVERED' } }), finished).job('d-1');
@@ -284,5 +326,52 @@ describe('the accepted delivery while fleet reports none', () => {
     const ongoing = memory('d-1');
     await api(respond({ body: job }), ongoing).job('d-1');
     expect(ongoing.forget).not.toHaveBeenCalled();
+  });
+});
+
+describe('payouts balance', () => {
+  const body = {
+    balance: {
+      amount: { amount: '1000', currency: 'JPY' },
+      tax: { amount: '100', currency: 'JPY' },
+      total: { amount: '1100', currency: 'JPY' },
+    },
+    entries: [
+      {
+        id: 'e-2',
+        kind: 'payout',
+        amount: { amount: '-500', currency: 'JPY' },
+        tax: { amount: '-50', currency: 'JPY' },
+        payoutLineId: 'l-1',
+        occurredAt: '2026-10-24T09:00:00Z',
+      },
+      {
+        id: 'e-1',
+        kind: 'a-kind-from-a-newer-api',
+        amount: { amount: '1500', currency: 'JPY' },
+        tax: { amount: '150', currency: 'JPY' },
+        deliveryId: 'd-1',
+        occurredAt: '2026-10-23T09:00:00Z',
+      },
+    ],
+  };
+
+  it('asks for the latest entries and parses the balance', async () => {
+    const { api, fetch } = setup({ body });
+    const found = await api.balance(20);
+    expect(fetch.mock.calls[0]![0]).toBe(
+      'https://api.example.test/payouts/courier/me/balance?limit=20',
+    );
+    expect(found.balance.total.amount).toBe('1100');
+    expect(found.entries.map((entry) => entry.id)).toEqual(['e-2', 'e-1']);
+  });
+
+  it('refuses an amount that is not whole minor units', async () => {
+    const broken = {
+      ...body,
+      balance: { ...body.balance, total: { amount: '11.5', currency: 'JPY' } },
+    };
+    const { api } = setup({ body: broken });
+    await expect(api.balance(20)).rejects.toEqual(new ApiError(200, 'response.invalid'));
   });
 });
