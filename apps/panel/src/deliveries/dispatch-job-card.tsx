@@ -1,8 +1,14 @@
 import { Badge, Card, DataList, type BadgeTone } from '@mondapac-drive/ui';
 import { getLocale, getTranslations } from 'next-intl/server';
-import type { Vehicle } from '../ops/types.ts';
+import { VEHICLES, type Vehicle } from '../ops/types.ts';
 import { formatInstant, shortInstant } from '../shared/format.ts';
-import { offersByRound, type DispatchJob, type JobStatus, type SentOffer } from './dispatch-job.ts';
+import {
+  JOB_STATUSES,
+  offersByRound,
+  type DispatchJob,
+  type JobStatus,
+  type SentOffer,
+} from './dispatch-job.ts';
 import { JobActions } from './job-actions.tsx';
 import { shortId } from './names.ts';
 
@@ -16,6 +22,10 @@ const TONE: Readonly<Record<JobStatus, BadgeTone>> = {
 };
 
 type Translate = Awaited<ReturnType<typeof getTranslations>>;
+
+/** A vehicle in words; a code this panel does not know yet shows as it came (security L4). */
+const vehicleText = (t: Translate, vehicle: string): string =>
+  (VEHICLES as readonly string[]).includes(vehicle) ? t(`vehicle.${vehicle}`) : vehicle;
 
 /** What happened to one offer, with the time it happened. */
 function offerOutcome(t: Translate, offer: SentOffer, locale: string): string {
@@ -72,7 +82,11 @@ export async function DispatchJobCard({
             {
               label: t('job.status'),
               value: (
-                <Badge tone={TONE[job.status] ?? 'neutral'}>{t(`job.state.${job.status}`)}</Badge>
+                <Badge tone={TONE[job.status] ?? 'neutral'}>
+                  {(JOB_STATUSES as readonly string[]).includes(job.status)
+                    ? t(`job.state.${job.status}`)
+                    : job.status}
+                </Badge>
               ),
             },
             { label: t('job.round'), value: job.round === 0 ? null : String(job.round) },
@@ -90,7 +104,7 @@ export async function DispatchJobCard({
                   ? t('detail.no-courier')
                   : t('job.assigned', {
                       name: nameOf(assignment.courierId),
-                      vehicle: t(`vehicle.${assignment.vehicle}`),
+                      vehicle: vehicleText(t, assignment.vehicle),
                       method: t(`job.method.${assignment.method}`),
                       at: shortInstant(assignment.at, locale),
                     }),
@@ -127,7 +141,7 @@ export async function DispatchJobCard({
                   {offers.map((offer) => (
                     <li key={offer.id} className="flex flex-col gap-0.5 px-3 py-2 text-sm">
                       <span className="break-words font-medium">
-                        {nameOf(offer.courierId)} · {t(`vehicle.${offer.vehicle}`)}
+                        {nameOf(offer.courierId)} · {vehicleText(t, offer.vehicle)}
                       </span>
                       <span className="text-fg-muted">
                         {t('job.sent', { at: shortInstant(offer.sentAt, locale) })} ·{' '}

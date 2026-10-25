@@ -143,6 +143,24 @@ describe('dispatch job card', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('shows a status or vehicle code it does not know as it came, without failing', async () => {
+    render(
+      await DispatchJobCard({
+        job: job({
+          status: 'PAUSED' as never,
+          offers: [offer({ vehicle: 'cargo-bike' as never })],
+        }),
+        couriers: new Map(),
+        activeCouriers: [],
+        quotedVehicle: 'car',
+        canAssign: false,
+        csrfToken: 'csrf',
+      }),
+    );
+    expect(screen.getByText('PAUSED')).toBeTruthy();
+    expect(screen.getByText(/cargo-bike/)).toBeTruthy();
+  });
+
   it('says so when no offer went out yet', async () => {
     render(
       await DispatchJobCard({
