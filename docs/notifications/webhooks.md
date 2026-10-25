@@ -77,8 +77,19 @@ subscriptions; another merchant's answers 404:
 Admin panel (session cookie, CSRF on POST), key `notifications.webhook-call.resend` (platform;
 the Platform Administrator and the default operator role, seed v5, hold it):
 
-- `GET /notifications/admin/webhook-calls/dead`: dead-lettered calls, ids and codes only;
+- `GET /notifications/admin/webhook-calls/dead`: dead-lettered calls, with ids and codes only,
+  and the `merchantId` of each call's subscription;
 - `POST /notifications/admin/webhook-calls/:id/resend`.
+
+Admin panel, key `notifications.webhook-subscription.view` (platform; the Platform
+Administrator and the default operator role, seed v6, hold it). Holding the re-send key alone is
+not enough:
+
+- `GET /notifications/admin/webhook-subscriptions?merchantId&after&limit` lists the Market's
+  subscriptions (one merchant's, or every merchant's without `merchantId`), newest first. `limit`
+  is 1 to 100 and defaults to 50. The answer is `{ items, next }`: each item is
+  `{ id, merchantId, url, eventTypes, status, secretVersion, previousSecretValidUntil, createdAt }`
+  and never holds a secret. `next` is the `after` of the next page, or null on the last page.
 
 Every change is audited (`notifications.webhook-subscription.created`, `.event-types-changed`,
 `.secret-rotated`, `.disabled`, `notifications.webhook-call.resent`), without URL or secret.

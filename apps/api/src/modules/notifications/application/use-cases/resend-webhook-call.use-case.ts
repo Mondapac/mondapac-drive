@@ -7,10 +7,10 @@ import { WebhookCallResentAudit } from '../../domain/audit';
 import { resend } from '../../domain/outbound-message';
 import { ACCESS_DENIED, isAdmin } from '../callers';
 import { notFound, refusingBrokenRules, type NotificationsFailure } from '../failure';
-import type { OutboundRepository, WebhookCall } from '../ports';
+import type { DeadWebhookCall, OutboundRepository, WebhookCall } from '../ports';
 
 /** A queued call as the operator routes answer it. */
-export type { WebhookCall } from '../ports';
+export type { DeadWebhookCall, WebhookCall } from '../ports';
 
 export interface ResendWebhookCallDependencies {
   readonly outbound: OutboundRepository;
@@ -79,7 +79,7 @@ export const DEAD_CALL_LIST_LIMIT = 100;
  */
 export class ListDeadWebhookCalls extends UseCase<
   Record<string, never>,
-  WebhookCall[],
+  DeadWebhookCall[],
   NotificationsFailure
 > {
   static override readonly access: AccessDeclaration = {
@@ -97,7 +97,7 @@ export class ListDeadWebhookCalls extends UseCase<
     super(gate);
   }
 
-  protected handle(context: CallContext): Promise<Result<WebhookCall[], NotificationsFailure>> {
+  protected handle(context: CallContext): Promise<Result<DeadWebhookCall[], NotificationsFailure>> {
     if (!isAdmin(context)) return Promise.resolve(err(ACCESS_DENIED));
     const { market } = context;
     return this.deps.unitOfWork.run(

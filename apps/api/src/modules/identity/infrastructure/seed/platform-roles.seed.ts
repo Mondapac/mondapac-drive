@@ -23,11 +23,12 @@ export const PLATFORM_ROLES_SEED: readonly SeededRole[] = [
   {
     // Runs the operation day to day: sees merchants, couriers, admins and every delivery (with
     // the live map), cancels a delivery on a merchant's behalf, re-sends a dead webhook call to a
-    // merchant, and reads courier payout lines and balances (never records or settles money).
+    // merchant and sees merchants' webhook subscriptions (never a secret), and reads courier
+    // payout lines and balances (never records or settles money).
     scope: 'platform',
     kind: 'default',
     seedCode: 'operator',
-    seedVersion: 5,
+    seedVersion: 6,
     nameKey: 'identity.role.operator',
     permissionKeys: [
       'identity.admin-account.view',
@@ -41,6 +42,7 @@ export const PLATFORM_ROLES_SEED: readonly SeededRole[] = [
       'dispatch.job.view',
       'notifications.webhook-call.resend',
       'payouts.ledger.view',
+      'notifications.webhook-subscription.view',
     ],
   },
   {

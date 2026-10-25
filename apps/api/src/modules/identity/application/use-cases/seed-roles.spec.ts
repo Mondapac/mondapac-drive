@@ -239,7 +239,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     expect(logged('identity.seed-roles.stored-newer')?.[0]).toMatchObject({
       seedCode: 'operator',
       storedSeedVersion: 15,
-      seedVersion: 5,
+      seedVersion: 6,
     });
   });
 
@@ -250,10 +250,10 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
     fakes.audits.length = 0;
 
     await seedRoles(
-      seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 6 } : role)),
+      seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 7 } : role)),
     ).execute(system, {});
 
-    expect(fakes.roles.get(stored.id)!.seedVersion).toBe(5);
+    expect(fakes.roles.get(stored.id)!.seedVersion).toBe(6);
     expect(fakes.audits).toEqual([]);
     expect(logged('identity.seed-roles.kind-mismatch')).toBeDefined();
   });
@@ -324,7 +324,7 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
 
     await expect(
       seedRoles(
-        seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 6 } : role)),
+        seedWith((role) => (role.seedCode === 'operator' ? { ...role, seedVersion: 7 } : role)),
         { roles: racing },
       ).execute(system, {}),
     ).resolves.toEqual({ ok: true, value: { created: 0, upgraded: 0 } });
@@ -347,14 +347,14 @@ describe.each(TEST_MARKETS)('SeedRoles in market %s (identity design 5.6; slice 
       seedRoles(
         seedWith((role) =>
           role.seedCode === 'operator' || role.seedCode === 'dispatcher'
-            ? { ...role, seedVersion: 6 }
+            ? { ...role, seedVersion: 7 }
             : role,
         ),
         { audit: refusing },
       ).execute(system, {}),
     ).resolves.toEqual({ ok: false, error: { code: 'seed.incomplete', failed: 1 } });
     // The other upgrade still applied, with its row; the failure is logged by code, no message.
-    expect(roleOf('platform', 'dispatcher').seedVersion).toBe(6);
+    expect(roleOf('platform', 'dispatcher').seedVersion).toBe(7);
     expect(fakes.audits.map((a) => [a.action, a.targetId])).toEqual([
       ['identity.role.seed-applied', roleOf('platform', 'dispatcher').id],
     ]);
