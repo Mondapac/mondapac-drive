@@ -27,10 +27,13 @@ model DispatchJob {
   assignedAt         DateTime? @map("assigned_at") @db.Timestamptz(6)
   /// Couriers who dropped the delivery and are never offered it again.
   excludedCourierIds String[]  @map("excluded_courier_ids") @db.Uuid
-  /// What a courier's offer shows (personal data): set only while the job is OFFERING. All five
-  /// are set or null together.
-  pickupAddress      String?   @map("pickup_address") @db.VarChar(500)
-  dropoffAddress     String?   @map("dropoff_address") @db.VarChar(500)
+  /// What a courier's offer shows before accepting (location data): set only while the job is
+  /// OFFERING. The postcodes, the drop-off point and the distance are set or null together; a
+  /// suburb may be null within them. Never a street address (security L3).
+  pickupSuburb       String?   @map("pickup_suburb") @db.VarChar(200)
+  pickupPostcode     String?   @map("pickup_postcode") @db.VarChar(10)
+  dropoffSuburb      String?   @map("dropoff_suburb") @db.VarChar(200)
+  dropoffPostcode    String?   @map("dropoff_postcode") @db.VarChar(10)
   dropoffLat         Float?    @map("dropoff_lat")
   dropoffLng         Float?    @map("dropoff_lng")
   tripDistanceMetres Int?      @map("trip_distance_metres")

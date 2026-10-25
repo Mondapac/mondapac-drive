@@ -246,13 +246,18 @@ describe.each([
 
       t.facts.book(deliveryId, {
         status: 'SCHEDULED',
-        dropoff: { address: '3 New Lane', postcode: '4101', point: geoPoint(-27.6, 153.1) },
+        dropoff: {
+          address: '3 New Lane',
+          suburb: 'New Town',
+          postcode: '4102',
+          point: geoPoint(-27.6, 153.1),
+        },
       });
       t.clock.set(windowStart.subtract({ minutes: settings.scheduledLeadMinutes }));
       await sweep(t);
 
       expect(await offeredTo(t)).toEqual([courierId(1)]);
-      expect((await jobOf(t)).stops?.dropoffAddress).toBe('3 New Lane');
+      expect((await jobOf(t)).stops?.dropoffArea).toEqual({ suburb: 'New Town', postcode: '4102' });
     });
 
     it('is exhausted after the last round', async () => {
@@ -282,11 +287,13 @@ describe.each([
         offerId: await offerIdOf(t, 1),
         deliveryId,
         expiresAt: start.add(timeout),
-        pickup: { address: '1 Pickup Street' },
-        dropoff: { address: '2 Dropoff Road' },
+        pickup: { suburb: 'Pickup Vale', postcode: '4000', point: geoPoint(-27.47, 153.02) },
+        dropoff: { suburb: null, postcode: '4101', point: geoPoint(-27.5, 153.05) },
         tripDistanceMetres: 4200,
         temperature: 'chilled',
       });
+      // Security L3: before accepting, no street address of either stop.
+      expect(JSON.stringify(mine)).not.toMatch(/Pickup Street|Dropoff Road/);
       expect(await t.offer.execute(courierCall(2), {})).toEqual({ ok: true, value: null });
 
       t.clock.advance(Temporal.Duration.from(timeout));
@@ -456,7 +463,10 @@ describe.each([
 
       await sweep(t);
       expect(await offeredTo(t)).toEqual([courierId(1)]);
-      expect((await jobOf(t)).stops?.pickupAddress).toBe('1 Pickup Street');
+      expect((await jobOf(t)).stops?.pickupArea).toEqual({
+        suburb: 'Pickup Vale',
+        postcode: '4000',
+      });
 
       const again = await t.restart.execute(dispatcher, { deliveryId });
       expect(again.ok || again.error.code).toBe('dispatch.not-exhausted');
@@ -493,7 +503,12 @@ describe.each([
       const t = setUp();
       await assignedByOffer(t);
       t.facts.book(deliveryId, {
-        dropoff: { address: '3 New Lane', postcode: '4101', point: geoPoint(-27.6, 153.1) },
+        dropoff: {
+          address: '3 New Lane',
+          suburb: 'New Town',
+          postcode: '4102',
+          point: geoPoint(-27.6, 153.1),
+        },
       });
 
       const followed = await status(t, 3, 'assigned', 'dispatching', {
@@ -503,7 +518,7 @@ describe.each([
       expect(followed.ok && followed.value?.status).toBe('OFFERING');
       const job = await jobOf(t);
       expect(job.excludedCourierIds).toEqual([courierId(1)]);
-      expect(job.stops?.dropoffAddress).toBe('3 New Lane');
+      expect(job.stops?.dropoffArea).toEqual({ suburb: 'New Town', postcode: '4102' });
       expect(await offeredTo(t)).not.toContain(courierId(1));
       expect(await offeredTo(t)).toHaveLength(settings.waveSize);
     });

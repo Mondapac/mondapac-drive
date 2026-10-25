@@ -75,6 +75,8 @@ export const COURIER_PROXIMITY = Symbol('CourierProximity');
 /** A stop of a delivery as dispatch reads it: no contact name or phone. */
 export interface DeliveryStop {
   readonly address: string;
+  /** From delivery's geocode; absent or null when delivery has none (handoff 34). */
+  readonly suburb?: string | null;
   readonly postcode: string;
   readonly point: GeoPoint;
 }
