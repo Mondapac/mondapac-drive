@@ -1,5 +1,6 @@
-// The fleet API's operator shapes (Drive, `fleet/admin`). A courier is named by its fleet id; the
-// API never sends the identity account id or a document's storage key, and neither does the panel.
+// The fleet API's operator shapes (Drive, `fleet/admin`). A courier has a fleet id and an identity
+// account id (`accountId`, the id payouts, delivery and the courier-account list use, 31b); the
+// API never sends a document's storage key, and neither does the panel.
 
 export const COURIER_STATUSES = ['applicant', 'active', 'suspended', 'offboarded'] as const;
 export type CourierStatus = (typeof COURIER_STATUSES)[number];
@@ -29,6 +30,9 @@ export type ColdBox = 'none' | 'insulated' | 'refrigerated';
 /** A row of the courier list. */
 export interface CourierSummary {
   readonly id: string;
+  /** The identity account id: the courier's name, payouts and deliveries are keyed by it. */
+  readonly accountId: string;
+  readonly activeDeliveryId: string | null;
   readonly status: CourierStatus;
   readonly employmentType: EmploymentType;
   readonly coldChainCapable: boolean;
@@ -71,6 +75,8 @@ export interface FleetDocument {
 /** A courier with their vehicles and documents; every decision answers this. */
 export interface FleetCourier {
   readonly id: string;
+  readonly accountId: string;
+  readonly activeDeliveryId: string | null;
   readonly status: CourierStatus;
   readonly employmentType: EmploymentType;
   readonly coldChainCapable: boolean;
@@ -97,3 +103,12 @@ export type CourierFilter = (typeof COURIER_FILTERS)[number];
 
 /** The capacity limits the API takes (whole grams and litres). */
 export const CAPACITY_LIMITS = { maxWeightGrams: 5_000_000, maxVolumeLitres: 50_000 } as const;
+
+/** A row of `GET fleet/admin/documents/expiring` (verified documents, soonest first). */
+export interface ExpiringDocument {
+  readonly documentId: string;
+  readonly courierId: string;
+  readonly accountId: string;
+  readonly type: string;
+  readonly expiresAt: string;
+}

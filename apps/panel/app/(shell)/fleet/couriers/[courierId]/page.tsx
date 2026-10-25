@@ -1,8 +1,10 @@
 import { BackLink, LoadError } from '@mondapac-drive/ui';
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import { namesFor } from '../../../../../src/deliveries/names.ts';
 import { CourierView } from '../../../../../src/fleet/courier-view.tsx';
 import { FLEET_PERMISSION, type FleetCourier } from '../../../../../src/fleet/types.ts';
+import { CourierLinks } from '../../../../../src/ops/courier-links.tsx';
 import { NoAccess } from '../../../../../src/ops/no-access.tsx';
 import { NoticeProvider } from '../../../../../src/ops/notice.tsx';
 import { UUID } from '../../../../../src/ops/types.ts';
@@ -38,15 +40,30 @@ export default async function FleetCourierPage({
       </AdminShell>
     );
   }
-  const result = await serverGet<FleetCourier>(`fleet/admin/couriers/${courierId}`);
+  const [result, names] = await Promise.all([
+    serverGet<FleetCourier>(`fleet/admin/couriers/${courierId}`),
+    namesFor(keys),
+  ]);
   if (result.kind === 'signed-out') redirect('/session-ended');
   if (result.kind === 'not-found') notFound();
-  const title = t('fleet.courier.title', { id: shortId(courierId) });
+  const name = result.kind === 'ok' ? names.couriers.get(result.body.accountId) : undefined;
+  const title = name ?? t('fleet.courier.title', { id: shortId(courierId) });
   return (
     <AdminShell session={session} activeId="fleet" title={title}>
       <BackLink href="/fleet" label={t('fleet.back')} />
       <NoticeProvider>
-        <h1 className="mb-4 mt-2 break-words text-2xl font-semibold">{title}</h1>
+        <h1 className="mt-2 break-words text-2xl font-semibold">{title}</h1>
+        <div className="mb-4">
+          {result.kind === 'ok' ? (
+            <CourierLinks
+              accountId={result.body.accountId}
+              fleetId={result.body.id}
+              activeDeliveryId={result.body.activeDeliveryId}
+              keys={keys}
+              current="fleet"
+            />
+          ) : null}
+        </div>
         {result.kind === 'ok' ? (
           <CourierView
             courier={result.body}

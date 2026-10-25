@@ -68,6 +68,10 @@
       "label": "Courier documents to review",
       "scope": "Submitted, not yet verified or rejected"
     },
+    "fleet-expiring": {
+      "label": "Courier documents expiring soon",
+      "scope": "Verified documents expiring in the next 30 days, or already expired"
+    },
     "payout-lines": {
       "label": "Payout lines held or unresolved",
       "scope": "Need a decision before they pay"
@@ -1046,7 +1050,8 @@
       "active": "Active",
       "suspended": "Suspended",
       "offboarded": "Offboarded",
-      "all": "All"
+      "all": "All",
+      "expiring": "Documents expiring"
     },
     "empty": {
       "title": "No couriers here",
@@ -1273,6 +1278,16 @@
         },
         "storage-unavailable": "Document storage isn't available right now. Try again shortly."
       }
+    },
+    "expiring": {
+      "intro": "Verified documents that expire in the next 30 days or have expired, soonest first. Ask the courier for a new one before it lapses.",
+      "caption": "Courier documents expiring soon",
+      "document": "Document",
+      "courier": "Courier",
+      "expires": "Expires",
+      "expired": "Expired",
+      "empty-title": "No documents expiring soon",
+      "empty-body": "Every verified document is valid for at least 30 more days."
     }
   },
   "payouts": {
@@ -1573,5 +1588,11 @@
       }
     }
   },
-  "row-action": "{action}: {item}"
+  "row-action": "{action}: {item}",
+  "courier-links": {
+    "label": "This courier's other pages",
+    "fleet": "Fleet profile",
+    "payouts": "Payouts",
+    "delivery": "Current delivery"
+  }
 }

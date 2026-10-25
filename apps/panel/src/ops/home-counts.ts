@@ -6,6 +6,9 @@ import type { DeliverySummary } from './types.ts';
 // existing list route, only for a session that holds the route's key; a full page with more
 // behind it shows as "100+", never as a wrong exact number.
 
+/** Documents expiring within this many days count as expiring soon. */
+export const EXPIRY_WINDOW_DAYS = 30;
+
 /** The largest page every counted list route accepts. */
 export const COUNT_PAGE = 100;
 
@@ -14,8 +17,8 @@ export interface CountRead {
   readonly icon: IconName;
   /** The key the list route needs; the card is left out for a session without it. */
   readonly key: string;
-  /** The API path of the read (first page only). */
-  readonly path: string;
+  /** The API path of the read (first page only), at the request's time. */
+  readonly path: (now: Date) => string;
   /** The panel page that lists what is counted, or null while the panel has none. */
   readonly href: string | null;
   /** A figure above zero is shown in this tone. */
@@ -39,7 +42,7 @@ export const COUNT_READS: readonly CountRead[] = [
     id: 'deliveries-attention',
     icon: 'alert-triangle',
     key: 'delivery.delivery.view',
-    path: `delivery/admin/deliveries?limit=${COUNT_PAGE}`,
+    path: () => `delivery/admin/deliveries?limit=${COUNT_PAGE}`,
     href: '/deliveries?show=attention',
     tone: 'critical',
     count: (body) => {
@@ -52,7 +55,7 @@ export const COUNT_READS: readonly CountRead[] = [
     id: 'deliveries-waiting',
     icon: 'package',
     key: 'delivery.delivery.view',
-    path: `delivery/admin/deliveries?status=DISPATCHING&limit=${COUNT_PAGE}`,
+    path: () => `delivery/admin/deliveries?status=DISPATCHING&limit=${COUNT_PAGE}`,
     href: '/deliveries?show=waiting',
     tone: 'attention',
     count: pageCount,
@@ -61,7 +64,7 @@ export const COUNT_READS: readonly CountRead[] = [
     id: 'fleet-applicants',
     icon: 'users',
     key: 'fleet.courier.view',
-    path: `fleet/admin/couriers?status=applicant&limit=${COUNT_PAGE}`,
+    path: () => `fleet/admin/couriers?status=applicant&limit=${COUNT_PAGE}`,
     href: '/fleet',
     tone: 'attention',
     count: pageCount,
@@ -70,7 +73,7 @@ export const COUNT_READS: readonly CountRead[] = [
     id: 'fleet-documents',
     icon: 'file-text',
     key: 'fleet.courier.view',
-    path: `fleet/admin/couriers?limit=${COUNT_PAGE}`,
+    path: () => `fleet/admin/couriers?limit=${COUNT_PAGE}`,
     href: '/fleet?show=all',
     tone: 'attention',
     count: (body) => {
@@ -80,10 +83,22 @@ export const COUNT_READS: readonly CountRead[] = [
     },
   },
   {
+    id: 'fleet-expiring',
+    icon: 'clock',
+    key: 'fleet.courier.view',
+    path: (now) => {
+      const before = new Date(now.getTime() + EXPIRY_WINDOW_DAYS * 86_400_000).toISOString();
+      return `fleet/admin/documents/expiring?before=${encodeURIComponent(before)}&limit=${COUNT_PAGE}`;
+    },
+    href: '/fleet?show=expiring',
+    tone: 'attention',
+    count: pageCount,
+  },
+  {
     id: 'payout-lines',
     icon: 'wallet',
     key: 'payouts.ledger.view',
-    path: `payouts/admin/lines?status=held,unresolved&limit=${COUNT_PAGE}`,
+    path: () => `payouts/admin/lines?status=held,unresolved&limit=${COUNT_PAGE}`,
     href: '/payouts',
     tone: 'attention',
     count: (body) => {
@@ -95,7 +110,7 @@ export const COUNT_READS: readonly CountRead[] = [
     id: 'dead-webhooks',
     icon: 'alert-triangle',
     key: 'notifications.webhook-call.resend',
-    path: 'notifications/admin/webhook-calls/dead',
+    path: () => 'notifications/admin/webhook-calls/dead',
     href: '/webhooks',
     tone: 'critical',
     count: (body) => ({
