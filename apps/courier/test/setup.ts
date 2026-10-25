@@ -25,6 +25,11 @@ jest.mock('expo-secure-store', () => {
   };
 });
 
+// The device speaks English unless a test switches the language (setLocaleForTesting).
+jest.mock('expo-localization', () => ({
+  getLocales: jest.fn(() => [{ languageTag: 'en-AU', languageCode: 'en' }]),
+}));
+
 jest.mock('expo-location', () => ({
   Accuracy: { High: 4 },
   ActivityType: { OtherNavigation: 5 },

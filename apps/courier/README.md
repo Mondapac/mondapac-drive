@@ -61,6 +61,21 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 - `src/i18n/en.json`: every piece of copy, including the native permission texts that
   `app.config.ts` reads.
 
+## Languages
+
+The app speaks the device's language when it has it, and English otherwise (`src/i18n`). The
+language is read once at start; a key a translation lacks falls back to English. English is the
+only language so far. To add one: a `<code>.json` next to `en.json` with the same keys, one entry
+in `LOCALES` (`src/i18n/locales.ts`, with `direction: 'rtl'` for Arabic, Persian or Urdu, which
+mirrors the layout from the next start), and the native permission texts in `app.config.ts`.
+`test/locales.spec.ts` checks every language file against English (no extra keys, the same
+`{{placeholders}}`). Money and dates are formatted in the Market's locale, not the language.
+
+Hard-coded copy is caught twice: `test/hard-coded-copy.spec.ts` reads every component for text
+between JSX tags and literal labels, and `test/pseudo-locale.spec.tsx` renders the screens in
+pseudo-English (`⟦Ĝö öñļîñé⟧`), where any plain word that is not API data fails. On Android,
+choosing the developer locale "English (XA)" shows a development build in pseudo-English.
+
 ## Rules the app keeps
 
 - No Market value in code: currency, locale, distance unit, support phone, offer timeout and
