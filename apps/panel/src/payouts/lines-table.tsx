@@ -2,6 +2,7 @@ import { Badge, CARD_TABLE, EmptyState, type BadgeTone } from '@mondapac-drive/u
 import { getLocale, getTranslations } from 'next-intl/server';
 import { ActionButton } from '../ops/action-button.tsx';
 import { formatMoney } from '../ops/money.ts';
+import { rowName } from '../ops/row-name.ts';
 import { shortInstant } from '../shared/format.ts';
 import { shortId } from '../shared/short-id.ts';
 import type { LineStatus, PayoutLine } from './types.ts';
@@ -111,6 +112,11 @@ export async function LinesTable({
                 {canSettle && line.status === 'unresolved' ? (
                   <ActionButton
                     label={t('payouts.settle.button')}
+                    name={rowName(
+                      t,
+                      t('payouts.settle.button'),
+                      couriers.get(line.courierId) ?? shortId(line.courierId),
+                    )}
                     path={`payouts/admin/lines/${line.id}/settle`}
                     csrfToken={csrfToken}
                     done={t('payouts.settle.done')}
