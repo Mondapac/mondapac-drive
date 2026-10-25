@@ -3,6 +3,7 @@ import { AU, markets, ZZ } from '../../../../test/support/delivery-markets';
 import {
   applyDeliveryEvent,
   createDelivery,
+  needsAttention,
   type DeliveryState,
   type NewDelivery,
 } from './delivery';
@@ -162,5 +163,15 @@ describe('cold chain', () => {
     expect(() =>
       run(zz, ...chilledToPickup, { type: 'picked_up', temperatureCelsius: 4.5 }),
     ).toThrow(expect.objectContaining({ code: 'cold-chain.breach' }) as Error);
+  });
+});
+
+describe('needs attention', () => {
+  it('is an exception flag or a failure at the door, whatever the status', () => {
+    expect(needsAttention({ status: 'DELIVERED' })).toBe(false);
+    expect(needsAttention({ status: 'PICKED_UP' })).toBe(false);
+    expect(needsAttention({ status: 'DELIVERY_FAILED' })).toBe(true);
+    expect(needsAttention({ status: 'DISPATCHING', exception: 'dispatch-exhausted' })).toBe(true);
+    expect(needsAttention({ status: 'DELIVERED', exception: 'cold-chain-breach' })).toBe(true);
   });
 });

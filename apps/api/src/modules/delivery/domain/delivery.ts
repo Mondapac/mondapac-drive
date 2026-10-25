@@ -52,6 +52,17 @@ export interface DeliveryHistoryEntry extends DeliveryEventInput {
  */
 export type DeliveryException = 'dispatch-exhausted' | 'cold-chain-breach';
 
+/**
+ * The statuses that need a dispatcher whatever the exception flag says: the delivery failed at
+ * the door. A delivery needs attention when it has an exception or one of these statuses.
+ */
+export const ATTENTION_STATUSES: readonly DeliveryStatus[] = Object.freeze(['DELIVERY_FAILED']);
+
+/** Whether a delivery needs a dispatcher's attention (the list's `attention` filter). */
+export function needsAttention(delivery: Pick<DeliveryState, 'status' | 'exception'>): boolean {
+  return delivery.exception !== undefined || ATTENTION_STATUSES.includes(delivery.status);
+}
+
 export interface DeliveryState {
   readonly id: Id<'Delivery'>;
   readonly marketId: MarketId;

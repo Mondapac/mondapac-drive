@@ -31,17 +31,10 @@ describe('Home figures', () => {
     expect(read('dead-webhooks').count({ calls: [] })).toEqual({ count: 0, hasMore: false });
   });
 
-  it('counts the deliveries a dispatcher must look at among the latest page', () => {
-    const body = {
-      items: [
-        { status: 'DELIVERY_FAILED' },
-        { status: 'DISPATCHING', exception: 'dispatch-exhausted' },
-        { status: 'PICKED_UP', exception: null },
-        { status: 'DELIVERED' },
-      ],
-      next: 'abc',
-    };
-    expect(read('deliveries-attention').count(body)).toEqual({ count: 2, hasMore: true });
+  it('counts the deliveries a dispatcher must look at with the API attention filter', () => {
+    const attention = read('deliveries-attention');
+    expect(attention.path(new Date())).toBe('delivery/admin/deliveries?attention=true&limit=100');
+    expect(attention.count({ items: [{}, {}], next: 'abc' })).toEqual({ count: 2, hasMore: true });
   });
 
   it('asks for the documents expiring within 30 days of the request', () => {

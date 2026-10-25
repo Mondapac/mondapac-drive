@@ -23,6 +23,10 @@ import {
 import { ID_GENERATOR } from '../../src/platform/ids/ids.module';
 import { PrismaOutboxWriterFactory } from '../../src/platform/persistence/outbox/prisma-outbox-writer';
 import { PrismaService } from '../../src/platform/persistence/prisma.service';
+import {
+  RATE_LIMIT_COUNTERS,
+  type RateLimitCounters,
+} from '../../src/platform/rate-limit/rate-limit-counters';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../src/platform/unit-of-work/unit-of-work';
 import { createTestApp } from '../support/test-app';
 import { panelHeaders, TEST_MARKETS } from '../support/test-config';
@@ -55,9 +59,15 @@ describe('delivery events (database integration)', () => {
   let sql: Client;
 
   beforeAll(async () => {
+    // One application serves both Market fixtures, whose bookings and steps together would
+    // outrun the per-route limits; the limiter has suites of its own.
+    const unlimited: RateLimitCounters = {
+      consume: () => Promise.resolve({ count: 1, msBeforeNext: 60_000 }),
+    };
     ({ app } = await createTestApp({
       panelOrigins: true,
       env: { DATABASE_URL: testDatabaseUrl(), HOSTED_MARKETS: TEST_MARKETS.join(',') },
+      override: (builder) => builder.overrideProvider(RATE_LIMIT_COUNTERS).useValue(unlimited),
     }));
     sql = new Client({ connectionString: testDatabaseUrl() });
     await sql.connect();
@@ -401,6 +411,52 @@ describe('delivery events (database integration)', () => {
         vehicle: quote.vehicle,
       });
       expect(await listed()).toMatchObject({ exception: null });
+    });
+
+    it('lists only the deliveries that need attention with attention=true', async () => {
+      const plain = await book();
+      const exhausted = await book();
+      await fromDispatch(
+        code,
+        DISPATCH_JOB_EXHAUSTED.record({
+          aggregateId: app.get<IdGenerator>(ID_GENERATOR).next(),
+          aggregateVersion: 3,
+          occurredAt: OCCURRED_AT,
+          payload: { deliveryId: exhausted.id as Id, rounds: 3 },
+        }),
+      );
+      const failed = await book();
+      await dispatch(failed.id, {
+        type: 'courier_assigned',
+        courierId: courier.accountId,
+        vehicle: failed.quote.vehicle,
+      });
+      for (const type of ['arrived_at_pickup', 'picked_up']) {
+        expect((await report(failed.id, { type })).status).toBe(200);
+      }
+      expect(
+        (await report(failed.id, { type: 'delivery_failed', reason: 'Nobody home' })).status,
+      ).toBe(200);
+      const ids = async (query: string) => {
+        const page = await get(
+          code,
+          `/delivery/admin/deliveries?merchantId=${merchant.merchantId}&limit=100${query}`,
+          admin.headers,
+        );
+        expect(page.status).toBe(200);
+        return (page.body as { items: { id: string }[] }).items.map((item) => item.id);
+      };
+
+      const attention = await ids('&attention=true');
+      expect(attention).toEqual(expect.arrayContaining([exhausted.id, failed.id]));
+      expect(attention).not.toContain(plain.id);
+      expect(attention.indexOf(failed.id)).toBeLessThan(attention.indexOf(exhausted.id));
+      expect(await ids('&attention=false')).toEqual(
+        expect.arrayContaining([plain.id, exhausted.id, failed.id]),
+      );
+      const failedOnly = await ids('&attention=true&status=DELIVERY_FAILED');
+      expect(failedOnly).toContain(failed.id);
+      expect(failedOnly).not.toContain(exhausted.id);
     });
 
     it('answers the system reads in the system context only', async () => {

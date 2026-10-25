@@ -8,7 +8,7 @@ import {
   parseListFilter,
   statusesOf,
 } from '../../../src/deliveries/filters.ts';
-import { ATTENTION_SCAN_PAGES, readListPage } from '../../../src/deliveries/list-page.ts';
+import { readListPage } from '../../../src/deliveries/list-page.ts';
 import { namesFor, shortId } from '../../../src/deliveries/names.ts';
 import { NoAccess } from '../../../src/ops/no-access.tsx';
 import { PERMISSION, type DeliveryPage } from '../../../src/ops/types.ts';
@@ -106,9 +106,7 @@ export default async function DeliveriesPage({
         </p>
       )}
       {filter.show === 'attention' ? (
-        <p className="mb-4 text-sm text-fg-muted">
-          {t('deliveries.filter.attention-help', { rows: ATTENTION_SCAN_PAGES * 100 })}
-        </p>
+        <p className="mb-4 text-sm text-fg-muted">{t('deliveries.filter.attention-help')}</p>
       ) : null}
       {result.kind === 'ok' ? (
         <>
