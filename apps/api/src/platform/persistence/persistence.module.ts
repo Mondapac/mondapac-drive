@@ -36,6 +36,9 @@ import { InProcessEventBus } from './outbox/in-process-event-bus';
 import { PrismaEventDispatcher } from './outbox/prisma-event-dispatcher';
 import { PrismaOutboxRelay } from './outbox/prisma-outbox-relay';
 import { PrismaOutboxWriterFactory } from './outbox/prisma-outbox-writer';
+import { INBOX_PURGER, inboxRetentionJob, type InboxPurger } from '../events/inbox-retention';
+import { registerJobsFrom } from '../scheduler/job-registry';
+import { PrismaInboxPurger } from './outbox/prisma-inbox-purger';
 import { PrismaRoot } from './prisma-root';
 import { parseSql } from './raw-reads/pg-parser';
 import { BIND_RAW_READ, RAW_READ_BASE, type RawReadBinder } from './raw-reads/prisma-raw-read-port';
@@ -126,6 +129,19 @@ const modelMap: ModelMap = MODEL_MAP;
         clock: Clock,
       ) => new PrismaOutboxRelay(root, modelMap, markets, contexts, bus, clock),
     },
+    {
+      provide: INBOX_PURGER,
+      inject: [PrismaRoot],
+      useFactory: (root: PrismaRoot) => new PrismaInboxPurger(root, modelMap),
+    },
+    // Handoff 35: the platform's inbox retention, here because the purger is not exported.
+    registerJobsFrom(
+      'platform',
+      [INBOX_PURGER, MarketRegistry, CLOCK],
+      (purger: InboxPurger, markets: MarketRegistry, clock: Clock) => [
+        inboxRetentionJob(purger, markets, clock),
+      ],
+    ),
     {
       provide: JOB_LOCK,
       inject: [PrismaRoot],
