@@ -1,0 +1,29 @@
+{
+  "serviceAreaCode": "zz-central",
+  "emailDomain": "example.com",
+  "merchantName": "Dev Grocer ZZ",
+  "pickup": {
+    "address": "1 Synthetic Way",
+    "postcode": "1000",
+    "point": { "lat": 10.001, "lng": 20.001 },
+    "contactName": "Dev Grocer",
+    "contactPhone": "+999 100 0001"
+  },
+  "dropoffs": [
+    {
+      "address": "2 Fixture Rd",
+      "postcode": "1001",
+      "point": { "lat": 10.011, "lng": 20.009 },
+      "contactName": "Sample Customer",
+      "contactPhone": "+999 100 0002"
+    },
+    {
+      "address": "3 Example Ave",
+      "postcode": "1500",
+      "point": { "lat": 10.02, "lng": 20.015 },
+      "contactName": "Sample Customer",
+      "contactPhone": "+999 100 0003"
+    }
+  ],
+  "vehicle": { "type": "van", "plate": "ZZ 001", "coldBox": "refrigerated" }
+}
