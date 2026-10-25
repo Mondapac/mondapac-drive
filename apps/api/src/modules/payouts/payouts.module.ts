@@ -39,6 +39,7 @@ import {
 } from './application/use-cases/get-courier-balance.use-case';
 import { HandleProviderWebhook } from './application/use-cases/handle-provider-webhook.use-case';
 import { ListPayoutLines } from './application/use-cases/list-payout-lines.use-case';
+import { EarningsQuote } from './application/use-cases/quote-offer-earning.use-case';
 import { RecordAdjustment } from './application/use-cases/record-adjustment.use-case';
 import { RecordDeliveryEarning } from './application/use-cases/record-delivery-earning.use-case';
 import { RecordTip } from './application/use-cases/record-tip.use-case';
@@ -145,10 +146,12 @@ function useCase<U>(
     useCase(SettleUnresolvedLine),
     useCase(StartPayoutOnboarding),
     useCase(HandleProviderWebhook),
+    useCase(EarningsQuote),
     registerJobsFrom('payouts', [RunPayouts], (run: RunPayouts) => [payoutJob(run)]),
     registerSubscriptionsFrom('payouts', [RecordDeliveryEarning], (record: RecordDeliveryEarning) =>
       deliveryEarningSubscriptions(record),
     ),
   ],
+  exports: [EarningsQuote],
 })
 export class PayoutsModule {}

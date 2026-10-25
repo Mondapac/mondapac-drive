@@ -40,6 +40,7 @@ import {
   RETRY_LATER,
 } from '../../src/modules/payouts/application/use-cases/handle-provider-webhook.use-case';
 import { ListPayoutLines } from '../../src/modules/payouts/application/use-cases/list-payout-lines.use-case';
+import { EarningsQuote } from '../../src/modules/payouts/application/use-cases/quote-offer-earning.use-case';
 import { RecordAdjustment } from '../../src/modules/payouts/application/use-cases/record-adjustment.use-case';
 import {
   RecordDeliveryEarning,
@@ -382,6 +383,30 @@ describe('courier pay and payouts (database integration)', () => {
       );
       expect(staff.ok && staff.value.entry).toBeUndefined();
       expect(await w.balanceOf(employee)).toEqual(w.m(0n));
+    });
+
+    it('offers a courier exactly what the delivery then credits their balance', async () => {
+      const w = world(code, index + 21);
+      for (const overrides of [{}, { taxRegistered: false }]) {
+        const courierId = w.courier(overrides);
+        const fact = w.delivered(courierId);
+        const quoted = await use(EarningsQuote).forOffer(w.person('courier', courierId), {
+          deliveryId: fact.deliveryId,
+          ...facts.get(fact.deliveryId)!,
+        });
+
+        expect(await w.earn(fact)).toEqual(ok(expect.objectContaining({ recorded: true })));
+        expect(quoted).not.toBeNull();
+        expect(await w.balanceOf(courierId)).toEqual(quoted);
+      }
+      const employee = w.courier({ engagement: 'employee' });
+      const fact = w.delivered(employee);
+      expect(
+        await use(EarningsQuote).forOffer(w.person('courier', employee), {
+          deliveryId: fact.deliveryId,
+          ...facts.get(fact.deliveryId)!,
+        }),
+      ).toBeNull();
     });
 
     it("sums the courier's earnings today and this week, and today's deliveries", async () => {
