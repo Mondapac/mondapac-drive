@@ -35,7 +35,8 @@ export default async function HomePage() {
   const nav = visibleNavItems(adminNav, keys);
   const navHrefs = new Set(nav.map((item) => item.href));
   const reads = countReadsFor(keys);
-  const results = await Promise.all(reads.map((read) => serverGet<unknown>(read.path)));
+  const now = new Date();
+  const results = await Promise.all(reads.map((read) => serverGet<unknown>(read.path(now))));
   if (results.some((result) => result.kind === 'signed-out')) redirect('/session-ended');
   const figures = reads.map((read, index) => {
     const result = results[index];
