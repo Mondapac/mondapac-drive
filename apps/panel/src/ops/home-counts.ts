@@ -1,4 +1,6 @@
 import type { IconName, StatTone } from '@mondapac-drive/ui';
+import { needsAttention } from '../deliveries/filters.ts';
+import type { DeliverySummary } from './types.ts';
 
 // The Home figures: what an operator should look at now. Each one reads the first page of an
 // existing list route, only for a session that holds the route's key; a full page with more
@@ -33,6 +35,19 @@ const pageCount = (body: unknown) => {
 };
 
 export const COUNT_READS: readonly CountRead[] = [
+  {
+    id: 'deliveries-attention',
+    icon: 'alert-triangle',
+    key: 'delivery.delivery.view',
+    path: `delivery/admin/deliveries?limit=${COUNT_PAGE}`,
+    href: '/deliveries?show=attention',
+    tone: 'critical',
+    count: (body) => {
+      const page = body as { items?: readonly DeliverySummary[]; next?: unknown };
+      const count = (page.items ?? []).filter(needsAttention).length;
+      return { count, hasMore: typeof page.next === 'string' };
+    },
+  },
   {
     id: 'deliveries-waiting',
     icon: 'package',

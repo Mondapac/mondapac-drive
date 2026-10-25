@@ -31,6 +31,19 @@ describe('Home figures', () => {
     expect(read('dead-webhooks').count({ calls: [] })).toEqual({ count: 0, hasMore: false });
   });
 
+  it('counts the deliveries a dispatcher must look at among the latest page', () => {
+    const body = {
+      items: [
+        { status: 'DELIVERY_FAILED' },
+        { status: 'DISPATCHING', exception: 'dispatch-exhausted' },
+        { status: 'PICKED_UP', exception: null },
+        { status: 'DELIVERED' },
+      ],
+      next: 'abc',
+    };
+    expect(read('deliveries-attention').count(body)).toEqual({ count: 2, hasMore: true });
+  });
+
   it('adds up the documents to review across the page of couriers', () => {
     const body = { items: [{ documentsToReview: 2 }, { documentsToReview: 0 }, {}], next: null };
     expect(read('fleet-documents').count(body)).toEqual({ count: 2, hasMore: false });

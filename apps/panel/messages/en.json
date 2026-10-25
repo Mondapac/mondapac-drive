@@ -52,6 +52,10 @@
     "title": "Needs you now",
     "all-clear": "Nothing is waiting for you right now.",
     "error": "Could not load this figure. Reload the page to try again.",
+    "deliveries-attention": {
+      "label": "Deliveries needing attention",
+      "scope": "Failed, cold chain breached or no courier found, among the latest 100"
+    },
     "deliveries-waiting": {
       "label": "Deliveries waiting for a courier",
       "scope": "Dispatch open, no courier yet"
