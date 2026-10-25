@@ -2,8 +2,9 @@ import type { Provider } from '@nestjs/common';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { ServiceAreaDirectory } from '../../../platform/market-config/service-area-directory';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
-import { COURIER_REPOSITORY, FLEET_RULES } from '../application/ports';
+import { COURIER_JOB_REPOSITORY, COURIER_REPOSITORY, FLEET_RULES } from '../application/ports';
 import { ConfigFleetRulesProvider } from './config-fleet-rules.provider';
+import { PrismaCourierJobRepository } from './prisma-courier-job.repository';
 import { PrismaCourierRepository } from './prisma-courier.repository';
 
 /** The implementations of the fleet ports. Only infrastructure/ reaches the persistence internals. */
@@ -12,6 +13,11 @@ export const fleetProviders: Provider[] = [
     provide: COURIER_REPOSITORY,
     inject: [PrismaService],
     useFactory: (prisma: PrismaService) => new PrismaCourierRepository(prisma),
+  },
+  {
+    provide: COURIER_JOB_REPOSITORY,
+    inject: [PrismaService],
+    useFactory: (prisma: PrismaService) => new PrismaCourierJobRepository(prisma),
   },
   {
     provide: FLEET_RULES,

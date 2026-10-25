@@ -1,5 +1,6 @@
 import type { Id, MarketContext, MarketId } from '@mondapac-drive/shared-kernel';
 import type { CourierState } from '../domain/courier';
+import type { CourierJob } from '../domain/courier-job';
 import type { CourierStatus } from '../domain/courier-status';
 import type { MarketFleetRules } from '../domain/fleet-rules';
 
@@ -40,6 +41,21 @@ export interface CourierRepository {
   findOnlineInArea(market: MarketContext, serviceAreaCode: string): Promise<CourierState[]>;
 }
 export const COURIER_REPOSITORY = Symbol('CourierRepository');
+
+/**
+ * Fleet's view of the deliveries couriers carry (`CourierJob`), kept by the subscriber to
+ * delivery's events. Runs inside the caller's unit of work, like {@link CourierRepository}.
+ */
+export interface CourierJobRepository {
+  find(market: MarketContext, deliveryId: Id<'Delivery'>): Promise<CourierJob | undefined>;
+  /**
+   * Writes `job` over the stored one, which had `previousVersion` (undefined: none yet). Throws
+   * `StaleAggregateError` when another event of the delivery was applied in between, so the
+   * event is retried and reads the job again.
+   */
+  save(market: MarketContext, job: CourierJob, previousVersion: number | undefined): Promise<void>;
+}
+export const COURIER_JOB_REPOSITORY = Symbol('CourierJobRepository');
 
 /** The fleet rules and service areas of the Markets this deployment hosts. */
 export interface FleetRulesProvider {
