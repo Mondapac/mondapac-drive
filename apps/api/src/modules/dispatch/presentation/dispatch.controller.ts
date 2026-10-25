@@ -26,6 +26,11 @@ const offerBody = (offer: CourierOffer) => ({
   dropoff: { address: offer.dropoff.address, point: offer.dropoff.point },
   distanceMetres: offer.tripDistanceMetres,
   temperature: offer.temperature,
+  // Money on the wire, as payouts answers it: minor units as decimal text.
+  earnings:
+    offer.earnings === null
+      ? null
+      : { amount: offer.earnings.amount.toString(), currency: offer.earnings.currency },
 });
 
 const sentOfferBody = (offer: Offer) => ({
@@ -79,8 +84,10 @@ export class CourierOffersController {
   @ApiOperation({
     summary: "The courier's open offer that expires first, or null",
     description:
-      'Both addresses and points, the trip distance, the temperature and the expiry. Earnings ' +
-      'come with the payouts rate (work package 24).',
+      'Both addresses and points, the trip distance, the temperature, the expiry and ' +
+      '`earnings`: what the courier earns for it, `{ amount, currency }` in minor units as ' +
+      'decimal text, tax included and without waiting time; null for an employee, a courier ' +
+      'without a payee profile or a vehicle the Market has no courier rate for.',
   })
   async current(@Call() context: CallContext) {
     const offer = answer(await this.viewOffer.execute(context, {}));
