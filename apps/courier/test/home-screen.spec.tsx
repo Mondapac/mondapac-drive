@@ -150,3 +150,16 @@ it('stops tracking when going offline', async () => {
   await screen.findByText('You are offline');
   expect(harness.tracking.stop).toHaveBeenCalledTimes(1);
 });
+
+it('explains that an open job keeps the courier online', async () => {
+  const harness = await createHarness();
+  await renderHome(harness);
+  await screen.findByText('You are offline');
+  await press('Go online');
+  await screen.findByText('You are online');
+  jest
+    .spyOn(harness.api, 'setShift')
+    .mockRejectedValueOnce(new ApiError(409, 'fleet.shift.active-delivery'));
+  await press('Go offline');
+  await screen.findByText('Finish your active delivery before you go offline.');
+});

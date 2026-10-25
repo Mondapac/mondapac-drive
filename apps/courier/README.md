@@ -94,7 +94,7 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 
 - Fleet: `GET /fleet/courier/me` (`{ shift, activeDeliveryId, … }`; 404 `fleet.courier.not-found`
   before an operator sets up the profile), `PUT …/me/shift { state }` (409
-  `fleet.shift.transition-not-allowed` mid-delivery, 422 `fleet.courier.*` when the courier may
+  `fleet.shift.active-delivery` mid-delivery, 422 `fleet.courier.*` when the courier may
   not work) and `GET …/me/settings` (the Market's courier settings). Fleet reports
   the real `activeDeliveryId`; the app also keeps the delivery it accepted in the secure
   store (with the session) as a fallback while fleet has not caught up, until the job ends or
