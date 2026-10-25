@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { hostname, userInfo } from 'node:os';
 import path from 'node:path';
 import type { Clock } from '@mondapac-drive/shared-kernel';
@@ -11,7 +11,7 @@ import { AppModule } from './app.module';
 import { databaseAccepted } from './check-database-role';
 import { APP_OPTIONS, configureApp } from './configure-app';
 import { DEV_SEED_COMMANDS } from './dev-seed/dev-seed-commands';
-import { devSeedRefusal } from './dev-seed/guard';
+import { devSeedRefusal, dropOutboundProviders } from './dev-seed/guard';
 import { SeedMailCatcher } from './dev-seed/mail-catcher';
 import {
   SeedAlreadyRunError,
@@ -60,6 +60,8 @@ async function main(argv: readonly string[]): Promise<number> {
   const data = readJson<SeedData>(
     path.join(REPO_ROOT, 'scripts/dev-seed/markets', `${args.market}.json`),
   );
+  const routingKeys = readRoutingKeyVariables(process.env.MARKET_CONFIG_DIR, args.market);
+  dropOutboundProviders(process.env, routingKeys);
   const mail = await SeedMailCatcher.start();
   const config = {
     ...loadAppConfig({ ...process.env, APP_ROLE: 'api', MAIL_CATCHER_URL: mail.url }),
@@ -114,8 +116,13 @@ async function main(argv: readonly string[]): Promise<number> {
       },
     });
     const out = path.resolve(args.out ?? path.join(REPO_ROOT, '.dev/seed', `${args.market}.json`));
-    mkdirSync(path.dirname(out), { recursive: true });
-    writeFileSync(out, `${JSON.stringify(outcome, null, 2)}\n`, { mode: 0o600 });
+    // Owner-only, also when --out names an existing file (Hassan L2): a fresh file, renamed in.
+    mkdirSync(path.dirname(out), { recursive: true, mode: 0o700 });
+    chmodSync(path.dirname(out), 0o700);
+    const fresh = `${out}.${process.pid}.tmp`;
+    writeFileSync(fresh, `${JSON.stringify(outcome, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    chmodSync(fresh, 0o600);
+    renameSync(fresh, out);
     process.stdout.write(
       `dev-seed: ${args.market} seeded; credentials in ${path.relative(process.cwd(), out)}\n`,
     );
@@ -178,6 +185,22 @@ function originOf(pages: Record<string, string>): string {
   const first = Object.values(pages)[0];
   if (first === undefined) throw new Error('the Market has no admin link pages');
   return new URL(first).origin;
+}
+
+/**
+ * Every routing key variable the Market configuration names (`routing.<provider>.apiKeyEnv`),
+ * so the seed drops them with the other outbound providers.
+ */
+function readRoutingKeyVariables(directory: string | undefined, market: string): string[] {
+  const directories = [directory ?? path.join(REPO_ROOT, 'config/markets')];
+  try {
+    const file = readMarketFile(directories, market) as { routing?: unknown };
+    return [...JSON.stringify(file.routing ?? {}).matchAll(/"apiKeyEnv":"([A-Z][A-Z0-9_]*)"/g)].map(
+      (match) => match[1]!,
+    );
+  } catch {
+    return [];
+  }
 }
 
 function readJson<T>(file: string): T {

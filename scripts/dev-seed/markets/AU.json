@@ -7,7 +7,7 @@
     "postcode": "4000",
     "point": { "lat": -27.4679, "lng": 153.0281 },
     "contactName": "Dev Grocer",
-    "contactPhone": "+61 400 000 001"
+    "contactPhone": "+61 491 570 006"
   },
   "dropoffs": [
     {
@@ -15,21 +15,21 @@
       "postcode": "4101",
       "point": { "lat": -27.4813, "lng": 153.0095 },
       "contactName": "Sample Customer",
-      "contactPhone": "+61 400 000 002"
+      "contactPhone": "+61 491 570 156"
     },
     {
       "address": "5 Logan Rd, Woolloongabba QLD",
       "postcode": "4102",
       "point": { "lat": -27.4893, "lng": 153.0367 },
       "contactName": "Sample Customer",
-      "contactPhone": "+61 400 000 003"
+      "contactPhone": "+61 491 570 157"
     },
     {
       "address": "12 James St, Fortitude Valley QLD",
       "postcode": "4006",
       "point": { "lat": -27.4577, "lng": 153.0418 },
       "contactName": "Sample Customer",
-      "contactPhone": "+61 400 000 004"
+      "contactPhone": "+61 491 570 158"
     }
   ],
   "vehicle": { "type": "van", "plate": "DEV001", "coldBox": "refrigerated" }

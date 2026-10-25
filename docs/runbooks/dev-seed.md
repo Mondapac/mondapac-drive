@@ -24,10 +24,15 @@ machine. Market values (stops, service area, vehicle) come from
 
 ## Guard (security path)
 
-The seed refuses to run unless **both** hold:
+The seed refuses to run unless **all** hold:
 
 - `NODE_ENV` is set explicitly to `development` or `test`;
-- the database name in `DATABASE_URL` ends in `_dev` or `_test`.
+- the database name in `DATABASE_URL` ends in `_dev` or `_test`;
+- the database host (and Redis, when set) is local, or listed in `DEV_SEED_ALLOWED_HOSTS`.
+
+The seed also removes the outbound provider keys (Twilio, Stripe, Expo push, the routing keys)
+from its own environment before it boots, so seed data never sends a real SMS, push or payout;
+the AU sample phones are in ACMA's fictional range (`+61 491 570 xxx`).
 
 A second run on the same database refuses (`already has its first admin`, exit 2). No image
 starts the seed: it is a separate entry (`dist/dev-seed.js`) called only by `scripts/dev-seed.mjs`.
