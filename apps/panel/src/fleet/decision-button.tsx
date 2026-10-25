@@ -140,6 +140,7 @@ export function DecisionButton({
   csrfToken,
   variant = 'secondary',
   destructive = false,
+  name,
 }: {
   readonly copy: DecisionCopy;
   readonly method?: 'POST' | 'PUT';
@@ -148,6 +149,8 @@ export function DecisionButton({
   readonly csrfToken: string;
   readonly variant?: ButtonVariant;
   readonly destructive?: boolean;
+  /** The accessible name when several rows show the same label; it starts with the label. */
+  readonly name?: string;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -193,6 +196,7 @@ export function DecisionButton({
     <>
       <Button
         variant={variant}
+        aria-label={name}
         onClick={() => {
           setValues(initialValues(fields));
           setWrong([]);

@@ -21,10 +21,13 @@ export function DownloadButton({
   courierId,
   documentId,
   label,
+  name,
 }: {
   readonly courierId: string;
   readonly documentId: string;
   readonly label: string;
+  /** The accessible name when several rows show the same label; it starts with the label. */
+  readonly name?: string;
 }) {
   const t = useTranslations();
   const notify = useNotice();
@@ -76,7 +79,7 @@ export function DownloadButton({
   }
 
   return (
-    <Button variant="secondary" loading={pending} onClick={() => void download()}>
+    <Button variant="secondary" loading={pending} aria-label={name} onClick={() => void download()}>
       {label}
     </Button>
   );

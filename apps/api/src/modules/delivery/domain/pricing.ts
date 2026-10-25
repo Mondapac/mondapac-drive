@@ -23,6 +23,11 @@ export interface PriceBreakdown {
 export interface DeliveryQuote {
   readonly vehicle: VehicleType;
   readonly distanceMetres: number;
+  /**
+   * True when the distance is the straight line times a road factor, not a road route: the map
+   * provider was slow or down. The price is still binding for this quote.
+   */
+  readonly distanceEstimated: boolean;
   readonly breakdown: PriceBreakdown;
   /** What the merchant pays, tax included. */
   readonly total: Money;
@@ -33,6 +38,8 @@ export interface DeliveryQuote {
 export interface QuoteRequest {
   readonly parcel: Parcel;
   readonly distanceMetres: number;
+  /** See {@link DeliveryQuote.distanceEstimated}; false when left out. */
+  readonly distanceEstimated?: boolean;
   readonly mode: DeliveryMode;
   /** Ask for a specific vehicle; otherwise the cheapest one that can carry the parcel. */
   readonly vehicle?: VehicleType;
@@ -105,6 +112,7 @@ function quoteFor(
   return {
     vehicle,
     distanceMetres: request.distanceMetres,
+    distanceEstimated: request.distanceEstimated ?? false,
     breakdown: { base, distance, coldChain, scheduledDiscount: subtractMoney(minor(0), discount) },
     total,
     tax,

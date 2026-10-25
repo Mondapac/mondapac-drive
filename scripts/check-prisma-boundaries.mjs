@@ -65,6 +65,8 @@ const RAW_SQL_FILES = new Set([
   'platform/persistence/named-statements.ts',
   'platform/persistence/outbox/in-process-event-bus.ts',
   'platform/persistence/outbox/prisma-event-dispatcher.ts',
+  // platform.inbox-retention: one bounded DELETE per module inbox, identifiers from the model map.
+  'platform/persistence/outbox/prisma-inbox-purger.ts',
   'platform/persistence/outbox/prisma-outbox-relay.ts',
   // The PostgreSQL store of rate-limiter-flexible sends its own fixed statements (identity design 13).
   'platform/persistence/postgres-rate-limit-counters.ts',

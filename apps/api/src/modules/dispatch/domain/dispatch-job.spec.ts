@@ -297,10 +297,14 @@ describe.each([
       const job = offered(1, 2);
       const assigned = answerOffer(job, offerTo(job, 1), courierId(1), 'accept', now).job;
       expect(assigned.stops).toBeUndefined();
-      const again = redispatch(assigned, stops({ dropoffAddress: '3 New Lane' }), now);
+      const again = redispatch(
+        assigned,
+        stops({ dropoffArea: { suburb: 'New Town', postcode: '4102' } }),
+        now,
+      );
 
       expect(again.job).toMatchObject({ status: 'OFFERING', round: 0, nextActionAt: now });
-      expect(again.job.stops?.dropoffAddress).toBe('3 New Lane');
+      expect(again.job.stops?.dropoffArea.suburb).toBe('New Town');
       expect(again.job.assignment).toBeUndefined();
       const wave = sendWave(again.job, candidates(1, 3, 4), now, settings, nextOfferId);
       expect(pendingOffers(wave.job).map((o) => o.courierId)).not.toContain(courierId(1));

@@ -35,7 +35,8 @@ export default async function HomePage() {
   const nav = visibleNavItems(adminNav, keys);
   const navHrefs = new Set(nav.map((item) => item.href));
   const reads = countReadsFor(keys);
-  const results = await Promise.all(reads.map((read) => serverGet<unknown>(read.path)));
+  const now = new Date();
+  const results = await Promise.all(reads.map((read) => serverGet<unknown>(read.path(now))));
   if (results.some((result) => result.kind === 'signed-out')) redirect('/session-ended');
   const figures = reads.map((read, index) => {
     const result = results[index];
@@ -43,6 +44,8 @@ export default async function HomePage() {
   });
   const allClear =
     figures.length > 0 && figures.every(({ figure }) => figure !== null && figure.count === 0);
+  // One message when no figure could be read, instead of the same error on every card.
+  const allFailed = figures.length > 0 && figures.every(({ figure }) => figure === null);
   const items: Shortcut[] = nav
     .filter((item) => item.id !== 'home')
     .map((item) => ({
@@ -65,23 +68,29 @@ export default async function HomePage() {
               {t('home-now.title')}
             </h2>
             {allClear ? <p className="text-fg-muted">{t('home-now.all-clear')}</p> : null}
-            <StatGrid label={t('home-now.title')}>
-              {figures.map(({ read, figure }) => {
-                const href = cardHref(read, navHrefs);
-                return (
-                  <StatCard
-                    key={read.id}
-                    icon={read.icon}
-                    label={t(`home-now.${read.id}.label`)}
-                    value={figure === null ? '' : formatCount(figure.count, figure.hasMore, locale)}
-                    scope={t(`home-now.${read.id}.scope`)}
-                    tone={figure !== null && figure.count > 0 ? read.tone : 'neutral'}
-                    {...(href === null ? {} : { href })}
-                    {...(figure === null ? { error: t('home-now.error') } : {})}
-                  />
-                );
-              })}
-            </StatGrid>
+            {allFailed ? (
+              <LoadError message={t('identity.error.unknown')} retryLabel={t('load.retry')} />
+            ) : (
+              <StatGrid label={t('home-now.title')}>
+                {figures.map(({ read, figure }) => {
+                  const href = cardHref(read, navHrefs);
+                  return (
+                    <StatCard
+                      key={read.id}
+                      icon={read.icon}
+                      label={t(`home-now.${read.id}.label`)}
+                      value={
+                        figure === null ? '' : formatCount(figure.count, figure.hasMore, locale)
+                      }
+                      scope={t(`home-now.${read.id}.scope`)}
+                      tone={figure !== null && figure.count > 0 ? read.tone : 'neutral'}
+                      {...(href === null ? {} : { href })}
+                      {...(figure === null ? { error: t('home-now.error') } : {})}
+                    />
+                  );
+                })}
+              </StatGrid>
+            )}
           </section>
         )}
         <ShortcutGrid label={t('home.shortcuts')} items={items} />

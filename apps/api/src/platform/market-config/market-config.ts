@@ -547,6 +547,29 @@ const deliverySchema = z.strictObject({
     pinLength: z.number().int().min(4).max(8),
     maxPinAttempts: z.number().int().min(1).max(10),
   }),
+  /**
+   * How long a quote or a booking may wait on the map provider (the marketplace gives Drive
+   * 2.5 s per attempt; Drive aims to answer within 2 s). Past `geocodeMs` an address answers
+   * `address.geocoding-unavailable` (the late answer still fills the cache, so a retry is
+   * quick); past `routeMs` the distance is the straight line times `estimateRoadFactor`, and the
+   * quote says it is estimated. Geocoded points are kept `geocodeCacheSeconds`.
+   */
+  responseBudget: z
+    .strictObject({
+      geocodeMs: z.number().int().min(100).max(1500),
+      routeMs: z.number().int().min(100).max(1500),
+      estimateRoadFactor: z.number().min(1).max(3),
+      geocodeCacheSeconds: z
+        .number()
+        .int()
+        .min(0)
+        .max(7 * 86_400),
+    })
+    // Both waits in a row must leave room for the database within the 2 s budget.
+    .refine((budget) => budget.geocodeMs + budget.routeMs <= 1900, {
+      message: 'geocodeMs + routeMs must be at most 1900',
+      path: ['routeMs'],
+    }),
 });
 
 /**
@@ -561,6 +584,11 @@ const dispatchSchema = z.strictObject({
   scheduledLeadMinutes: z.number().int().nonnegative().max(1440),
   searchRadiusMetres: z.number().int().positive().max(200_000),
   candidateLimit: z.number().int().min(1).max(200),
+  /**
+   * Decimal places of the drop-off point an offer shows before accept (security L3): 3 is a
+   * cell of about 110 m, so the point names a street block, not a house. At most 4 (about 11 m).
+   */
+  offerPointDecimals: z.number().int().min(1).max(4),
 });
 
 /** Whole seconds, bounded so a typo cannot disable a check. */
@@ -643,6 +671,14 @@ const fleetSchema = z
     },
   );
 
+/**
+ * The `events` section, owned by `platform/events`: how long a handled inbox row is kept
+ * (`platform.inbox-retention`). At least 7 days, well past every retry of a delivery.
+ */
+const eventsSchema = z.strictObject({
+  inboxRetentionDays: z.number().int().min(7).max(3650),
+});
+
 const marketSchema = z
   .strictObject({
     code: marketCode,
@@ -672,6 +708,7 @@ const marketSchema = z
     fleet: fleetSchema,
     /** Courier earnings and payouts (payouts-config.ts). */
     payouts: payoutsSchema,
+    events: eventsSchema,
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',

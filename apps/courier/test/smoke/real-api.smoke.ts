@@ -34,6 +34,24 @@ function apiUrl(): string {
   return url;
 }
 
+/**
+ * Goes offline once fleet has ended the job. Fleet frees the courier when delivery's terminal
+ * event reaches it through the outbox, a moment after `delivered` answers, so the shift change
+ * may first meet 409 fleet.shift.active-delivery.
+ */
+async function goOffline(api: CourierApi): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await api.setShift('offline');
+      return;
+    } catch (error) {
+      const waiting = (error as ApiError).code === 'fleet.shift.active-delivery';
+      if (!waiting || attempt === 20) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
+
 describe('courier app on the real API', () => {
   let session: CourierSession | null = null;
   const baseUrl = apiUrl();
@@ -97,7 +115,7 @@ describe('courier app on the real API', () => {
     const earnings = await api.earnings();
     expect(earnings.today.currency).toBe(settings.currency);
 
-    await api.setShift('offline');
+    await goOffline(api);
     const token = session;
     await api.signOut();
     session = null;
