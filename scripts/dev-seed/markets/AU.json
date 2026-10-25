@@ -1,0 +1,36 @@
+{
+  "serviceAreaCode": "greater-brisbane",
+  "emailDomain": "example.com",
+  "merchantName": "Dev Halal Grocer Brisbane",
+  "pickup": {
+    "address": "100 Adelaide St, Brisbane City QLD",
+    "postcode": "4000",
+    "point": { "lat": -27.4679, "lng": 153.0281 },
+    "contactName": "Dev Grocer",
+    "contactPhone": "+61 400 000 001"
+  },
+  "dropoffs": [
+    {
+      "address": "20 Boundary St, West End QLD",
+      "postcode": "4101",
+      "point": { "lat": -27.4813, "lng": 153.0095 },
+      "contactName": "Sample Customer",
+      "contactPhone": "+61 400 000 002"
+    },
+    {
+      "address": "5 Logan Rd, Woolloongabba QLD",
+      "postcode": "4102",
+      "point": { "lat": -27.4893, "lng": 153.0367 },
+      "contactName": "Sample Customer",
+      "contactPhone": "+61 400 000 003"
+    },
+    {
+      "address": "12 James St, Fortitude Valley QLD",
+      "postcode": "4006",
+      "point": { "lat": -27.4577, "lng": 153.0418 },
+      "contactName": "Sample Customer",
+      "contactPhone": "+61 400 000 004"
+    }
+  ],
+  "vehicle": { "type": "van", "plate": "DEV001", "coldBox": "refrigerated" }
+}

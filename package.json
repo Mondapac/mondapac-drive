@@ -12,6 +12,8 @@
     "postinstall": "prisma generate",
     "dev": "pnpm --filter @mondapac-drive/shared-kernel build && pnpm --filter @mondapac-drive/api dev",
     "dev:worker": "node scripts/dev-worker.mjs",
+    "dev:seed": "node scripts/dev-seed.mjs",
+    "smoke:courier": "node scripts/courier-smoke.mjs",
     "build": "pnpm db:generate && pnpm -r build && node scripts/check-built-kernel.mjs && node scripts/check-built-parser.mjs",
     "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",
