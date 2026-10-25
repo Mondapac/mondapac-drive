@@ -77,3 +77,17 @@ export function twilioCredentials(
   }
   return { accountSid, authToken };
 }
+
+/**
+ * Expo's access token for push (`EXPO_ACCESS_TOKEN`), or null when it is not set: then no push
+ * is sent (a warning at start-up), since a project with push security refuses unsigned calls.
+ * A secret: never logged.
+ */
+export function expoAccessToken(env: Readonly<Record<string, string | undefined>>): string | null {
+  const token = env.EXPO_ACCESS_TOKEN ?? '';
+  if (token === '') return null;
+  if (!/^[A-Za-z0-9_-]{20,256}$/.test(token)) {
+    throw new Error('EXPO_ACCESS_TOKEN must be an Expo access token');
+  }
+  return token;
+}

@@ -228,6 +228,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
         'status',
       ],
     },
+    // 20261027030000: courier push devices are registered and dropped, never changed.
+    'notifications.push_devices': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'notifications.sms_messages': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [

@@ -91,6 +91,7 @@ const NOTIFICATIONS = {
     pinText: 'PIN {pin}.',
     trackingPageUrl: 'https://track.example.com/t/{token}',
   },
+  push: { offerTitle: 'New offer', offerBody: 'New offer, expires in {seconds} s' },
 };
 
 const FLEET = {

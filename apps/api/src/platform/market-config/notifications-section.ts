@@ -52,12 +52,19 @@ const trackingPageUrl = z
     }
   }, 'must be an https URL without credentials');
 
+/** The courier's offer push: a short title, and a body that names `{seconds}` exactly once. */
+const offerPushBody = textNaming(['seconds'], 120).refine(
+  (value) => value.split('{seconds}').length === 2,
+  'must name {seconds} exactly once',
+);
+
 /**
  * The `notifications` section, owned by the notifications module: merchant webhook retries and
  * the recipient SMS of each Market. `sms.senderId` is the alphanumeric sender id (at most 11
  * characters, letters first) or an E.164 number; `optOutText` is appended to every message,
  * `pinText` to the booked one when the delivery has a PIN; `trackingPageUrl` is the customer
- * page a tracking link token opens.
+ * page a tracking link token opens. `push` is the courier's offer push: it names no address,
+ * recipient or merchant, only the seconds left.
  */
 export const notificationsSchema = z.strictObject({
   webhooks: z
@@ -100,5 +107,9 @@ export const notificationsSchema = z.strictObject({
     }),
     pinText,
     trackingPageUrl,
+  }),
+  push: z.strictObject({
+    offerTitle: textNaming([], 40),
+    offerBody: offerPushBody,
   }),
 });

@@ -226,6 +226,10 @@
       },
       "pinText": "ZZ PIN {pin}",
       "trackingPageUrl": "https://track.zz.example/t/{token}"
+    },
+    "push": {
+      "offerTitle": "New offer",
+      "offerBody": "ZZ offer: {seconds} s left"
     }
   },
   "fleet": {
