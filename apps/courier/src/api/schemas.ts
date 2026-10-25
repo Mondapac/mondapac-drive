@@ -67,7 +67,19 @@ export const courierStatus = z.object({
 });
 export type CourierStatus = z.infer<typeof courierStatus>;
 
-const offerStop = z.object({ address: z.string(), point });
+/**
+ * A stop before the courier accepts: the area only (Security L3). `suburb` is null when delivery
+ * has none for the address; the app then shows the postcode alone. The full address, contact and
+ * notes come with the job once the courier accepts.
+ */
+// Strict: an offer that carries any more than the area (an address, a contact) is refused, not
+// silently trimmed, so a server regression on L3 shows at once.
+const offerStop = z.strictObject({
+  suburb: z.string().min(1).nullable(),
+  postcode: z.string(),
+  point,
+});
+export type OfferStop = z.infer<typeof offerStop>;
 
 export const offer = z.object({
   id: z.string().min(1),
@@ -76,8 +88,12 @@ export const offer = z.object({
   pickup: offerStop,
   dropoff: offerStop,
   distanceMetres: z.number().int().nonnegative(),
-  /** Absent until dispatch quotes the courier's pay (payouts rate card). */
-  earnings: money.optional(),
+  /**
+   * The pay dispatch quotes from the Market's rate card, before waiting time (so the final earning
+   * can be higher). Null for an employee (paid through payroll), a courier with no payee profile,
+   * or a vehicle the Market has no rate for: the card then shows no pay line.
+   */
+  earnings: money.nullable(),
   temperature: z.enum(TEMPERATURES),
 });
 export type Offer = z.infer<typeof offer>;

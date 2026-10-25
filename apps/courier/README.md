@@ -90,14 +90,15 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 - Tracking: `POST /tracking/courier/pings` (`{ pings: [...] }`, at most 20; the courier is the
   session's, so no ping carries a courier id).
 - Dispatch: `GET /dispatch/courier/offers/current`, `POST …/:id/accept` (`{ deliveryId }`) and
-  `…/:id/decline` (204). The offer has no pay until payouts quotes it; the card then hides it.
+  `…/:id/decline` (204). Before accept an offer names only the suburb and postcode of each stop (`{ suburb | null, postcode, point }`, Security L3) and `earnings: Money | null` (an estimate before waiting time, shown as "about"; null for an employee, a courier with no payee profile or a vehicle without a rate, shown as "pay unavailable", never zero). The drop-off point is snapped to a grid and is never used to navigate. The full address comes with the job after accept.
 
 - Fleet: `GET /fleet/courier/me` (`{ shift, activeDeliveryId, … }`; 404 `fleet.courier.not-found`
   before an operator sets up the profile), `PUT …/me/shift { state }` (409
-  `fleet.shift.transition-not-allowed` mid-delivery, 422 `fleet.courier.*` when the courier may
+  `fleet.shift.active-delivery` mid-delivery, 422 `fleet.courier.*` when the courier may
   not work) and `GET …/me/settings` (the Market's courier settings). Fleet reports
-  `activeDeliveryId: null` for now, so the app keeps the delivery it accepted in the secure
-  store (with the session) and returns to it after a restart, until the job ends or answers 404.
+  the real `activeDeliveryId`; the app also keeps the delivery it accepted in the secure
+  store (with the session) as a fallback while fleet has not caught up, until the job ends or
+  answers 404; once fleet names a different delivery the device copy is dropped.
 - Payouts: `GET /payouts/courier/me/summary` (`{ today, week, deliveriesToday }` in the
   Market's time zone, the week from Monday) and `GET …/me/balance?limit=20` (`{ balance:
   { amount, tax, total }, entries }`, newest first; amounts are signed, a payout is negative).

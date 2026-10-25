@@ -18,6 +18,7 @@ const MESSAGES: Readonly<Record<string, TranslationKey>> = {
   'network.unavailable': 'errors.network',
   'session.missing': 'errors.session',
   'fleet.shift.transition-not-allowed': 'errors.deliveryInProgress',
+  'fleet.shift.active-delivery': 'errors.deliveryInProgress',
   'fleet.courier.not-found': 'errors.noProfile',
   'fleet.courier.not-eligible': 'errors.notEligible',
   'fleet.courier.not-active': 'errors.notEligible',
