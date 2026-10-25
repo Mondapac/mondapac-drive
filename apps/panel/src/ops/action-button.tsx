@@ -25,6 +25,7 @@ export interface ConfirmCopy {
  */
 export function ActionButton({
   label,
+  name,
   path,
   body = {},
   csrfToken,
@@ -34,6 +35,11 @@ export function ActionButton({
   errorScope,
 }: {
   readonly label: string;
+  /**
+   * The button's accessible name when several rows show the same label ("Settle Noor Haddad's
+   * line"); it starts with the visible label (WCAG 2.5.3).
+   */
+  readonly name?: string;
   readonly path: string;
   readonly body?: Readonly<Record<string, unknown>>;
   readonly csrfToken: string;
@@ -87,7 +93,7 @@ export function ActionButton({
 
   if (confirm === undefined) {
     return (
-      <Button variant={variant} loading={pending} onClick={() => void run()}>
+      <Button variant={variant} loading={pending} aria-label={name} onClick={() => void run()}>
         {label}
       </Button>
     );
@@ -97,6 +103,7 @@ export function ActionButton({
     <>
       <Button
         variant={variant}
+        aria-label={name}
         onClick={() => {
           setProblem(null);
           setReasonError(undefined);

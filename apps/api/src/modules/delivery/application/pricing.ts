@@ -108,7 +108,7 @@ export class DeliveryPricing {
       ]);
       if (!('lat' in pickupPoint)) return err(pickupPoint);
       if (!('lat' in dropoffPoint)) return err(dropoffPoint);
-      const distanceMetres = await this.distances.roadDistanceMetres(
+      const distance = await this.distances.distance(
         market,
         pickupPoint,
         dropoffPoint,
@@ -116,7 +116,8 @@ export class DeliveryPricing {
       );
       const quote = priceDelivery(settings, {
         parcel: input.parcel,
-        distanceMetres,
+        distanceMetres: distance.metres,
+        distanceEstimated: distance.estimated,
         mode: input.mode,
         vehicle: input.vehicle,
       });

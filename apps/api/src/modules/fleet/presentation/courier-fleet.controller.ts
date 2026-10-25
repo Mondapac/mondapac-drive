@@ -100,8 +100,11 @@ export class CourierFleetController {
   @Get('me/settings')
   @ReadsSession()
   @ApiOperation({ summary: 'The Market settings the courier app runs on' })
-  async settings(@Call() context: CallContext) {
-    return answer(() => this.viewSettings.execute(context, {}));
+  async settings(@Call() context: CallContext, @Res({ passthrough: true }) res: Response) {
+    const settings = await answer(() => this.viewSettings.execute(context, {}));
+    // Per Market and behind a session: never kept by a shared cache.
+    res.setHeader('Cache-Control', 'private, no-store');
+    return settings;
   }
 
   @Put('me/shift')

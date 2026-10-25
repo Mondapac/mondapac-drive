@@ -1,6 +1,7 @@
 import { Badge, CARD_TABLE, EmailText, EmptyState, type BadgeTone } from '@mondapac-drive/ui';
 import { getTranslations } from 'next-intl/server';
 import { ActionButton } from '../ops/action-button.tsx';
+import { rowName } from '../ops/row-name.ts';
 import type { CourierPage, CourierRow } from '../ops/types.ts';
 
 const TONE: Readonly<Record<CourierRow['status'], BadgeTone>> = {
@@ -76,6 +77,7 @@ export async function CouriersTable({
                     {row.type !== 'account' ? null : row.status === 'active' ? (
                       <ActionButton
                         label={t('couriers.action.disable')}
+                        name={rowName(t, t('couriers.action.disable'), name ?? row.email)}
                         path={`identity/admin/couriers/${row.accountId}/disable`}
                         csrfToken={csrfToken}
                         done={t('couriers.disable.done', { name: name ?? row.email })}
@@ -89,6 +91,7 @@ export async function CouriersTable({
                     ) : (
                       <ActionButton
                         label={t('couriers.action.enable')}
+                        name={rowName(t, t('couriers.action.enable'), name ?? row.email)}
                         path={`identity/admin/couriers/${row.accountId}/enable`}
                         csrfToken={csrfToken}
                         done={t('couriers.enabled', { name: name ?? row.email })}

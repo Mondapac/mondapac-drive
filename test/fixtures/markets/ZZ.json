@@ -159,6 +159,12 @@
     "proofOfDelivery": {
       "pinLength": 6,
       "maxPinAttempts": 3
+    },
+    "responseBudget": {
+      "geocodeMs": 600,
+      "routeMs": 500,
+      "estimateRoadFactor": 1.5,
+      "geocodeCacheSeconds": 3600
     }
   },
   "routing": {
@@ -197,7 +203,8 @@
     "maxRounds": 3,
     "scheduledLeadMinutes": 30,
     "searchRadiusMetres": 5000,
-    "candidateLimit": 10
+    "candidateLimit": 10,
+    "offerPointDecimals": 2
   },
   "notifications": {
     "webhooks": {

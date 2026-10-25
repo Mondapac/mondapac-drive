@@ -2,6 +2,7 @@ import { Badge, Card, CARD_TABLE, EmptyState, type BadgeTone } from '@mondapac-d
 import { getLocale, getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { formatInstant, shortInstant } from '../shared/format.ts';
+import { rowName } from '../ops/row-name.ts';
 import { shortId } from '../shared/short-id.ts';
 import { DecisionButton, type DecisionField } from './decision-button.tsx';
 import { DownloadButton } from './download-button.tsx';
@@ -246,6 +247,11 @@ export async function CourierView({
                     {can.manageVehicles && vehicle.active ? (
                       <div className="flex flex-wrap gap-2">
                         <DecisionButton
+                          name={rowName(
+                            t,
+                            t('fleet.capacity.button'),
+                            vehicle.plate ?? t(`fleet.vehicle-type.${vehicle.type}`),
+                          )}
                           method="PUT"
                           path={`${base}/vehicles/${vehicle.id}/capacity`}
                           csrfToken={csrfToken}
@@ -277,6 +283,11 @@ export async function CourierView({
                           ]}
                         />
                         <DecisionButton
+                          name={rowName(
+                            t,
+                            t('fleet.deactivate.button'),
+                            vehicle.plate ?? t(`fleet.vehicle-type.${vehicle.type}`),
+                          )}
                           destructive
                           path={`${base}/vehicles/${vehicle.id}/deactivate`}
                           csrfToken={csrfToken}
@@ -328,6 +339,7 @@ export async function CourierView({
               {courier.documents.map((document) => {
                 const path = `${base}/documents/${document.id}`;
                 const plate = plateOf(document.vehicleId);
+                const item = documentName(document.type);
                 return (
                   <tr key={document.id} className={CARD_TABLE.row}>
                     <td className={CARD_TABLE.cell}>
@@ -363,11 +375,13 @@ export async function CourierView({
                             courierId={courier.id}
                             documentId={document.id}
                             label={t('fleet.documents.download')}
+                            name={rowName(t, t('fleet.documents.download'), item)}
                           />
                           {document.status === 'submitted' ? (
                             <>
                               <DecisionButton
                                 path={`${path}/verify`}
+                                name={rowName(t, t('fleet.verify.button'), item)}
                                 csrfToken={csrfToken}
                                 copy={{
                                   button: t('fleet.verify.button'),
@@ -389,6 +403,7 @@ export async function CourierView({
                               <DecisionButton
                                 destructive
                                 path={`${path}/reject`}
+                                name={rowName(t, t('fleet.reject.button'), item)}
                                 csrfToken={csrfToken}
                                 copy={{
                                   button: t('fleet.reject.button'),
@@ -405,6 +420,7 @@ export async function CourierView({
                             <DecisionButton
                               destructive
                               path={`${path}/revoke`}
+                              name={rowName(t, t('fleet.revoke.button'), item)}
                               csrfToken={csrfToken}
                               copy={{
                                 button: t('fleet.revoke.button'),

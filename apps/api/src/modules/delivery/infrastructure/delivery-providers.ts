@@ -1,4 +1,6 @@
 import type { Provider } from '@nestjs/common';
+import type { Clock } from '@mondapac-drive/shared-kernel';
+import { CLOCK } from '../../../platform/clock/clock.module';
 import { APP_CONFIG } from '../../../platform/config/config.module';
 import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
@@ -14,13 +16,18 @@ import {
   MARKET_SETTINGS,
   PROOF_PHOTOS,
   RECIPIENT_PINS,
+  type MarketSettingsProvider,
 } from '../application/ports';
 import { HmacRecipientPins, pinKey } from './hmac-recipient-pins';
 import { PrismaProofPhotoRepository } from './prisma-proof-photo.repository';
 import { ConfigMarketSettingsProvider } from './config-market-settings.provider';
 import { IdentityCourierAccounts } from './identity-courier-accounts';
 import { PrismaDeliveryRepository } from './prisma-delivery.repository';
-import { RoutingDistanceProvider, RoutingGeocoder } from './routing-delivery.providers';
+import {
+  CachingGeocoder,
+  RoutingDistanceProvider,
+  RoutingGeocoder,
+} from './routing-delivery.providers';
 
 /** The implementations of the delivery ports. Only infrastructure/ reaches the persistence internals. */
 export const deliveryProviders: Provider[] = [
@@ -47,8 +54,9 @@ export const deliveryProviders: Provider[] = [
   },
   {
     provide: DISTANCE_PROVIDER,
-    inject: [ROUTING_PROVIDER],
-    useFactory: (routing: RoutingProvider) => new RoutingDistanceProvider(routing),
+    inject: [ROUTING_PROVIDER, MARKET_SETTINGS],
+    useFactory: (routing: RoutingProvider, markets: MarketSettingsProvider) =>
+      new RoutingDistanceProvider(routing, markets),
   },
   {
     provide: COURIER_ACCOUNTS,
@@ -57,7 +65,8 @@ export const deliveryProviders: Provider[] = [
   },
   {
     provide: GEOCODER,
-    inject: [ROUTING_PROVIDER],
-    useFactory: (routing: RoutingProvider) => new RoutingGeocoder(routing),
+    inject: [ROUTING_PROVIDER, MARKET_SETTINGS, CLOCK],
+    useFactory: (routing: RoutingProvider, markets: MarketSettingsProvider, clock: Clock) =>
+      new CachingGeocoder(new RoutingGeocoder(routing), markets, clock),
   },
 ];

@@ -132,6 +132,7 @@ describe('delivery API (database integration)', () => {
       });
       expect(quote.status).toBe(503);
       expect((quote.body as { code: string }).code).toBe('address.geocoding-unavailable');
+      expect(quote.headers['retry-after']).toBe('2');
 
       const neither = await post(code, '/delivery/quotes', merchant.headers, {
         pickup: { postcode: POSTCODE[code] },

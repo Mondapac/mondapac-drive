@@ -19,6 +19,7 @@ import {
 } from '../application/use-cases/operator-couriers.use-case';
 import {
   DownloadCourierDocument,
+  ListExpiringDocuments,
   RejectCourierDocument,
   RevokeCourierDocument,
   VerifyCourierDocument,
@@ -27,12 +28,13 @@ import {
   DeactivateCourierVehicle,
   SetVehicleCapacity,
 } from '../application/use-cases/operator-vehicles.use-case';
-import { courierBody, courierSummaryBody } from './courier-presenter';
+import { adminCourierBody, adminCourierSummaryBody } from './courier-presenter';
 import { answer, parsed, pathId, sendFile } from './fleet-http';
 import {
   approveBody,
   capacityBody,
   courierListQuery,
+  expiringDocumentsQuery,
   refuseDocumentBody,
   suspendBody,
   taxRegistrationBody,
@@ -53,7 +55,8 @@ const vehicleIdOf = (raw: string): Id<'Vehicle'> =>
  * The panel's fleet API for operators and dispatchers (the admin session cookie): the Market's
  * couriers with their vehicles and documents, document review and download, and the decisions
  * about a courier's standing, tax registration and vehicles. Every decision is audited. A
- * courier is named by its fleet id; a response never carries the identity account id or a
+ * courier is named by its fleet id; a body also carries the identity account id (`accountId`,
+ * for the panel's links and identity's names) and the delivery the courier carries, never a
  * document's storage key.
  */
 @ApiTags('fleet')
@@ -72,6 +75,7 @@ export class AdminFleetController {
     private readonly rejectDocument: RejectCourierDocument,
     private readonly revokeDocument: RevokeCourierDocument,
     private readonly downloadDocument: DownloadCourierDocument,
+    private readonly listExpiringDocuments: ListExpiringDocuments,
     private readonly deactivateVehicle: DeactivateCourierVehicle,
     private readonly setVehicleCapacity: SetVehicleCapacity,
   ) {}
@@ -101,7 +105,46 @@ export class AdminFleetController {
       }),
     );
     res.setHeader('Cache-Control', 'no-store');
-    return { items: page.items.map(courierSummaryBody), next: page.next };
+    return { items: page.items.map(adminCourierSummaryBody), next: page.next };
+  }
+
+  @Get('documents/expiring')
+  @ReadsSession()
+  @ApiOperation({
+    summary: 'Verified documents that expire before an instant, soonest first',
+    description:
+      '`before` (an ISO instant: the panel sends now plus its horizon, such as 30 days); paged ' +
+      `with \`after\` (the \`next\` of the previous page) and \`limit\` (1 to 100, default ` +
+      `${DEFAULT_COURIER_PAGE}). Already expired documents are listed first; offboarded ` +
+      'couriers are left out. Not cached.',
+  })
+  @ApiQuery({ name: 'before', required: true })
+  @ApiQuery({ name: 'after', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async expiring(
+    @Call() context: CallContext,
+    @Query() query: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { before, after, limit } = parsed(() => expiringDocumentsQuery.parse(query));
+    const page = await answer(() =>
+      this.listExpiringDocuments.execute(context, {
+        before,
+        ...(after === undefined ? {} : { after: after as Id<'CourierDocument'> }),
+        limit: limit ?? DEFAULT_COURIER_PAGE,
+      }),
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    return {
+      items: page.items.map((item) => ({
+        documentId: item.documentId,
+        courierId: item.courierId,
+        accountId: item.accountId,
+        type: item.type,
+        expiresAt: item.expiresAt.toString(),
+      })),
+      next: page.next,
+    };
   }
 
   @Get('couriers/:courierId')
@@ -115,7 +158,7 @@ export class AdminFleetController {
     const courierId = courierIdOf(raw);
     const courier = await answer(() => this.viewCourier.execute(context, { courierId }));
     res.setHeader('Cache-Control', 'no-store');
-    return courierBody(courier);
+    return adminCourierBody(courier);
   }
 
   @Post('couriers/:courierId/approve')
@@ -130,7 +173,7 @@ export class AdminFleetController {
   ) {
     const courierId = courierIdOf(raw);
     const terms = parsed(() => approveBody.parse(body));
-    return courierBody(
+    return adminCourierBody(
       await answer(() => this.approveCourier.execute(context, { courierId, terms })),
     );
   }
@@ -147,7 +190,7 @@ export class AdminFleetController {
   ) {
     const courierId = courierIdOf(raw);
     const { reason } = parsed(() => suspendBody.parse(body));
-    return courierBody(
+    return adminCourierBody(
       await answer(() => this.suspendCourier.execute(context, { courierId, reason })),
     );
   }
@@ -159,7 +202,9 @@ export class AdminFleetController {
   @ApiOperation({ summary: 'Reinstate a suspended courier who is still eligible' })
   async reinstate(@Call() context: CallContext, @Param('courierId') raw: string) {
     const courierId = courierIdOf(raw);
-    return courierBody(await answer(() => this.reinstateCourier.execute(context, { courierId })));
+    return adminCourierBody(
+      await answer(() => this.reinstateCourier.execute(context, { courierId })),
+    );
   }
 
   @Post('couriers/:courierId/offboard')
@@ -169,7 +214,9 @@ export class AdminFleetController {
   @ApiOperation({ summary: "End a courier's work for good" })
   async offboard(@Call() context: CallContext, @Param('courierId') raw: string) {
     const courierId = courierIdOf(raw);
-    return courierBody(await answer(() => this.offboardCourier.execute(context, { courierId })));
+    return adminCourierBody(
+      await answer(() => this.offboardCourier.execute(context, { courierId })),
+    );
   }
 
   @Put('couriers/:courierId/tax-registration')
@@ -182,7 +229,7 @@ export class AdminFleetController {
   async tax(@Call() context: CallContext, @Param('courierId') raw: string, @Body() body: unknown) {
     const courierId = courierIdOf(raw);
     const { taxRegistered } = parsed(() => taxRegistrationBody.parse(body));
-    return courierBody(
+    return adminCourierBody(
       await answer(() => this.setTaxRegistration.execute(context, { courierId, taxRegistered })),
     );
   }
@@ -204,7 +251,7 @@ export class AdminFleetController {
     const courierId = courierIdOf(rawCourier);
     const documentId = documentIdOf(rawDocument);
     const { expiresAt } = parsed(() => verifyBody.parse(body ?? {}));
-    return courierBody(
+    return adminCourierBody(
       await answer(() =>
         this.verifyDocument.execute(context, {
           courierId,
@@ -229,7 +276,7 @@ export class AdminFleetController {
     const courierId = courierIdOf(rawCourier);
     const documentId = documentIdOf(rawDocument);
     const { reason } = parsed(() => refuseDocumentBody.parse(body));
-    return courierBody(
+    return adminCourierBody(
       await answer(() => this.rejectDocument.execute(context, { courierId, documentId, reason })),
     );
   }
@@ -248,7 +295,7 @@ export class AdminFleetController {
     const courierId = courierIdOf(rawCourier);
     const documentId = documentIdOf(rawDocument);
     const { reason } = parsed(() => refuseDocumentBody.parse(body));
-    return courierBody(
+    return adminCourierBody(
       await answer(() => this.revokeDocument.execute(context, { courierId, documentId, reason })),
     );
   }
@@ -282,7 +329,7 @@ export class AdminFleetController {
   ) {
     const courierId = courierIdOf(rawCourier);
     const vehicleId = vehicleIdOf(rawVehicle);
-    return courierBody(
+    return adminCourierBody(
       await answer(() => this.deactivateVehicle.execute(context, { courierId, vehicleId })),
     );
   }
@@ -300,7 +347,7 @@ export class AdminFleetController {
     const courierId = courierIdOf(rawCourier);
     const vehicleId = vehicleIdOf(rawVehicle);
     const capacity = parsed(() => capacityBody.parse(body));
-    return courierBody(
+    return adminCourierBody(
       await answer(() =>
         this.setVehicleCapacity.execute(context, { courierId, vehicleId, capacity }),
       ),

@@ -37,6 +37,14 @@ describe('StatCard', () => {
     expect(html).not.toContain('href=');
     expect(html).not.toContain('>12<');
   });
+
+  it('shows a plain figure when there is no page to link to', () => {
+    const html = renderToStaticMarkup(
+      <StatCard icon="store" label="Dead calls" value="3" scope="all" />,
+    );
+    expect(html).toContain('>3<');
+    expect(html).not.toContain('href=');
+  });
 });
 
 describe('DashboardCard', () => {
