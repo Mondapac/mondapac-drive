@@ -140,6 +140,18 @@ describe('fleet API (database integration)', () => {
         marketId: code,
         offerAcceptSeconds: expect.any(Number) as number,
         coldChain: { chilled: containing({}), frozen: containing({}) },
+        // What onboarding needs (package 38), from the Market's configuration.
+        serviceAreas: expect.arrayContaining([{ code: area }]) as unknown,
+        vehicleClasses: expect.arrayContaining([
+          {
+            type: 'van',
+            maxWeightGrams: rules.vehicleClasses.van!.maxWeightGrams,
+            maxVolumeLitres: rules.vehicleClasses.van!.maxVolumeLitres,
+            temperatures: [...rules.vehicleClasses.van!.temperatures],
+          },
+        ]) as unknown,
+        documents: rules.documents.map((document) => ({ ...document })),
+        businessIdDocumentType: rules.businessIdDocumentType ?? null,
       });
 
       const withVan = await http()
@@ -243,6 +255,40 @@ describe('fleet API (database integration)', () => {
         .send({ employmentType: 'contractor', coldChainCapable: true });
       expect(approved.status).toBe(200);
       expect(approved.body).toMatchObject({ status: 'active' });
+      // The panel's home lists documents that run out soon (package 37), paged, for operators.
+      const expiring = (query: string) =>
+        http().get(`/fleet/admin/documents/expiring?${query}`).set(as(operator.headers));
+      const soon = encodeURIComponent(IN_A_YEAR.add({ hours: 1 }).toString());
+      const expiringIds = documentIds.filter((id) =>
+        (detail.body as { documents: { id: string; expiresAt: string | null }[] }).documents.some(
+          (d) => d.id === id && d.expiresAt !== null,
+        ),
+      );
+      const listed: { documentId: string; courierId: string; accountId: string }[] = [];
+      let after: string | null = null;
+      do {
+        const page = await expiring(`before=${soon}&limit=1${after ? `&after=${after}` : ''}`);
+        expect(page.status).toBe(200);
+        expect(page.headers['cache-control']).toBe('no-store');
+        const body = page.body as { items: typeof listed; next: string | null };
+        expect(body.items.length).toBeLessThanOrEqual(1);
+        listed.push(...body.items);
+        after = body.next;
+      } while (after !== null);
+      const mine = listed.filter((item) => item.courierId === courierId);
+      expect(mine.map((item) => item.documentId).sort()).toEqual([...expiringIds].sort());
+      expect(mine[0]).toMatchObject({
+        accountId: courier.accountId,
+        type: expect.any(String) as string,
+      });
+      const notYet = await expiring(`before=${encodeURIComponent(T0.toString())}`);
+      expect(
+        (notYet.body as { items: { courierId: string }[] }).items.some(
+          (item) => item.courierId === courierId,
+        ),
+      ).toBe(false);
+      expect((await expiring('limit=5')).status).toBe(400);
+
       const taxed = await http()
         .put(`${base}/tax-registration`)
         .set(as(dispatcher.headers))
@@ -318,10 +364,14 @@ describe('fleet API (database integration)', () => {
         courierId,
       );
       const me = await http().get('/fleet/courier/me').set(as(courier.headers));
+      expect(JSON.stringify(me.body)).not.toContain(courier.accountId);
+      // Operators get the account id, for the panel's links and identity's names (handoff 31).
+      const row = (list.body as { items: { id: string }[] }).items.find((c) => c.id === courierId);
+      expect(row).toMatchObject({ accountId: courier.accountId, activeDeliveryId: null });
+      expect(detail.body).toMatchObject({ accountId: courier.accountId, activeDeliveryId: null });
+      expect(approved.body).toMatchObject({ accountId: courier.accountId });
       for (const body of [me.body, list.body, detail.body, approved.body]) {
-        const text = JSON.stringify(body);
-        expect(text).not.toContain(courier.accountId);
-        expect(text).not.toMatch(/fileKey|actorId|fleet\//);
+        expect(JSON.stringify(body)).not.toMatch(/fileKey|actorId|fleet\//);
       }
 
       // Another Market's dispatcher does not see the courier.
