@@ -20,6 +20,7 @@ import {
   job,
   offerAccepted,
   proofPhoto,
+  pushDevice,
   type CourierStatus,
   type Job,
   courierMe,
@@ -64,6 +65,7 @@ export const ROUTES = {
   documents: '/fleet/courier/me/documents',
   payoutOnboarding: '/payouts/courier/me/onboarding-link',
   balance: (limit: number) => `/payouts/courier/me/balance?limit=${Math.trunc(limit)}`,
+  pushDevice: '/notifications/courier/me/push-device',
 } as const;
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -253,6 +255,12 @@ export function createHttpCourierApi(options: Options): CourierApi {
     },
     payoutOnboardingLink: () => call('POST', ROUTES.payoutOnboarding, payoutOnboardingLink, {}),
     balance: (limit) => call('GET', () => ROUTES.balance(limit), earningsBalance),
+    registerPushDevice: async (device) => {
+      const parsed = pushDevice.safeParse(device);
+      if (!parsed.success) throw new ApiError(400, 'push-device.invalid-token');
+      await call('PUT', ROUTES.pushDevice, null, parsed.data);
+    },
+    removePushDevice: () => call('DELETE', ROUTES.pushDevice, null),
   };
 }
 

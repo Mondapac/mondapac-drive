@@ -4,6 +4,7 @@ import { ApiError, type CourierApi, type JobEvent } from '../client';
 import {
   courierSettings,
   pinInput,
+  pushDevice as pushDeviceSchema,
   signInInput,
   type CourierSettings,
   type CourierStatus,
@@ -13,6 +14,7 @@ import {
   type LedgerEntry,
   type LocationPing,
   type Offer,
+  type PushDevice,
   type Temperature,
   onboardingRules as onboardingRulesSchema,
   plateInput,
@@ -126,6 +128,7 @@ export function createMockCourierApi(options: MockOptions) {
     };
   }
   const ledger: LedgerEntry[] = [];
+  let device: PushDevice | null = null;
 
   const money = (amount: bigint) => ({ amount: amount.toString(), currency: settings.currency });
 
@@ -183,6 +186,7 @@ export function createMockCourierApi(options: MockOptions) {
     },
     signOut() {
       signedIn = false;
+      device = null;
       status = { shift: 'offline', activeDeliveryId: null };
       pending = null;
       return Promise.resolve();
@@ -435,12 +439,25 @@ export function createMockCourierApi(options: MockOptions) {
         entries: ledger.slice(0, limit),
       });
     },
+    registerPushDevice(input) {
+      requireSession();
+      const parsed = pushDeviceSchema.safeParse(input);
+      if (!parsed.success) return Promise.reject(new ApiError(400, 'push-device.invalid-token'));
+      device = parsed.data;
+      return Promise.resolve();
+    },
+    removePushDevice() {
+      requireSession();
+      device = null;
+      return Promise.resolve();
+    },
   };
 
   /** What tests read back. */
   const inspect = {
     pings: (): readonly LocationPing[] => pings,
     events: () => events,
+    pushDevice: (): PushDevice | null => device,
     pin: fixture.deliveryPin,
     wrongPassword: fixture.wrongPassword,
     uploads: () => uploads,

@@ -320,3 +320,10 @@ export const earningsBalance = z.object({
   entries: z.array(ledgerEntry),
 });
 export type EarningsBalance = z.infer<typeof earningsBalance>;
+
+/** The device the notifications module pushes offers to (`PUT /notifications/courier/me/push-device`). */
+export const pushDevice = z.object({
+  token: z.string().regex(/^Expo(nent)?PushToken\[[^\]]+\]$/),
+  platform: z.enum(['ios', 'android']),
+});
+export type PushDevice = z.infer<typeof pushDevice>;

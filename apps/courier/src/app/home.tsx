@@ -11,6 +11,7 @@ export default function HomeRoute() {
       onOpenJob={(id) => router.push({ pathname: '/job/[id]', params: { id } })}
       onOpenEarnings={() => router.push('/earnings')}
       onNeedLocation={() => router.push('/location-permission')}
+      onOfferPush={() => router.navigate('/home')}
     />
   );
 }
