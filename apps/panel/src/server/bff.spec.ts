@@ -677,3 +677,50 @@ describe('relay of the live map routes (Drive)', () => {
     expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 });
+
+describe('relay of the dispatch job routes (Drive)', () => {
+  const ID = '0190a000-0000-7000-8000-0000000000a1';
+  const call = (method: string, path: string, headers: Record<string, string> = sameOrigin) => {
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response('{}', { status: 200 })),
+    );
+    return relay(
+      config,
+      new Request(`http://admin.localhost:3002/api/${path}`, {
+        method,
+        headers,
+        ...(method === 'GET' ? {} : { body: '{}' }),
+      }),
+      path.split('/'),
+      fetchImpl,
+    ).then((response) => ({ status: response.status, called: fetchImpl.mock.calls.length }));
+  };
+
+  it.each([`dispatch/admin/deliveries/${ID}/assign`, `dispatch/admin/deliveries/${ID}/redispatch`])(
+    'relays POST %s same-origin only',
+    async (path) => {
+      expect(await call('POST', path)).toEqual({ status: 200, called: 1 });
+      const crossSite = { ...sameOrigin, 'sec-fetch-site': 'cross-site' };
+      expect(await call('POST', path, crossSite)).toEqual({ status: 403, called: 0 });
+      const otherOrigin = { ...sameOrigin, origin: 'http://evil.test' };
+      expect(await call('POST', path, otherOrigin)).toEqual({ status: 403, called: 0 });
+      expect(await call('PUT', path)).toEqual({ status: 404, called: 0 });
+      expect(await call('GET', path)).toEqual({ status: 404, called: 0 });
+    },
+  );
+
+  it.each([
+    // The job is read by the page server, never through the relay.
+    ['GET', `dispatch/admin/deliveries/${ID}`],
+    ['POST', 'dispatch/admin/deliveries/not-a-uuid/assign'],
+    ['POST', `dispatch/admin/deliveries/${ID}/assign/extra`],
+    ['POST', `dispatch/admin/deliveries/${ID}/unassign`],
+    ['POST', `dispatch/admin/deliveries/${ID}`],
+    // The courier app's offer routes never cross the panel.
+    ['GET', 'dispatch/courier/offers/current'],
+    ['POST', `dispatch/courier/offers/${ID}/accept`],
+    ['POST', `dispatch/courier/offers/${ID}/decline`],
+  ])('refuses %s %s (404) without calling the API', async (method, path) => {
+    expect(await call(method, path)).toEqual({ status: 404, called: 0 });
+  });
+});

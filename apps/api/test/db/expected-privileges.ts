@@ -257,6 +257,13 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
     },
     'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    // 20261027010000: the jobs fleet follows from delivery's events (a job changes its courier,
+    // its end and the applied version, and is never deleted), and fleet's append-only inbox.
+    'fleet.courier_jobs': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['assigned_at', 'courier_account_id', 'delivery_version', 'ended'],
+    },
+    'fleet.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // The payouts module (20261025100000): the ledger, delivery records, runs and handled
     // provider events are append-only; a line changes only its transfer state, an account only
     // whether it can be paid out.

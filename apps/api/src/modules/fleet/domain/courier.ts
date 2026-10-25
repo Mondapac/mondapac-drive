@@ -437,7 +437,8 @@ export function rejectDocument(
 /**
  * The courier changes their shift. Only an active courier works shifts, and going online (also
  * back from a pause) needs a vehicle they are eligible for now. Going online from offline and
- * going offline publish an event; a pause and a delivery do not. Going online from offline or
+ * going offline publish an event; a pause and a delivery do not. A courier who carries a delivery
+ * (`activeDeliveryId`) cannot go offline until it is over. Going online from offline or
  * from a delivery starts the courier's idle time (`idleSince`), which dispatch uses to offer
  * work first to whoever has waited longest; coming back from a pause keeps it.
  */
@@ -450,6 +451,12 @@ export function changeShift(
   requireStatus(courier, ['active'], 'fleet.courier.not-active');
   if (courier.shift === to) return unchanged(courier);
   assertShiftChange(courier.shift, to);
+  if (to === 'offline' && courier.activeDeliveryId !== undefined) {
+    throw new FleetDomainError(
+      'fleet.shift.active-delivery',
+      'A courier on a delivery finishes it before going offline',
+    );
+  }
   if (to === 'online' && courier.shift !== 'on_delivery') requireEligible(courier, rules, now);
   const startsWaiting =
     to === 'online' && (courier.shift === 'offline' || courier.shift === 'on_delivery');

@@ -162,3 +162,26 @@ export interface LocationPing {
   readonly speedKmh?: number;
   readonly recordedAt: string;
 }
+
+/** The kinds of a payouts ledger entry (modules/payouts domain/ledger.ts). */
+export const LEDGER_ENTRY_KINDS = ['earning', 'tip', 'adjustment', 'reversal', 'payout'] as const;
+export type LedgerEntryKind = (typeof LEDGER_ENTRY_KINDS)[number];
+
+/** One line of the courier's ledger; a kind the app does not know yet still parses. */
+export const ledgerEntry = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  amount: money,
+  tax: money,
+  deliveryId: z.string().optional(),
+  reason: z.string().optional(),
+  occurredAt: z.iso.datetime({ offset: true }),
+});
+export type LedgerEntry = z.infer<typeof ledgerEntry>;
+
+/** `GET /payouts/courier/me/balance`: what is owed (before and with tax), newest entries first. */
+export const earningsBalance = z.object({
+  balance: z.object({ amount: money, tax: money, total: money }),
+  entries: z.array(ledgerEntry),
+});
+export type EarningsBalance = z.infer<typeof earningsBalance>;

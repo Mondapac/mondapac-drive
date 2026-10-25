@@ -84,10 +84,10 @@ export class FleetDirectory {
   ) {}
 
   /**
-   * The couriers who are active, online, in the service area and eligible by the Clock for a
-   * vehicle of one of the asked types (every required document verified and unexpired; for a
-   * cold-chain job, the cold-chain documents and a cold box too), longest idle first, then by
-   * account id. Each lists only the vehicles fit for the job.
+   * The couriers who are active, online, carry no delivery (handoff 31), are in the service area
+   * and eligible by the Clock for a vehicle of one of the asked types (every required document
+   * verified and unexpired; for a cold-chain job, the cold-chain documents and a cold box too),
+   * longest idle first, then by account id. Each lists only the vehicles fit for the job.
    */
   async findAvailableCouriers(
     context: CallContext,
@@ -108,6 +108,8 @@ export class FleetDirectory {
     if (!found.ok) return [];
     const available: AvailableFleetCourier[] = [];
     for (const courier of found.value) {
+      // A courier who carries a delivery takes no other job until it is over.
+      if (courier.activeDeliveryId !== undefined) continue;
       const vehicles = vehiclesForWork(courier, need, rules, now);
       if (vehicles.length === 0) continue;
       available.push({

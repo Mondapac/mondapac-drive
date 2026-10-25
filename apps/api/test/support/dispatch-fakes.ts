@@ -4,6 +4,7 @@ import {
   type CallContext,
   type Id,
   type MarketContext,
+  type Money,
   type PendingEvent,
   type Result,
   type Temporal,
@@ -13,6 +14,8 @@ import type {
   DeliveryFacts,
   DeliveryForDispatch,
   DispatchJobRepository,
+  OfferEarnings,
+  OfferToPrice,
 } from '../../src/modules/dispatch/application/ports';
 import type { DispatchJob } from '../../src/modules/dispatch/domain/dispatch-job';
 import type { AuditWriter } from '../../src/platform/audit/audit-writer';
@@ -192,5 +195,17 @@ export class FakeCourierAccounts implements CourierAccounts {
 
   isActive(_context: CallContext, accountId: string) {
     return Promise.resolve(this.denied ? undefined : this.active.has(accountId));
+  }
+}
+
+/** Payouts' quote for an offer: a fixed amount, or null; it records what it was asked. */
+export class FakeOfferEarnings implements OfferEarnings {
+  readonly asked: { readonly courier: string | null; readonly offer: OfferToPrice }[] = [];
+  amount: Money | null = null;
+
+  forOffer(context: CallContext, offer: OfferToPrice) {
+    const { actor } = context;
+    this.asked.push({ courier: actor.kind === 'authenticated' ? actor.accountId : null, offer });
+    return Promise.resolve(this.amount);
   }
 }

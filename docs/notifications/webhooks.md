@@ -75,7 +75,7 @@ subscriptions; another merchant's answers 404:
 | `POST /notifications/webhook-subscriptions/:id/disable` | `notifications.webhook.manage` |
 
 Admin panel (session cookie, CSRF on POST), key `notifications.webhook-call.resend` (platform;
-the Platform Administrator holds it, the default operator role does not yet):
+the Platform Administrator and the default operator role, seed v5, hold it):
 
 - `GET /notifications/admin/webhook-calls/dead`: dead-lettered calls, ids and codes only;
 - `POST /notifications/admin/webhook-calls/:id/resend`.

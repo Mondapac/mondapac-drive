@@ -24,6 +24,7 @@ const STATUS: Readonly<Record<string, number>> = Object.freeze({
   'fleet.vehicle.not-found': 404,
   'fleet.conflict': 409,
   'fleet.shift.transition-not-allowed': 409,
+  'fleet.shift.active-delivery': 409,
   'fleet.document.size': 413,
   'fleet.document.media-type': 415,
   ...ACCESS_DENIED_STATUS,

@@ -1,4 +1,11 @@
-import { geoPoint, parseId, Temporal, type Id, type MarketId } from '@mondapac-drive/shared-kernel';
+import {
+  geoPoint,
+  money,
+  parseId,
+  Temporal,
+  type Id,
+  type MarketId,
+} from '@mondapac-drive/shared-kernel';
 import {
   FixedClock,
   SequenceIdGenerator,
@@ -10,6 +17,7 @@ import { InMemoryCouriers } from '../../../../../test/support/dispatch-couriers'
 import {
   FakeCourierAccounts,
   FakeDeliveryFacts,
+  FakeOfferEarnings,
   FakeUnitOfWork,
   InMemoryDispatchJobs,
   RecordingAudit,
@@ -82,6 +90,7 @@ describe.each([
     const couriers = new InMemoryCouriers();
     const facts = new FakeDeliveryFacts();
     const accounts = new FakeCourierAccounts();
+    const earnings = new FakeOfferEarnings();
     const ids = new SequenceIdGenerator(clock);
     const advancer = new JobAdvancer(
       jobs,
@@ -103,6 +112,7 @@ describe.each([
       couriers,
       facts,
       accounts,
+      earnings,
       open: new OpenDispatchJob(gate, {
         jobs,
         facts,
@@ -115,7 +125,7 @@ describe.each([
       sweep: new AdvanceDispatchJobs(gate, { jobs, unitOfWork, clock, advancer }),
       follow: new FollowDeliveryStatus(gate, { jobs, facts, outbox, unitOfWork, clock, advancer }),
       cancel: new CancelDispatchJob(gate, { jobs, outbox, unitOfWork, clock }),
-      offer: new ViewCurrentOffer(gate, { jobs, unitOfWork, clock }),
+      offer: new ViewCurrentOffer(gate, { jobs, earnings, unitOfWork, clock }),
       answer: new AnswerOffer(gate, { jobs, outbox, unitOfWork, clock }),
       view: new ViewDispatchJob(gate, { jobs, unitOfWork }),
       assign: new AssignCourier(gate, {
@@ -281,6 +291,27 @@ describe.each([
 
       t.clock.advance(Temporal.Duration.from(timeout));
       expect(await t.offer.execute(courierCall(1), {})).toEqual({ ok: true, value: null });
+    });
+
+    it("prices the offer with payouts' quote, asked as the courier with the delivery's facts", async () => {
+      const t = setUp();
+      onShift(t.couriers, 1);
+      await book(t);
+      const pay = money(1234n, code === 'AU' ? 'AUD' : 'JPY');
+      t.earnings.amount = pay;
+
+      const mine = await t.offer.execute(courierCall(1), {});
+      expect(mine.ok && mine.value).toMatchObject({ earnings: pay });
+      expect(t.earnings.asked).toEqual([
+        {
+          courier: courierId(1),
+          offer: { deliveryId, vehicle: 'motorbike', distanceMetres: 4200, temperature: 'chilled' },
+        },
+      ]);
+
+      t.earnings.amount = null;
+      const unpriced = await t.offer.execute(courierCall(1), {});
+      expect(unpriced.ok && unpriced.value).toMatchObject({ earnings: null });
     });
 
     it('assigns the delivery to the courier who accepts, taking the courier from the session', async () => {

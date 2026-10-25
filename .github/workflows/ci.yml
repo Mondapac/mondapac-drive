@@ -174,3 +174,112 @@ jobs:
         run: |
           if [ "${{ job.status }}" != "success" ]; then docker compose logs postgres || true; fi
           docker compose down -v
+
+  # Handoff 35: the courier app's smoke run on a real API, for AU and ZZ. `pnpm dev:seed` fills a
+  # `_test` database through the real routes (first admin, merchant, approved courier, one
+  # assigned delivery); the built API serves it with the same local Market configuration; the
+  # app's HTTP adapter walks that delivery from sign-in to delivered and sign-out. ZZ goes first:
+  # the anonymous identity limit counts per client address across Markets, and ZZ's is lower.
+  courier-smoke:
+    name: Courier smoke run (AU and ZZ)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://drive_api:drive_api@localhost:5432/drive_test
+      HOSTED_MARKETS: AU,ZZ
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The seed refuses a database whose name does not end in _dev or _test.
+      - name: Create the drive_test database and its roles
+        run: |
+          container="${{ job.services.postgres.id }}"
+          docker cp scripts/db/bootstrap-dev.sql "$container":/tmp/bootstrap-dev.sql
+          docker exec "$container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            -c 'CREATE DATABASE drive_test TEMPLATE template1'
+          docker exec "$container" psql -v ON_ERROR_STOP=1 -q -U postgres -d drive_test \
+            -f /tmp/bootstrap-dev.sql
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the API and apply migrations
+        run: |
+          pnpm --filter @mondapac-drive/shared-kernel build
+          pnpm --filter @mondapac-drive/api build
+          pnpm db:migrate
+        env:
+          MIGRATION_DATABASE_URL: postgresql://drive_migrator:drive_migrator@localhost:5432/drive_test
+
+      # The local Market configuration (scripts/dev-config.mjs), shared by the seed and the API.
+      - name: Write the local Market configuration
+        run: node scripts/dev-config.mjs >> "$GITHUB_ENV"
+
+      - name: Start the API
+        run: |
+          APP_ROLE=api PORT=3100 node apps/api/dist/main > api.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl --silent --fail http://localhost:3100/health/ready > /dev/null && exit 0
+            sleep 1
+          done
+          echo "API did not become ready" >&2
+          exit 1
+
+      - name: Seed and smoke-run ZZ
+        env:
+          DEV_SEED_SKIP_BUILD: '1'
+        run: |
+          pnpm dev:seed --market ZZ --samples 0
+          pnpm smoke:courier --market ZZ
+
+      - name: Seed and smoke-run AU
+        env:
+          DEV_SEED_SKIP_BUILD: '1'
+        run: |
+          pnpm dev:seed --market AU --samples 0
+          pnpm smoke:courier --market AU
+
+      # A second seed of the same database refuses, and so does a database without the suffix
+      # or an environment that is not development or test: the seed never runs elsewhere.
+      - name: The seed refuses a repeat, another database and production
+        env:
+          DEV_SEED_SKIP_BUILD: '1'
+        run: |
+          refuses() {
+            if "$@" > refusal.log 2>&1; then echo "The seed ran: $*" >&2; exit 1; fi
+            grep -E "$expected" refusal.log > /dev/null || { cat refusal.log >&2; exit 1; }
+          }
+          expected='already has its first admin' refuses pnpm dev:seed --market AU --samples 0
+          expected='must end in _dev or _test' \
+            DATABASE_URL=postgresql://drive_api:drive_api@localhost:5432/drive \
+            refuses pnpm dev:seed --market AU
+          expected='NODE_ENV must be set' NODE_ENV=production refuses pnpm dev:seed --market AU
+
+      - name: API log
+        if: failure()
+        run: tail -n 200 api.log || true

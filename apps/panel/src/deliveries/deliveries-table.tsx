@@ -1,4 +1,4 @@
-import { CARD_TABLE, EmptyState } from '@mondapac-drive/ui';
+import { Badge, CARD_TABLE, EmptyState } from '@mondapac-drive/ui';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { formatMoney } from '../ops/money.ts';
 import type { DeliverySummary } from '../ops/types.ts';
@@ -72,10 +72,15 @@ export async function DeliveriesTable({
                 </div>
               </td>
               <td className={CARD_TABLE.corner}>
-                <DeliveryStatusBadge
-                  status={row.status}
-                  label={t(`deliveries.status.${row.status}`)}
-                />
+                <div className="flex flex-col items-start gap-1">
+                  <DeliveryStatusBadge
+                    status={row.status}
+                    label={t(`deliveries.status.${row.status}`)}
+                  />
+                  {row.exception == null ? null : (
+                    <Badge tone="critical">{t(`deliveries.exception.${row.exception}`)}</Badge>
+                  )}
+                </div>
               </td>
               <td className={CARD_TABLE.labelled} data-label={t('deliveries.label.merchant')}>
                 <span className="break-words">
