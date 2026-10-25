@@ -16,7 +16,7 @@ describe.each(TEST_MARKET_IDS)('sweep of document files in market %s', (code) =>
   const system = testCallContext(market, 'system');
   const perRun = SWEEP_PAGE * MAX_SWEEP_PAGES;
 
-  function sweepOver(count: number) {
+  function sweepOver(count: number, failReads = () => false) {
     const prefix = documentPrefix(market.marketId);
     const keys = Array.from(
       { length: count },
@@ -39,7 +39,11 @@ describe.each(TEST_MARKET_IDS)('sweep of document files in market %s', (code) =>
       couriers: {
         namedFileKeys: (_m: unknown, ks: readonly string[]) => Promise.resolve(new Set(ks)),
       },
-      unitOfWork: { run: (_m: unknown, work: () => Promise<unknown>) => work() },
+      // A failed read of the rows answers err, as a unit that could not run.
+      unitOfWork: {
+        run: (_m: unknown, work: () => Promise<unknown>) =>
+          failReads() ? Promise.resolve({ ok: false, error: new Error('down') }) : work(),
+      },
       clock: { now: () => T0 },
     } as unknown as FleetDependencies;
     return { sweep: new SweepDocumentFiles(openGate(), deps), files };
@@ -64,5 +68,23 @@ describe.each(TEST_MARKET_IDS)('sweep of document files in market %s', (code) =>
     for (let run = 0; run < 2; run += 1) {
       expect(await sweep.execute(system, {})).toEqual(ok({ checked: SWEEP_PAGE + 1, removed: 0 }));
     }
+  });
+
+  it('starts over after a run whose read of the rows failed, and deletes nothing', async () => {
+    let failing = false;
+    const { sweep, files } = sweepOver(perRun + 600, () => failing);
+    const checked = async () => {
+      const result = await sweep.execute(system, {});
+      if (!result.ok) throw new Error(result.error.code);
+      return result.value.checked;
+    };
+
+    expect(await checked()).toBe(perRun);
+    // The run stops at its first page and forgets where it was.
+    failing = true;
+    expect(await checked()).toBe(SWEEP_PAGE);
+    failing = false;
+    expect(await checked()).toBe(perRun);
+    expect(files.delete).not.toHaveBeenCalled();
   });
 });

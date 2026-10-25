@@ -288,6 +288,19 @@ describe('fleet API (database integration)', () => {
         ),
       ).toBe(false);
       expect((await expiring('limit=5')).status).toBe(400);
+      // Another Market's admin never sees them, and a courier's session is not read here.
+      const elsewhereList = await http()
+        .get(`/fleet/admin/documents/expiring?before=${soon}&limit=100`)
+        .set(as(elsewhere.headers, other));
+      expect(elsewhereList.status).toBe(200);
+      expect(JSON.stringify(elsewhereList.body)).not.toContain(courierId);
+      expect(
+        (
+          await http()
+            .get(`/fleet/admin/documents/expiring?before=${soon}`)
+            .set(as(courier.headers))
+        ).status,
+      ).toBe(401);
 
       const taxed = await http()
         .put(`${base}/tax-registration`)

@@ -264,13 +264,20 @@ export class PrismaCourierRepository implements CourierRepository {
       select: { id: true, actorId: true },
     });
     const accounts = new Map(couriers.map((row) => [row.id, row.actorId]));
-    return rows.map((row) => ({
-      documentId: row.id as Id<'CourierDocument'>,
-      courierId: row.courierId as Id<'Courier'>,
-      accountId: accounts.get(row.courierId)!,
-      type: row.type,
-      expiresAt: toInstant(row.expiresAt!),
-    }));
+    return rows.flatMap((row) => {
+      const accountId = accounts.get(row.courierId);
+      // A courier of another tenant (the foreign key holds no tenant) is never answered.
+      if (accountId === undefined || row.expiresAt === null) return [];
+      return [
+        {
+          documentId: row.id as Id<'CourierDocument'>,
+          courierId: row.courierId as Id<'Courier'>,
+          accountId,
+          type: row.type,
+          expiresAt: toInstant(row.expiresAt),
+        },
+      ];
+    });
   }
 
   async namedFileKeys(market: MarketContext, fileKeys: readonly string[]) {
