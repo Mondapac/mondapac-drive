@@ -78,6 +78,10 @@ jobs:
 
       - name: Generate the native Android project
         working-directory: apps/courier
+        # Google Maps for Android (apps/courier/RELEASE.md); without it the APK shows no map. Only
+        # this step writes it into the manifest, so only this step sees the secret.
+        env:
+          GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
         run: pnpm prebuild:android
 
       # Caches Gradle's downloads; set up after prebuild, once the Gradle files exist.

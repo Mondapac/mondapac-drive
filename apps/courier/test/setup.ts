@@ -143,3 +143,26 @@ beforeEach(() => {
   const { AppState } = jest.requireActual<typeof ReactNative>('react-native');
   jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
 });
+
+// The map is native: a plain view stands in, with each pin as a labelled view.
+jest.mock('react-native-maps', () => {
+  const React = jest.requireActual<typeof ReactModule>('react');
+  const { View } = jest.requireActual<typeof ReactNative>('react-native');
+  const MapView = React.forwardRef(
+    (props: { children?: ReactModule.ReactNode }, ref: ReactModule.Ref<unknown>) => {
+      React.useImperativeHandle(ref, () => ({
+        fitToCoordinates: jest.fn(),
+        animateToRegion: jest.fn(),
+      }));
+      return React.createElement(View, { testID: 'live-map' }, props.children);
+    },
+  );
+  const Marker = (props: { title?: string }) =>
+    React.createElement(View, { testID: 'map-pin', accessibilityLabel: props.title });
+  return {
+    __esModule: true,
+    default: MapView,
+    Marker,
+    PROVIDER_GOOGLE: 'google',
+  };
+});

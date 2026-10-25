@@ -75,7 +75,10 @@ cold-chain strip of direction C).
 - A chilled or frozen job shows `ColdStrip` at the top: the limit and the last reading this phone
   recorded.
 - The main action of a screen sits in the `Screen` footer, within thumb reach.
-- Next: a live map behind the home and job screens (needs the Google Maps key).
+- `src/map/LiveMap.tsx` shows the courier's own position (drawn by the phone, nothing sent) and
+  the stops: the offer's areas before accept, the current stop of a job. Apple Maps on iOS;
+  Google Maps on Android only when the build has `GOOGLE_MAPS_ANDROID_API_KEY` (RELEASE.md),
+  otherwise the screens show no map.
 
 ## Languages
 

@@ -16,6 +16,9 @@ const release = resolveRelease(process.env, pkg.version, (code) =>
   existsSync(`${__dirname}/../../config/markets/${code}.json`),
 );
 const easProjectId = process.env.EAS_PROJECT_ID?.trim();
+// Android's map is Google Maps and needs a key restricted to this app; without one the app shows
+// no map on Android (iOS uses Apple Maps, which needs none).
+const androidMapsKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY?.trim();
 
 const config: ExpoConfig = {
   name: `${en.app.name}${release.nameSuffix}`,
@@ -75,9 +78,13 @@ const config: ExpoConfig = {
         recordAudioAndroid: false,
       },
     ],
+    ['react-native-maps', androidMapsKey ? { androidGoogleMapsApiKey: androidMapsKey } : {}],
   ],
   experiments: { typedRoutes: true },
-  ...(easProjectId ? { extra: { eas: { projectId: easProjectId } } } : {}),
+  extra: {
+    androidMaps: Boolean(androidMapsKey),
+    ...(easProjectId ? { eas: { projectId: easProjectId } } : {}),
+  },
   ...(process.env.EAS_OWNER?.trim() ? { owner: process.env.EAS_OWNER.trim() } : {}),
 };
 

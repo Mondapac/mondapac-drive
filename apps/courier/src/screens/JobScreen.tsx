@@ -7,6 +7,7 @@ import { checkReading, needsColdChain } from '../domain/cold-chain';
 import { canReportFailure, currentStop, nextStep } from '../domain/job-flow';
 import { directionsUrl, webDirectionsUrl } from '../domain/navigation';
 import { ColdStrip } from '../components/ColdStrip';
+import { LiveMap } from '../map/LiveMap';
 import { FailureForm } from '../components/FailureForm';
 import { ProofOfDelivery, proofReady, type ProofDraft } from '../components/ProofOfDelivery';
 import { TemperatureEntry } from '../components/TemperatureEntry';
@@ -230,6 +231,25 @@ function JobSteps({
       footer={footer}
     >
       <StepBar step={STEP_NUMBER[step]} total={STEPS} />
+      {stop && stopKind && (
+        <LiveMap
+          height={200}
+          label={t('map.label')}
+          stops={
+            stop.point
+              ? [
+                  {
+                    kind: stopKind,
+                    point: stop.point,
+                    label: t(stopKind === 'pickup' ? 'map.pickup' : 'map.dropoff', {
+                      place: stop.address,
+                    }),
+                  },
+                ]
+              : []
+          }
+        />
+      )}
       {stop && <StopCard stop={stop} />}
       {error && <Notice tone="danger" text={errorMessage(error)} />}
 
