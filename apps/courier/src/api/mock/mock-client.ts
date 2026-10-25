@@ -7,8 +7,10 @@ import {
   signInInput,
   type CourierSettings,
   type CourierStatus,
+  type EarningsBalance,
   type EarningsSummary,
   type Job,
+  type LedgerEntry,
   type LocationPing,
   type Offer,
   type Temperature,
@@ -60,6 +62,7 @@ export function createMockCourierApi(options: MockOptions) {
   const pinAttempts = new Map<string, number>();
   let earnedToday = 0n;
   let deliveriesToday = 0;
+  const ledger: LedgerEntry[] = [];
 
   const money = (amount: bigint) => ({ amount: amount.toString(), currency: settings.currency });
 
@@ -204,6 +207,14 @@ export function createMockCourierApi(options: MockOptions) {
       if (event.type === 'delivered') {
         earnedToday += earningsOf(deliveryId);
         deliveriesToday += 1;
+        ledger.unshift({
+          id: `mock-entry-${ledger.length + 1}`,
+          kind: 'earning',
+          amount: money(earningsOf(deliveryId)),
+          tax: money(0n),
+          deliveryId,
+          occurredAt: new Date(clock.now()).toISOString(),
+        });
       }
       if (event.type === 'delivered' || event.type === 'delivery_failed') {
         status = { shift: 'online', activeDeliveryId: null };
@@ -226,6 +237,17 @@ export function createMockCourierApi(options: MockOptions) {
         today: money(earnedToday),
         week: money(earnedToday),
         deliveriesToday,
+      });
+    },
+    balance(limit): Promise<EarningsBalance> {
+      requireSession();
+      if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+        return Promise.reject(new ApiError(400, 'validation.failed'));
+      }
+      const owed = ledger.reduce((sum, entry) => sum + BigInt(entry.amount.amount), 0n);
+      return Promise.resolve({
+        balance: { amount: money(owed), tax: money(0n), total: money(owed) },
+        entries: ledger.slice(0, limit),
       });
     },
   };
