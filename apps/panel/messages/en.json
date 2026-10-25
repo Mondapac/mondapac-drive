@@ -1517,7 +1517,8 @@
       },
       "notifications": {
         "webhook-call": "Webhook calls",
-        "webhook": "Webhook subscriptions"
+        "webhook": "Webhook subscriptions",
+        "webhook-subscription": "Merchants' webhook endpoints"
       },
       "payouts": {
         "ledger": "Payout ledger",
@@ -1643,6 +1644,11 @@
         },
         "manage": {
           "label": "Change webhook subscriptions"
+        }
+      },
+      "webhook-subscription": {
+        "view": {
+          "label": "View every merchant's webhook subscriptions"
         }
       }
     },
