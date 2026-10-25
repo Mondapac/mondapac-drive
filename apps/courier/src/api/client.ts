@@ -2,6 +2,7 @@ import type {
   CourierSession,
   CourierSettings,
   CourierStatus,
+  EarningsBalance,
   EarningsSummary,
   FailureReason,
   Job,
@@ -57,6 +58,8 @@ export interface CourierApi {
   uploadProofPhoto(deliveryId: string, photo: PhotoFile): Promise<{ photoRef: string }>;
   sendPings(pings: readonly LocationPing[]): Promise<void>;
   earnings(): Promise<EarningsSummary>;
+  /** The balance and the latest `limit` ledger entries (1 to 200), newest first. */
+  balance(limit: number): Promise<EarningsBalance>;
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   courierSettings,
   courierStatus,
   currentOffer,
+  earningsBalance,
   earningsSummary,
   job,
   offerAccepted,
@@ -52,6 +53,7 @@ export const ROUTES = {
   proofPhotos: (id: string) => `/delivery/courier/deliveries/${segment(id)}/proof-photos`,
   pings: '/tracking/courier/pings',
   earnings: '/payouts/courier/me/summary',
+  balance: (limit: number) => `/payouts/courier/me/balance?limit=${Math.trunc(limit)}`,
 } as const;
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -206,6 +208,7 @@ export function createHttpCourierApi(options: Options): CourierApi {
     },
     sendPings: (pings) => call('POST', ROUTES.pings, null, { pings }),
     earnings: () => call('GET', ROUTES.earnings, earningsSummary),
+    balance: (limit) => call('GET', () => ROUTES.balance(limit), earningsBalance),
   };
 }
 

@@ -99,7 +99,9 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
   `activeDeliveryId: null` for now, so the app keeps the delivery it accepted in the secure
   store (with the session) and returns to it after a restart, until the job ends or answers 404.
 - Payouts: `GET /payouts/courier/me/summary` (`{ today, week, deliveriesToday }` in the
-  Market's time zone, the week from Monday).
+  Market's time zone, the week from Monday) and `GET …/me/balance?limit=20` (`{ balance:
+  { amount, tax, total }, entries }`, newest first; amounts are signed, a payout is negative).
+  The Earnings screen shows both; an entry kind the app does not know shows as "Other".
 
 Offers are polled every 5 s while online until dispatch pushes them. A stop without a point
 (not geocoded) is navigated to by its address.
