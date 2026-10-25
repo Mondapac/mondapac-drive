@@ -31,6 +31,34 @@ describe.each(MARKETS)('home in $marketId', (settings) => {
     );
     expect(screen.getByText('30 s to respond')).toBeOnTheScreen();
   });
+
+  it('names only the suburb and postcode of each stop before accept', async () => {
+    const harness = await createHarness({ settings });
+    await renderHome(harness);
+    await screen.findByText('You are offline');
+    await press('Go online');
+    await screen.findByText('New delivery offer');
+    expect(screen.getByText('Woolloongabba 4102')).toBeOnTheScreen();
+    expect(screen.getByText('Coorparoo 4151')).toBeOnTheScreen();
+    expect(screen.getByText('You see the full address once you accept.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Logan Rd|Sample St/)).toBeNull();
+  });
+});
+
+it('hides the pay line when the offer has no pay, and shows the postcode without a suburb', async () => {
+  const harness = await createHarness();
+  const real = harness.api.currentOffer.bind(harness.api);
+  jest.spyOn(harness.api, 'currentOffer').mockImplementation(async () => {
+    const offer = await real();
+    return offer && { ...offer, earnings: null, dropoff: { ...offer.dropoff, suburb: null } };
+  });
+  await renderHome(harness);
+  await screen.findByText('You are offline');
+  await press('Go online');
+  await screen.findByText('New delivery offer');
+  expect(screen.queryByText(/^You earn /)).toBeNull();
+  expect(screen.getByText('4151')).toBeOnTheScreen();
+  expect(screen.getByText('Woolloongabba 4102')).toBeOnTheScreen();
 });
 
 it('accepts an offer and opens its job', async () => {

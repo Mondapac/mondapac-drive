@@ -44,7 +44,9 @@
     "expired": "This offer has expired.",
     "accept": "Accept",
     "decline": "Decline",
-    "coldChain": "Cold chain: {{temperature}}"
+    "coldChain": "Cold chain: {{temperature}}",
+    "area": "{{suburb}} {{postcode}}",
+    "addressAfterAccept": "You see the full address once you accept."
   },
   "temperature": {
     "ambient": "Ambient",

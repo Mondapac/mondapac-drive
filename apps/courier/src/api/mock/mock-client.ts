@@ -85,12 +85,17 @@ export function createMockCourierApi(options: MockOptions) {
       id: `mock-offer-${offerCount}`,
       deliveryId,
       expiresAt: new Date(clock.now() + settings.offerAcceptSeconds * 1000).toISOString(),
-      pickup: { address: source.pickup.address, point: source.pickup.point },
-      dropoff: { address: source.dropoff.address, point: source.dropoff.point },
+      pickup: stopArea(source.pickup),
+      dropoff: stopArea(source.dropoff),
       distanceMetres: source.distanceMetres,
       earnings: money(BigInt(source.earnings)),
       temperature: source.temperature as Temperature,
     };
+  }
+
+  /** Before accept the API names the area only, never the address (Security L3). */
+  function stopArea(stop: FixtureOffer['pickup']) {
+    return { suburb: stop.suburb, postcode: stop.postcode, point: stop.point };
   }
 
   function earningsOf(deliveryId: string): bigint {

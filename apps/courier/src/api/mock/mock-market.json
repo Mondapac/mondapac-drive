@@ -17,6 +17,7 @@
       "temperature": "chilled",
       "pickup": {
         "address": "12 Logan Rd, Woolloongabba QLD",
+        "suburb": "Woolloongabba",
         "postcode": "4102",
         "point": { "lat": -27.4886, "lng": 153.0372 },
         "contactName": "Al-Noor Halal Butcher",
@@ -24,6 +25,7 @@
       },
       "dropoff": {
         "address": "5 Sample St, Coorparoo QLD",
+        "suburb": "Coorparoo",
         "postcode": "4151",
         "point": { "lat": -27.4936, "lng": 153.0583 },
         "contactName": "Sam Customer",
@@ -38,6 +40,7 @@
       "temperature": "ambient",
       "pickup": {
         "address": "88 Demo Ave, Sunnybank QLD",
+        "suburb": "Sunnybank",
         "postcode": "4109",
         "point": { "lat": -27.5797, "lng": 153.0601 },
         "contactName": "Mondapac Grocer",
@@ -45,6 +48,7 @@
       },
       "dropoff": {
         "address": "21 Example Pde, Mount Gravatt QLD",
+        "suburb": "Mount Gravatt",
         "postcode": "4122",
         "point": { "lat": -27.5381, "lng": 153.0797 },
         "contactName": "Riya Customer",

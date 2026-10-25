@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type { CourierSettings, Offer } from '../api/schemas';
+import type { CourierSettings, Offer, OfferStop } from '../api/schemas';
 import { secondsLeft } from '../domain/countdown';
 import { formatDistance, formatMoney } from '../domain/format';
 import { t } from '../i18n';
@@ -18,6 +18,13 @@ interface Props {
   readonly onDecline: () => void;
   /** Called once when the countdown reaches zero. */
   readonly onExpired: () => void;
+}
+
+/** The suburb and postcode of a stop, or the postcode alone when delivery has no suburb. */
+function area(stop: OfferStop): string {
+  return stop.suburb
+    ? t('offer.area', { suburb: stop.suburb, postcode: stop.postcode })
+    : stop.postcode;
 }
 
 export function OfferCard({ offer, settings, clock, busy, onAccept, onDecline, onExpired }: Props) {
@@ -56,9 +63,10 @@ export function OfferCard({ offer, settings, clock, busy, onAccept, onDecline, o
         </Text>
       )}
       <Text style={styles.label}>{t('offer.pickup')}</Text>
-      <Text style={styles.line}>{offer.pickup.address}</Text>
+      <Text style={styles.line}>{area(offer.pickup)}</Text>
       <Text style={styles.label}>{t('offer.dropoff')}</Text>
-      <Text style={styles.line}>{offer.dropoff.address}</Text>
+      <Text style={styles.line}>{area(offer.dropoff)}</Text>
+      <Text style={styles.hint}>{t('offer.addressAfterAccept')}</Text>
       {expired ? (
         <Notice tone="warning" text={t('offer.expired')} />
       ) : (
@@ -91,6 +99,7 @@ const styles = StyleSheet.create({
   pay: { fontSize: 18, fontWeight: '600', color: colors.primary },
   label: { marginTop: space.sm, color: colors.muted, fontSize: 13, textTransform: 'uppercase' },
   line: { color: colors.text, fontSize: 16 },
+  hint: { color: colors.muted, fontSize: 13 },
   cold: { color: colors.warning, fontWeight: '600' },
   countdown: { marginTop: space.sm, fontSize: 16, fontWeight: '600', color: colors.text },
 });

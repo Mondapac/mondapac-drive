@@ -164,11 +164,18 @@ export function createHttpCourierApi(options: Options): CourierApi {
     return parsed.data;
   }
 
-  /** The server's active delivery, or the one the courier accepted on this device. */
-  function withActiveJob(status: CourierStatus): CourierStatus {
-    return status.activeDeliveryId
-      ? status
-      : { ...status, activeDeliveryId: activeJob?.current() ?? null };
+  /**
+   * The server's active delivery (fleet, from delivery's events), or else the one the courier
+   * accepted on this device, kept as a fallback for the moment fleet has not caught up. Once the
+   * server names a delivery, a different device copy is stale and is dropped.
+   */
+  async function withActiveJob(status: CourierStatus): Promise<CourierStatus> {
+    const remembered = activeJob?.current() ?? null;
+    if (status.activeDeliveryId) {
+      if (remembered && remembered !== status.activeDeliveryId) await activeJob?.forget();
+      return status;
+    }
+    return { ...status, activeDeliveryId: remembered };
   }
 
   return {
