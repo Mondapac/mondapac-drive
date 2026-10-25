@@ -59,7 +59,7 @@ pnpm --filter @mondapac-drive/courier prebuild:android`, then `./gradlew assembl
 | Pilot API URL (https) and Market | preview and production builds | EAS environment variables per environment; CI variables `COURIER_PREVIEW_API_URL`, `COURIER_PREVIEW_MARKET_ID` |
 | Privacy policy, support URL, demo courier account | store review | `store/listing.md` |
 | Final logo | icon, splash, feature graphic | `store/assets/` |
-| Google Maps Android API key (Maps SDK for Android only, restricted to the app's package and signing-certificate SHA-1s, with a quota) | the live map on Android | EAS secret and CI secret `GOOGLE_MAPS_ANDROID_API_KEY` |
+| Two Google Maps Android API keys, both for Maps SDK for Android only: a production key restricted to the package and the Play upload and app-signing SHA-1s; a separate preview key with a low quota (the preview APK uses the public debug keystore, so its SHA-1 restriction protects little: rotate it if abused) | the live map on Android | production key: EAS secret `GOOGLE_MAPS_ANDROID_API_KEY`; preview key: CI secret of the same name |
 
 No signing key, keystore or service-account file goes in the repository (`.gitignore` blocks the
 common names).

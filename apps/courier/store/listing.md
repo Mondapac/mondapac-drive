@@ -40,6 +40,8 @@ dispatch, also when the app is in the background or the screen is off. It is use
 nearby deliveries, to show the operations team and the customer where an order is, and to
 record the delivery route. Sharing stops as soon as you go offline or sign out; no location is
 collected while you are offline. Android shows a notification the whole time location is shared.
+The in-app map is drawn by Google Maps (Android) or Apple Maps (iOS), which load the map of the
+area around you; the privacy policy names both as service providers.
 
 **Camera, photos and files.** The camera is used only to take a proof-of-delivery photo, or a
 photo of your courier documents (licence, insurance) while you set up your account, when you
