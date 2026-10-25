@@ -16,8 +16,8 @@ with the Market and the count, on each tick that leaves such lines. Both events 
 
 ## Who can act
 
-- **See** lines and balances: `payouts.ledger.view` (platform scope). It is on no default role;
-  grant it through a custom platform role.
+- **See** lines and balances: `payouts.ledger.view` (platform scope). The default operator role holds it
+  (seed v5); grant it to anyone else through a custom platform role.
 - **Settle** a line: `payouts.line.settle` (protected). Only a role an owner grants explicitly
   holds it. Every settle is audited (`payouts.line.settled`).
 

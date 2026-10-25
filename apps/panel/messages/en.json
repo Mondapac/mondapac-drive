@@ -710,7 +710,14 @@
       "waiting": "Waiting for a courier",
       "active": "On the way",
       "done": "Finished",
-      "scheduled": "Scheduled"
+      "scheduled": "Scheduled",
+      "attention": "Needs attention",
+      "status": "Status",
+      "any-status": "Any status",
+      "apply": "Apply",
+      "merchant": "Deliveries of {name}",
+      "all-merchants": "Every merchant",
+      "attention-help": "Deliveries whose dispatch rounds all lapsed, whose cold chain was breached, or that failed at the door. Each page looks through up to {rows} deliveries; older ones are on the next page."
     },
     "label": {
       "reference": "Reference",
@@ -848,7 +855,58 @@
       },
       "validation": {
         "failed": "Check the fields and try again."
+      },
+      "dispatch": {
+        "collected": "The courier already collected the parcel, so it can no longer be reassigned.",
+        "courier-not-active": "This courier is not active in this Market. Choose another courier.",
+        "already-assigned": "This courier already has the delivery.",
+        "cancelled": "This delivery was cancelled.",
+        "not-exhausted": "Couriers are still being offered this delivery. Reload to see its status.",
+        "conflict": "Someone changed this delivery's dispatch at the same time. Reload and try again.",
+        "not-found": "This delivery has no dispatch job yet. Reload in a moment."
       }
+    },
+    "exception": {
+      "dispatch-exhausted": "No courier accepted",
+      "cold-chain-breach": "Cold chain breached"
+    },
+    "job": {
+      "title": "Dispatch job",
+      "unavailable": "The dispatch job could not be loaded. Reload to try again.",
+      "status": "Job status",
+      "state": {
+        "WAITING": "Waiting to open",
+        "OFFERING": "Offering to couriers",
+        "ASSIGNED": "Assigned",
+        "EXHAUSTED": "No courier accepted",
+        "COLLECTED": "Collected",
+        "CANCELLED": "Cancelled"
+      },
+      "round": "Round",
+      "round-n": "Round {round}",
+      "opens": "Opens",
+      "next-action": "Next step at",
+      "assignment": "Assignment",
+      "assigned": "{name} · {vehicle} · {method}, {at}",
+      "method": {
+        "offer": "accepted an offer",
+        "manual": "assigned by a dispatcher"
+      },
+      "offers": "Offers",
+      "no-offers": "No offer was sent yet.",
+      "sent": "Sent {at}",
+      "offer": {
+        "PENDING": "Waiting for an answer until {at}",
+        "ACCEPTED": "Accepted {at}",
+        "DECLINED": "Declined {at}",
+        "EXPIRED": "Expired {at}",
+        "WITHDRAWN": "Withdrawn {at}",
+        "WITHDRAWN-plain": "Withdrawn"
+      },
+      "reassign": "Reassign courier",
+      "redispatch": "Offer to couriers again",
+      "redispatched": "The delivery is offered to couriers again.",
+      "exhausted-help": "Every round lapsed without an answer. Offer it again, or assign a courier yourself."
     }
   },
   "ops": {

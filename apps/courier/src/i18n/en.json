@@ -120,7 +120,19 @@
     "today": "Today",
     "week": "This week",
     "deliveries": "{{count}} deliveries today",
-    "stubNotice": "Payouts are not live yet; figures are an estimate."
+    "balance": "Owed to you",
+    "balanceTax": "Includes {{tax}} tax",
+    "recent": "Recent activity",
+    "none": "No earnings yet. Completed deliveries show here.",
+    "refresh": "Refresh",
+    "kinds": {
+      "earning": "Delivery",
+      "tip": "Tip",
+      "adjustment": "Adjustment",
+      "reversal": "Reversal",
+      "payout": "Paid to your account",
+      "other": "Other"
+    }
   },
   "permissions": {
     "location": {

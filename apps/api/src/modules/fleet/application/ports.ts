@@ -1,5 +1,6 @@
 import type { Id, MarketContext, MarketId } from '@mondapac-drive/shared-kernel';
 import type { CourierState } from '../domain/courier';
+import type { CourierJob } from '../domain/courier-job';
 import type { CourierStatus } from '../domain/courier-status';
 import type { MarketFleetRules } from '../domain/fleet-rules';
 
@@ -36,10 +37,30 @@ export interface CourierRepository {
   ): Promise<CourierState[]>;
   /** Which of these file keys a document row of the Market names, in any tenant. */
   namedFileKeys(market: MarketContext, fileKeys: readonly string[]): Promise<Set<string>>;
+  /**
+   * Adds one to the version of the couriers of these accounts, changing nothing else: a change of
+   * a courier's jobs then conflicts with a shift change read before it (handoff 31, Hassan M1).
+   */
+  touch(market: MarketContext, actorIds: readonly string[]): Promise<void>;
   /** The active couriers who are online in a service area, with their vehicles and documents. */
   findOnlineInArea(market: MarketContext, serviceAreaCode: string): Promise<CourierState[]>;
 }
 export const COURIER_REPOSITORY = Symbol('CourierRepository');
+
+/**
+ * Fleet's view of the deliveries couriers carry (`CourierJob`), kept by the subscriber to
+ * delivery's events. Runs inside the caller's unit of work, like {@link CourierRepository}.
+ */
+export interface CourierJobRepository {
+  find(market: MarketContext, deliveryId: Id<'Delivery'>): Promise<CourierJob | undefined>;
+  /**
+   * Writes `job` over the stored one, which had `previousVersion` (undefined: none yet). Throws
+   * `StaleAggregateError` when another event of the delivery was applied in between, so the
+   * event is retried and reads the job again.
+   */
+  save(market: MarketContext, job: CourierJob, previousVersion: number | undefined): Promise<void>;
+}
+export const COURIER_JOB_REPOSITORY = Symbol('CourierJobRepository');
 
 /** The fleet rules and service areas of the Markets this deployment hosts. */
 export interface FleetRulesProvider {

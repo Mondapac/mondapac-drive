@@ -15,6 +15,7 @@ import {
   courierSettings,
   courierStatus,
   currentOffer,
+  earningsBalance,
   earningsSummary,
   job,
   offerAccepted,
@@ -62,6 +63,7 @@ export const ROUTES = {
   vehicles: '/fleet/courier/me/vehicles',
   documents: '/fleet/courier/me/documents',
   payoutOnboarding: '/payouts/courier/me/onboarding-link',
+  balance: (limit: number) => `/payouts/courier/me/balance?limit=${Math.trunc(limit)}`,
 } as const;
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -243,6 +245,7 @@ export function createHttpCourierApi(options: Options): CourierApi {
       return (await call('POST', ROUTES.documents, documentSubmitted, form)).profile;
     },
     payoutOnboardingLink: () => call('POST', ROUTES.payoutOnboarding, payoutOnboardingLink, {}),
+    balance: (limit) => call('GET', () => ROUTES.balance(limit), earningsBalance),
   };
 }
 

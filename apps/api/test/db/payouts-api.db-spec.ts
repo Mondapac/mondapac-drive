@@ -30,7 +30,7 @@ describe('payouts routes (database integration)', () => {
 
   describe.each(TEST_MARKETS)('in market %s', (code) => {
     let admin: AdminActor;
-    let operator: AdminActor;
+    let dispatcher: AdminActor;
     let viewer: AdminActor;
     let courier: CourierActor;
     const adjustment = (currency: string) => ({
@@ -49,7 +49,7 @@ describe('payouts routes (database integration)', () => {
       await actors.seedRoles();
       const { origin } = panelHeaders(code);
       admin = await actors.admin(origin);
-      operator = await actors.admin(origin, 'operator');
+      dispatcher = await actors.admin(origin, 'dispatcher');
       // A custom role that may read lines and balances, without the protected keys.
       const role = await call(code, 'post', '/identity/admin/roles', admin.headers, {
         name: `Payouts viewer ${randomUUID().slice(0, 8)}`,
@@ -88,7 +88,10 @@ describe('payouts routes (database integration)', () => {
     });
 
     it('lets ledger.view read lines, and keeps adjusting and settling to the protected keys', async () => {
-      expect((await call(code, 'get', '/payouts/admin/lines', operator.headers)).status).toBe(403);
+      // The dispatcher role holds no payouts key (the operator holds ledger.view from seed v5).
+      expect((await call(code, 'get', '/payouts/admin/lines', dispatcher.headers)).status).toBe(
+        403,
+      );
       const lines = await call(code, 'get', '/payouts/admin/lines', viewer.headers);
       expect(lines.status).toBe(200);
       expect(lines.body).toEqual(expect.objectContaining({ lines: expect.any(Array) as unknown }));

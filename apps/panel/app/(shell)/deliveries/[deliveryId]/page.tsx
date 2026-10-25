@@ -1,7 +1,9 @@
-import { BackLink, LoadError } from '@mondapac-drive/ui';
+import { BackLink, Card, LoadError } from '@mondapac-drive/ui';
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { DeliveryDetail } from '../../../../src/deliveries/delivery-detail.tsx';
+import { DISPATCH_PERMISSION, type DispatchJob } from '../../../../src/deliveries/dispatch-job.ts';
+import { DispatchJobCard } from '../../../../src/deliveries/dispatch-job-card.tsx';
 import { DispatchPanel } from '../../../../src/deliveries/dispatch-panel.tsx';
 import { namesFor } from '../../../../src/deliveries/names.ts';
 import { NoAccess } from '../../../../src/ops/no-access.tsx';
@@ -37,9 +39,12 @@ export default async function DeliveryPage({
       </AdminShell>
     );
   }
-  const [result, names] = await Promise.all([
+  const [result, names, jobRead] = await Promise.all([
     serverGet<Delivery>(`delivery/admin/deliveries/${deliveryId}`),
     namesFor(keys),
+    keys.has(DISPATCH_PERMISSION.jobView)
+      ? serverGet<DispatchJob>(`dispatch/admin/deliveries/${deliveryId}`)
+      : Promise.resolve(null),
   ]);
   if (result.kind === 'signed-out') redirect('/session-ended');
   if (result.kind === 'not-found') notFound();
@@ -51,6 +56,9 @@ export default async function DeliveryPage({
     );
   }
   const delivery = result.body;
+  // A delivery booked a moment ago may have no job yet (404); the card is then left out.
+  const job = jobRead?.kind === 'ok' ? jobRead.body : null;
+  const canAssignJob = job !== null && keys.has(DISPATCH_PERMISSION.jobAssign);
   const title = t('deliveries.detail.title', { reference: delivery.externalReference });
   return (
     <AdminShell session={session} activeId="deliveries" title={title}>
@@ -64,12 +72,27 @@ export default async function DeliveryPage({
             couriers={names.couriers}
           />
           <div className="flex flex-col gap-4">
+            {job !== null ? (
+              <DispatchJobCard
+                job={job}
+                couriers={names.couriers}
+                activeCouriers={names.activeCouriers}
+                quotedVehicle={delivery.quote.vehicle}
+                canAssign={canAssignJob}
+                csrfToken={session.csrfToken}
+              />
+            ) : jobRead?.kind === 'unavailable' ? (
+              <Card title={t('deliveries.job.title')}>
+                <p className="text-sm text-fg-muted">{t('deliveries.job.unavailable')}</p>
+              </Card>
+            ) : null}
             <DispatchPanel
               deliveryId={delivery.id}
               status={delivery.status}
               couriers={names.activeCouriers}
               quotedVehicle={delivery.quote.vehicle}
               canDispatch={keys.has(PERMISSION.deliveryDispatch)}
+              assignsOnJob={canAssignJob}
               canCancel={keys.has(PERMISSION.deliveryCancel)}
               csrfToken={session.csrfToken}
             />

@@ -2,6 +2,7 @@ import type {
   CourierSession,
   CourierSettings,
   CourierStatus,
+  EarningsBalance,
   EarningsSummary,
   FailureReason,
   Job,
@@ -70,6 +71,8 @@ export interface CourierApi {
   addVehicle(input: VehicleInput): Promise<CourierProfile>;
   submitDocument(upload: DocumentUpload): Promise<CourierProfile>;
   payoutOnboardingLink(): Promise<PayoutOnboardingLink>;
+  /** The balance and the latest `limit` ledger entries (1 to 200), newest first. */
+  balance(limit: number): Promise<EarningsBalance>;
 }
 
 /**
