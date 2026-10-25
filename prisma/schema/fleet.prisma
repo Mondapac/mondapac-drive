@@ -78,6 +78,8 @@ model FleetDocument {
   @@index([marketId, courierId])
   /// The sweep of stored files no document names looks rows up by their key.
   @@unique([marketId, fileKey])
+  /// The panel's documents that run out soon, soonest first.
+  @@index([marketId, tenantId, status, expiresAt, id])
   @@map("documents")
   @@schema("fleet")
 }

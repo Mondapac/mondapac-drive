@@ -47,6 +47,12 @@ export const courierListQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+export const expiringDocumentsQuery = z.strictObject({
+  before: instant,
+  after: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 export const approveBody = z.strictObject({
   employmentType: z.enum(EMPLOYMENT_TYPES),
   coldChainCapable: z.boolean(),

@@ -43,6 +43,7 @@ import {
 } from './application/use-cases/operator-couriers.use-case';
 import {
   DownloadCourierDocument,
+  ListExpiringDocuments,
   RejectCourierDocument,
   RevokeCourierDocument,
   VerifyCourierDocument,
@@ -127,6 +128,7 @@ function fleetUseCase<U>(
       RejectCourierDocument,
       RevokeCourierDocument,
       DownloadCourierDocument,
+      ListExpiringDocuments,
       DeactivateCourierVehicle,
       SetVehicleCapacity,
       SweepDocumentFiles,

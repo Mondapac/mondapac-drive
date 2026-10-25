@@ -220,6 +220,66 @@ export class PrismaCourierRepository implements CourierRepository {
     return this.withChildren(market, rows);
   }
 
+  async expiringDocuments(
+    market: MarketContext,
+    query: {
+      readonly before: Temporal.Instant;
+      readonly after?: Id<'CourierDocument'>;
+      readonly limit: number;
+    },
+  ) {
+    const tx = this.prisma.tx(market);
+    const scope = { marketId: market.marketId, tenantId: market.tenantId };
+    let from: { readonly expiresAt: Date; readonly id: string } | undefined;
+    if (query.after !== undefined) {
+      const cursor = await tx.fleetDocument.findFirst({
+        where: { ...scope, id: query.after },
+        select: { id: true, expiresAt: true },
+      });
+      // A cursor that names no expiring document ends the listing.
+      if (cursor === null || cursor.expiresAt === null) return [];
+      from = { expiresAt: cursor.expiresAt, id: cursor.id };
+    }
+    const rows = await tx.fleetDocument.findMany({
+      where: {
+        ...scope,
+        status: 'verified',
+        expiresAt: { lt: toDate(query.before) },
+        courier: { status: { not: 'offboarded' } },
+        ...(from === undefined
+          ? {}
+          : {
+              OR: [
+                { expiresAt: { gt: from.expiresAt } },
+                { expiresAt: from.expiresAt, id: { gt: from.id } },
+              ],
+            }),
+      },
+      orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
+      take: query.limit,
+      select: { id: true, courierId: true, type: true, expiresAt: true },
+    });
+    const couriers = await tx.fleetCourier.findMany({
+      where: { ...scope, id: { in: [...new Set(rows.map((row) => row.courierId))] } },
+      select: { id: true, actorId: true },
+    });
+    const accounts = new Map(couriers.map((row) => [row.id, row.actorId]));
+    return rows.flatMap((row) => {
+      const accountId = accounts.get(row.courierId);
+      // A courier of another tenant (the foreign key holds no tenant) is never answered.
+      if (accountId === undefined || row.expiresAt === null) return [];
+      return [
+        {
+          documentId: row.id as Id<'CourierDocument'>,
+          courierId: row.courierId as Id<'Courier'>,
+          accountId,
+          type: row.type,
+          expiresAt: toInstant(row.expiresAt),
+        },
+      ];
+    });
+  }
+
   async namedFileKeys(market: MarketContext, fileKeys: readonly string[]) {
     if (fileKeys.length === 0) return new Set<string>();
     const rows = await this.prisma.tx(market).fleetDocument.findMany({
