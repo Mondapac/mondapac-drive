@@ -643,6 +643,14 @@ const fleetSchema = z
     },
   );
 
+/**
+ * The `events` section, owned by `platform/events`: how long a handled inbox row is kept
+ * (`platform.inbox-retention`). At least 7 days, well past every retry of a delivery.
+ */
+const eventsSchema = z.strictObject({
+  inboxRetentionDays: z.number().int().min(7).max(3650),
+});
+
 const marketSchema = z
   .strictObject({
     code: marketCode,
@@ -672,6 +680,7 @@ const marketSchema = z
     fleet: fleetSchema,
     /** Courier earnings and payouts (payouts-config.ts). */
     payouts: payoutsSchema,
+    events: eventsSchema,
   })
   .refine((market) => market.supportedLocales.includes(market.defaultLocale), {
     message: 'supportedLocales must include defaultLocale',

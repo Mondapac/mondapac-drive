@@ -135,6 +135,7 @@ const VALID = {
   notifications: NOTIFICATIONS,
   fleet: FLEET,
   payouts: PAYOUTS,
+  events: { inboxRetentionDays: 30 },
 };
 
 function directoryWith(files: Record<string, unknown>): string {

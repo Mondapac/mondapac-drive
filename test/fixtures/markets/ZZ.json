@@ -311,5 +311,6 @@
       "maxResults": 20
     },
     "etaRefreshSeconds": 30
-  }
+  },
+  "events": { "inboxRetentionDays": 14 }
 }
