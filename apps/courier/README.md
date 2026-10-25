@@ -90,7 +90,7 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 - Tracking: `POST /tracking/courier/pings` (`{ pings: [...] }`, at most 20; the courier is the
   session's, so no ping carries a courier id).
 - Dispatch: `GET /dispatch/courier/offers/current`, `POST …/:id/accept` (`{ deliveryId }`) and
-  `…/:id/decline` (204). Before accept an offer names only the suburb and postcode of each stop (`{ suburb | null, postcode, point }`, Security L3) and `earnings: Money | null` (null for an employee, a courier with no payee profile or a vehicle without a rate; the card then hides the pay line). The full address comes with the job after accept.
+  `…/:id/decline` (204). Before accept an offer names only the suburb and postcode of each stop (`{ suburb | null, postcode, point }`, Security L3) and `earnings: Money | null` (an estimate before waiting time, shown as "about"; null for an employee, a courier with no payee profile or a vehicle without a rate, shown as "pay unavailable", never zero). The drop-off point is snapped to a grid and is never used to navigate. The full address comes with the job after accept.
 
 - Fleet: `GET /fleet/courier/me` (`{ shift, activeDeliveryId, … }`; 404 `fleet.courier.not-found`
   before an operator sets up the profile), `PUT …/me/shift { state }` (409

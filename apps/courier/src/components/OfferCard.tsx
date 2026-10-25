@@ -47,11 +47,12 @@ export function OfferCard({ offer, settings, clock, busy, onAccept, onDecline, o
   return (
     <View style={styles.card} accessibilityLabel={t('offer.title')}>
       <Text style={styles.title}>{t('offer.title')}</Text>
-      {offer.earnings && (
-        <Text style={styles.pay}>
-          {t('offer.pay', { amount: formatMoney(offer.earnings, settings.locale) })}
-        </Text>
-      )}
+      {/* An estimate (no waiting time); null is "unavailable", never a zero. */}
+      <Text style={offer.earnings ? styles.pay : styles.hint}>
+        {offer.earnings
+          ? t('offer.pay', { amount: formatMoney(offer.earnings, settings.locale) })
+          : t('offer.payUnavailable')}
+      </Text>
       <Text style={styles.line}>
         {t('offer.distance', {
           distance: formatDistance(offer.distanceMetres, settings.distanceUnit, settings.locale),

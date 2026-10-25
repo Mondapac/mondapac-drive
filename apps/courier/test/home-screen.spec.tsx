@@ -26,7 +26,7 @@ describe.each(MARKETS)('home in $marketId', (settings) => {
       currency: settings.currency,
     });
     expect(offer!.earnings!.currency).toBe(settings.currency);
-    expect(screen.getByText(/^You earn /).props.children).toContain(
+    expect(screen.getByText(/^You earn about /).props.children).toContain(
       pay.format(settings.currency === 'JPY' ? 950 : 9.5),
     );
     expect(screen.getByText('30 s to respond')).toBeOnTheScreen();
@@ -45,7 +45,7 @@ describe.each(MARKETS)('home in $marketId', (settings) => {
   });
 });
 
-it('hides the pay line when the offer has no pay, and shows the postcode without a suburb', async () => {
+it('says pay is unavailable when the offer has none, and shows the postcode without a suburb', async () => {
   const harness = await createHarness();
   const real = harness.api.currentOffer.bind(harness.api);
   jest.spyOn(harness.api, 'currentOffer').mockImplementation(async () => {
@@ -57,6 +57,7 @@ it('hides the pay line when the offer has no pay, and shows the postcode without
   await press('Go online');
   await screen.findByText('New delivery offer');
   expect(screen.queryByText(/^You earn /)).toBeNull();
+  expect(screen.getByText('Pay unavailable for this offer')).toBeOnTheScreen();
   expect(screen.getByText('4151')).toBeOnTheScreen();
   expect(screen.getByText('Woolloongabba 4102')).toBeOnTheScreen();
 });
