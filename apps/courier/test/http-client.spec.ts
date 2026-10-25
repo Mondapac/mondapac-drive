@@ -180,6 +180,14 @@ describe('HTTP adapter', () => {
     };
     const { api } = setup({ body: { offer } });
     await expect(api.currentOffer()).rejects.toEqual(new ApiError(200, 'response.invalid'));
+
+    const withArea = {
+      ...offer,
+      pickup: { suburb: 'Sample', postcode: '1000', point: { lat: 1, lng: 2 } },
+      dropoff: { suburb: 'Sample', postcode: '1001', point: { lat: 1, lng: 2 }, address: '2 St' },
+    };
+    const extra = setup({ body: { offer: withArea } });
+    await expect(extra.api.currentOffer()).rejects.toEqual(new ApiError(200, 'response.invalid'));
   });
 
   it('joins the failure reason and the details into the reason text', async () => {

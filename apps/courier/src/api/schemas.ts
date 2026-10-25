@@ -72,7 +72,13 @@ export type CourierStatus = z.infer<typeof courierStatus>;
  * has none for the address; the app then shows the postcode alone. The full address, contact and
  * notes come with the job once the courier accepts.
  */
-const offerStop = z.object({ suburb: z.string().min(1).nullable(), postcode: z.string(), point });
+// Strict: an offer that carries any more than the area (an address, a contact) is refused, not
+// silently trimmed, so a server regression on L3 shows at once.
+const offerStop = z.strictObject({
+  suburb: z.string().min(1).nullable(),
+  postcode: z.string(),
+  point,
+});
 export type OfferStop = z.infer<typeof offerStop>;
 
 export const offer = z.object({
