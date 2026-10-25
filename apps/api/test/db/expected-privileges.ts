@@ -89,12 +89,14 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'delivery.proof_photos': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.delivery_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     'delivery.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
-    'delivery.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'delivery.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The identity module (20261024170000, copied from the marketplace's identity migrations):
     // no account is deleted by the application, the outbox envelope and the inbox are
     // append-only, a merchant and a membership change only their state.
     'identity.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
-    'identity.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'identity.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // 20261025121200 (Hassan, WP2 review): UPDATE only of the columns the application writes.
     'identity.accounts': {
       table: ['INSERT', 'SELECT'],
@@ -178,7 +180,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     },
     'dispatch.offers': { table: ['INSERT', 'SELECT'], columnUpdate: ['answered_at', 'status'] },
     'dispatch.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
-    'dispatch.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'dispatch.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The tracking module (20261025060000): only the status, courier and end of a tracked
     // delivery change; breadcrumbs and links are never edited. DELETE is the retention job's.
     'tracking.tracked_deliveries': {
@@ -194,7 +197,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       ],
     },
     // 20261026060000: tracking's inbox for the delivery lifecycle subscribers, append-only.
-    'tracking.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'tracking.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.breadcrumbs': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'tracking.links': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The notifications module (20261025110000): only the retry state of a queued message and
@@ -210,7 +214,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
         'version',
       ],
     },
-    'notifications.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'notifications.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     'notifications.webhook_calls': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [
@@ -266,7 +271,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       table: ['INSERT', 'SELECT'],
       columnUpdate: ['assigned_at', 'courier_account_id', 'delivery_version', 'ended'],
     },
-    'fleet.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'fleet.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // The payouts module (20261025100000): the ledger, delivery records, runs and handled
     // provider events are append-only; a line changes only its transfer state, an account only
     // whether it can be paid out.
@@ -293,7 +299,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'payouts.provider_events': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // 20261026040000 (handoff 24): the payouts outbox and inbox, as every module's.
     'payouts.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
-    'payouts.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
+    // 20261027050000 (handoff 35): DELETE for platform.inbox-retention.
+    'payouts.inbox': { table: ['DELETE', 'INSERT', 'SELECT'], columnUpdate: [] },
     // Prisma's own bookkeeping, owned by the migration role; nothing for the application.
     'public._prisma_migrations': { table: [], columnUpdate: [] },
   },

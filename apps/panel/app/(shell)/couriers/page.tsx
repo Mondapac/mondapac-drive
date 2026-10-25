@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { CouriersTable } from '../../../src/couriers/couriers-table.tsx';
 import { InviteCourierButton } from '../../../src/couriers/invite-courier-button.tsx';
+import { fleetIdsByAccount } from '../../../src/fleet/fleet-ids.ts';
 import { NoAccess } from '../../../src/ops/no-access.tsx';
 import { NoticeProvider } from '../../../src/ops/notice.tsx';
 import { PERMISSION, UUID, type CourierPage } from '../../../src/ops/types.ts';
@@ -37,9 +38,10 @@ export default async function CouriersPage({
   }
   const { after: rawAfter } = await searchParams;
   const after = typeof rawAfter === 'string' && UUID.test(rawAfter) ? rawAfter : null;
-  const result = await serverGet<CourierPage>(
-    `identity/admin/couriers${after === null ? '' : `?after=${after}`}`,
-  );
+  const [result, fleetIds] = await Promise.all([
+    serverGet<CourierPage>(`identity/admin/couriers${after === null ? '' : `?after=${after}`}`),
+    fleetIdsByAccount(keys),
+  ]);
   if (result.kind === 'signed-out') redirect('/session-ended');
   return (
     <AdminShell session={session} activeId="couriers" title={title}>
@@ -60,6 +62,8 @@ export default async function CouriersPage({
               after={after}
               csrfToken={session.csrfToken}
               canDisable={keys.has(PERMISSION.courierDisable)}
+              fleetIds={fleetIds}
+              keys={keys}
             />
             {result.body.next === null || !UUID.test(result.body.next) ? null : (
               <p className="mt-4">

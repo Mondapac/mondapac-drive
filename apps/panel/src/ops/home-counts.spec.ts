@@ -11,7 +11,7 @@ const read = (id: string) => {
 describe('Home figures', () => {
   it('reads only the lists the session holds the key of', () => {
     const ids = countReadsFor(new Set(['fleet.courier.view'])).map((r) => r.id);
-    expect(ids).toEqual(['fleet-applicants', 'fleet-documents']);
+    expect(ids).toEqual(['fleet-applicants', 'fleet-documents', 'fleet-expiring']);
     expect(countReadsFor(new Set())).toEqual([]);
   });
 
@@ -42,6 +42,13 @@ describe('Home figures', () => {
       next: 'abc',
     };
     expect(read('deliveries-attention').count(body)).toEqual({ count: 2, hasMore: true });
+  });
+
+  it('asks for the documents expiring within 30 days of the request', () => {
+    const path = read('fleet-expiring').path(new Date('2026-10-25T10:00:00Z'));
+    expect(path).toBe(
+      'fleet/admin/documents/expiring?before=2026-11-24T10%3A00%3A00.000Z&limit=100',
+    );
   });
 
   it('adds up the documents to review across the page of couriers', () => {
