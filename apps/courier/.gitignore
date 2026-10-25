@@ -1,0 +1,8 @@
+# Native projects that `expo prebuild` generates (CI's preview build and local runs).
+/android/
+/ios/
+# EAS and Gradle outputs, and the Play service-account key if one is ever saved here.
+*.apk
+*.aab
+*.ipa
+google-service-account*.json

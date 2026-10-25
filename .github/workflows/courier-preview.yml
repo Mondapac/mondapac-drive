@@ -1,0 +1,147 @@
+name: Courier app builds
+
+# The courier app's release builds (apps/courier/RELEASE.md). An Android preview APK for internal
+# testers is built here with Gradle, so it needs no Expo account and no signing secret: it is
+# signed with the debug key and cannot go to a store. Store builds go through EAS and run only
+# once the owner has set EXPO_TOKEN; without it the job says so and stops.
+
+on:
+  push:
+    branches: [main]
+    tags: ['courier-v*']
+    paths:
+      - 'apps/courier/**'
+      - 'config/markets/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/courier-preview.yml'
+  pull_request:
+    paths:
+      - 'apps/courier/app.config.ts'
+      - 'apps/courier/eas.json'
+      - 'apps/courier/package.json'
+      - 'apps/courier/release/**'
+      - 'apps/courier/store/**'
+      - '.github/workflows/courier-preview.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: courier-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android-preview:
+    name: Android preview APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_VARIANT: preview
+      APP_BUILD_NUMBER: ${{ github.run_number }}
+      # The preview API and Market are repository variables (Settings > Variables). Until the
+      # owner sets them the APK is built against a placeholder host: it installs and opens,
+      # and sign-in fails. The build itself is what this job proves.
+      EXPO_PUBLIC_API_URL: ${{ vars.COURIER_PREVIEW_API_URL || 'https://preview-api.invalid' }}
+      EXPO_PUBLIC_MARKET_ID: ${{ vars.COURIER_PREVIEW_MARKET_ID || 'AU' }}
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The release tag (courier-v1.2.3) names the version; between releases, the last tag.
+      - name: App version from the release tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/courier-v* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag=$(git describe --tags --match 'courier-v*' --abbrev=0 2>/dev/null || true)
+          fi
+          echo "APP_VERSION=$tag" >> "$GITHUB_ENV"
+          echo "Version tag: ${tag:-none, the package version}"
+
+      - name: Generate the native Android project
+        working-directory: apps/courier
+        run: pnpm prebuild:android
+
+      - name: Build the release APK
+        working-directory: apps/courier/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the artefact
+        id: name
+        working-directory: apps/courier
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "file=courier-preview-${APP_VERSION:-v$version}-${APP_BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.file }}
+          path: apps/courier/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  store-builds:
+    name: Store builds (EAS)
+    if: startsWith(github.ref, 'refs/tags/courier-v')
+    needs: android-preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # The EAS project is read from the config before EAS can serve its environment.
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      EAS_OWNER: ${{ vars.EAS_OWNER }}
+    steps:
+      - name: Check the owner's Expo account is connected
+        id: account
+        run: |
+          if [ -z "$EXPO_TOKEN" ] || [ -z "$EAS_PROJECT_ID" ]; then
+            echo "EXPO_TOKEN or EAS_PROJECT_ID is not set: store builds wait for the owner's Expo, Apple and Google accounts (apps/courier/RELEASE.md)." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.account.outputs.ready == 'true'
+
+      - uses: pnpm/action-setup@v4
+        if: steps.account.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.account.outputs.ready == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.account.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # API URL, Market, project id and the signing credentials live in the EAS project
+      # (environment "production"), so nothing secret passes through this job.
+      - name: Queue the production builds
+        if: steps.account.outputs.ready == 'true'
+        working-directory: apps/courier
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+        run: npx --yes eas-cli@25.3.0 build --profile production --platform all --non-interactive --no-wait

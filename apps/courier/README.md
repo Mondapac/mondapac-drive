@@ -104,4 +104,5 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 Offers are polled every 5 s while online until dispatch pushes them. A stop without a point
 (not geocoded) is navigated to by its address.
 
-Store builds (EAS: identifiers, icons, signing, push) are a later package.
+Release builds (EAS profiles, the CI preview APK, store listing and what the owner must provide):
+[RELEASE.md](RELEASE.md). Push notifications are a later package.
