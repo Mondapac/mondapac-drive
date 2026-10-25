@@ -23,6 +23,10 @@ import {
 import { ID_GENERATOR } from '../../src/platform/ids/ids.module';
 import { PrismaOutboxWriterFactory } from '../../src/platform/persistence/outbox/prisma-outbox-writer';
 import { PrismaService } from '../../src/platform/persistence/prisma.service';
+import {
+  RATE_LIMIT_COUNTERS,
+  type RateLimitCounters,
+} from '../../src/platform/rate-limit/rate-limit-counters';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../src/platform/unit-of-work/unit-of-work';
 import { createTestApp } from '../support/test-app';
 import { panelHeaders, TEST_MARKETS } from '../support/test-config';
@@ -55,9 +59,15 @@ describe('delivery events (database integration)', () => {
   let sql: Client;
 
   beforeAll(async () => {
+    // One application serves both Market fixtures, whose bookings and steps together would
+    // outrun the per-route limits; the limiter has suites of its own.
+    const unlimited: RateLimitCounters = {
+      consume: () => Promise.resolve({ count: 1, msBeforeNext: 60_000 }),
+    };
     ({ app } = await createTestApp({
       panelOrigins: true,
       env: { DATABASE_URL: testDatabaseUrl(), HOSTED_MARKETS: TEST_MARKETS.join(',') },
+      override: (builder) => builder.overrideProvider(RATE_LIMIT_COUNTERS).useValue(unlimited),
     }));
     sql = new Client({ connectionString: testDatabaseUrl() });
     await sql.connect();
