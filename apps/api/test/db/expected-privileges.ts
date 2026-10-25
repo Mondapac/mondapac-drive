@@ -151,7 +151,8 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
     'identity.invitations': { table: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], columnUpdate: [] },
     // The dispatch module: a job keeps its delivery and requirements, an offer only gets its
     // answer; the outbox envelope is append-only (20261025070000). The offer's stops, the
-    // followed delivery version and an early opening change too (20261026020000).
+    // followed delivery version and an early opening change too (20261026020000); the stops are
+    // suburbs and postcodes, not addresses (20261027020000).
     'dispatch.jobs': {
       table: ['INSERT', 'SELECT'],
       columnUpdate: [
@@ -160,13 +161,15 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
         'assigned_vehicle',
         'assignment_method',
         'delivery_version',
-        'dropoff_address',
         'dropoff_lat',
         'dropoff_lng',
+        'dropoff_postcode',
+        'dropoff_suburb',
         'excluded_courier_ids',
         'next_action_at',
         'opens_at',
-        'pickup_address',
+        'pickup_postcode',
+        'pickup_suburb',
         'round',
         'status',
         'trip_distance_metres',
@@ -259,6 +262,13 @@ export const EXPECTED_PRIVILEGES: ExpectedPrivileges = {
       columnUpdate: ['expires_at', 'rejection_reason', 'reviewed_at', 'status'],
     },
     'fleet.outbox': { table: ['INSERT', 'SELECT'], columnUpdate: ['published_at'] },
+    // 20261027010000: the jobs fleet follows from delivery's events (a job changes its courier,
+    // its end and the applied version, and is never deleted), and fleet's append-only inbox.
+    'fleet.courier_jobs': {
+      table: ['INSERT', 'SELECT'],
+      columnUpdate: ['assigned_at', 'courier_account_id', 'delivery_version', 'ended'],
+    },
+    'fleet.inbox': { table: ['INSERT', 'SELECT'], columnUpdate: [] },
     // The payouts module (20261025100000): the ledger, delivery records, runs and handled
     // provider events are append-only; a line changes only its transfer state, an account only
     // whether it can be paid out.

@@ -286,3 +286,50 @@ describe('the accepted delivery while fleet reports none', () => {
     expect(ongoing.forget).not.toHaveBeenCalled();
   });
 });
+
+describe('payouts balance', () => {
+  const body = {
+    balance: {
+      amount: { amount: '1000', currency: 'JPY' },
+      tax: { amount: '100', currency: 'JPY' },
+      total: { amount: '1100', currency: 'JPY' },
+    },
+    entries: [
+      {
+        id: 'e-2',
+        kind: 'payout',
+        amount: { amount: '-500', currency: 'JPY' },
+        tax: { amount: '-50', currency: 'JPY' },
+        payoutLineId: 'l-1',
+        occurredAt: '2026-10-24T09:00:00Z',
+      },
+      {
+        id: 'e-1',
+        kind: 'a-kind-from-a-newer-api',
+        amount: { amount: '1500', currency: 'JPY' },
+        tax: { amount: '150', currency: 'JPY' },
+        deliveryId: 'd-1',
+        occurredAt: '2026-10-23T09:00:00Z',
+      },
+    ],
+  };
+
+  it('asks for the latest entries and parses the balance', async () => {
+    const { api, fetch } = setup({ body });
+    const found = await api.balance(20);
+    expect(fetch.mock.calls[0]![0]).toBe(
+      'https://api.example.test/payouts/courier/me/balance?limit=20',
+    );
+    expect(found.balance.total.amount).toBe('1100');
+    expect(found.entries.map((entry) => entry.id)).toEqual(['e-2', 'e-1']);
+  });
+
+  it('refuses an amount that is not whole minor units', async () => {
+    const broken = {
+      ...body,
+      balance: { ...body.balance, total: { amount: '11.5', currency: 'JPY' } },
+    };
+    const { api } = setup({ body: broken });
+    await expect(api.balance(20)).rejects.toEqual(new ApiError(200, 'response.invalid'));
+  });
+});

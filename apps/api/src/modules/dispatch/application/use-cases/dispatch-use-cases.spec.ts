@@ -1,4 +1,11 @@
-import { geoPoint, parseId, Temporal, type Id, type MarketId } from '@mondapac-drive/shared-kernel';
+import {
+  geoPoint,
+  money,
+  parseId,
+  Temporal,
+  type Id,
+  type MarketId,
+} from '@mondapac-drive/shared-kernel';
 import {
   FixedClock,
   SequenceIdGenerator,
@@ -10,6 +17,7 @@ import { InMemoryCouriers } from '../../../../../test/support/dispatch-couriers'
 import {
   FakeCourierAccounts,
   FakeDeliveryFacts,
+  FakeOfferEarnings,
   FakeUnitOfWork,
   InMemoryDispatchJobs,
   RecordingAudit,
@@ -82,6 +90,7 @@ describe.each([
     const couriers = new InMemoryCouriers();
     const facts = new FakeDeliveryFacts();
     const accounts = new FakeCourierAccounts();
+    const earnings = new FakeOfferEarnings();
     const ids = new SequenceIdGenerator(clock);
     const advancer = new JobAdvancer(
       jobs,
@@ -103,6 +112,7 @@ describe.each([
       couriers,
       facts,
       accounts,
+      earnings,
       open: new OpenDispatchJob(gate, {
         jobs,
         facts,
@@ -113,9 +123,17 @@ describe.each([
         advancer,
       }),
       sweep: new AdvanceDispatchJobs(gate, { jobs, unitOfWork, clock, advancer }),
-      follow: new FollowDeliveryStatus(gate, { jobs, facts, outbox, unitOfWork, clock, advancer }),
+      follow: new FollowDeliveryStatus(gate, {
+        jobs,
+        facts,
+        settings: dispatchSettings,
+        outbox,
+        unitOfWork,
+        clock,
+        advancer,
+      }),
       cancel: new CancelDispatchJob(gate, { jobs, outbox, unitOfWork, clock }),
-      offer: new ViewCurrentOffer(gate, { jobs, unitOfWork, clock }),
+      offer: new ViewCurrentOffer(gate, { jobs, earnings, unitOfWork, clock }),
       answer: new AnswerOffer(gate, { jobs, outbox, unitOfWork, clock }),
       view: new ViewDispatchJob(gate, { jobs, unitOfWork }),
       assign: new AssignCourier(gate, {
@@ -236,13 +254,17 @@ describe.each([
 
       t.facts.book(deliveryId, {
         status: 'SCHEDULED',
-        dropoff: { address: '3 New Lane', postcode: '4101', point: geoPoint(-27.6, 153.1) },
+        dropoff: {
+          suburb: 'New Town',
+          postcode: '4102',
+          point: geoPoint(-27.6, 153.1),
+        },
       });
       t.clock.set(windowStart.subtract({ minutes: settings.scheduledLeadMinutes }));
       await sweep(t);
 
       expect(await offeredTo(t)).toEqual([courierId(1)]);
-      expect((await jobOf(t)).stops?.dropoffAddress).toBe('3 New Lane');
+      expect((await jobOf(t)).stops?.dropoffArea).toEqual({ suburb: 'New Town', postcode: '4102' });
     });
 
     it('is exhausted after the last round', async () => {
@@ -272,8 +294,8 @@ describe.each([
         offerId: await offerIdOf(t, 1),
         deliveryId,
         expiresAt: start.add(timeout),
-        pickup: { address: '1 Pickup Street' },
-        dropoff: { address: '2 Dropoff Road' },
+        pickup: { suburb: 'Pickup Vale', postcode: '4000', point: geoPoint(-27.47, 153.02) },
+        dropoff: { suburb: null, postcode: '4101', point: geoPoint(-27.5, 153.05) },
         tripDistanceMetres: 4200,
         temperature: 'chilled',
       });
@@ -281,6 +303,27 @@ describe.each([
 
       t.clock.advance(Temporal.Duration.from(timeout));
       expect(await t.offer.execute(courierCall(1), {})).toEqual({ ok: true, value: null });
+    });
+
+    it("prices the offer with payouts' quote, asked as the courier with the delivery's facts", async () => {
+      const t = setUp();
+      onShift(t.couriers, 1);
+      await book(t);
+      const pay = money(1234n, code === 'AU' ? 'AUD' : 'JPY');
+      t.earnings.amount = pay;
+
+      const mine = await t.offer.execute(courierCall(1), {});
+      expect(mine.ok && mine.value).toMatchObject({ earnings: pay });
+      expect(t.earnings.asked).toEqual([
+        {
+          courier: courierId(1),
+          offer: { deliveryId, vehicle: 'motorbike', distanceMetres: 4200, temperature: 'chilled' },
+        },
+      ]);
+
+      t.earnings.amount = null;
+      const unpriced = await t.offer.execute(courierCall(1), {});
+      expect(unpriced.ok && unpriced.value).toMatchObject({ earnings: null });
     });
 
     it('assigns the delivery to the courier who accepts, taking the courier from the session', async () => {
@@ -425,7 +468,10 @@ describe.each([
 
       await sweep(t);
       expect(await offeredTo(t)).toEqual([courierId(1)]);
-      expect((await jobOf(t)).stops?.pickupAddress).toBe('1 Pickup Street');
+      expect((await jobOf(t)).stops?.pickupArea).toEqual({
+        suburb: 'Pickup Vale',
+        postcode: '4000',
+      });
 
       const again = await t.restart.execute(dispatcher, { deliveryId });
       expect(again.ok || again.error.code).toBe('dispatch.not-exhausted');
@@ -462,7 +508,11 @@ describe.each([
       const t = setUp();
       await assignedByOffer(t);
       t.facts.book(deliveryId, {
-        dropoff: { address: '3 New Lane', postcode: '4101', point: geoPoint(-27.6, 153.1) },
+        dropoff: {
+          suburb: 'New Town',
+          postcode: '4102',
+          point: geoPoint(-27.6, 153.1),
+        },
       });
 
       const followed = await status(t, 3, 'assigned', 'dispatching', {
@@ -472,7 +522,7 @@ describe.each([
       expect(followed.ok && followed.value?.status).toBe('OFFERING');
       const job = await jobOf(t);
       expect(job.excludedCourierIds).toEqual([courierId(1)]);
-      expect(job.stops?.dropoffAddress).toBe('3 New Lane');
+      expect(job.stops?.dropoffArea).toEqual({ suburb: 'New Town', postcode: '4102' });
       expect(await offeredTo(t)).not.toContain(courierId(1));
       expect(await offeredTo(t)).toHaveLength(settings.waveSize);
     });

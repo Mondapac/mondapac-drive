@@ -8,15 +8,18 @@ import {
   DELIVERY_FACTS,
   DISPATCH_JOB_REPOSITORY,
   DISPATCH_SETTINGS,
+  OFFER_EARNINGS,
 } from '../application/ports';
 import { DeliveryDispatchView } from '../../delivery';
 import { FleetDirectory } from '../../fleet';
 import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
+import { EarningsQuote } from '../../payouts';
 import { CourierPositions } from '../../tracking/contracts/courier-positions.contract';
 import { ConfigDispatchSettingsProvider } from './config-dispatch-settings.provider';
 import { DeliveryDispatchFacts } from './delivery-dispatch-facts';
 import { FleetCourierAvailability } from './fleet-courier-availability';
 import { IdentityCourierAccounts } from './identity-courier-accounts';
+import { PayoutsOfferEarnings } from './payouts-offer-earnings';
 import { PrismaDispatchJobRepository } from './prisma-dispatch-job.repository';
 import { TrackingCourierProximity } from './tracking-courier-proximity';
 
@@ -52,5 +55,10 @@ export const dispatchProviders: Provider[] = [
     provide: DELIVERY_FACTS,
     inject: [DeliveryDispatchView],
     useFactory: (view: DeliveryDispatchView) => new DeliveryDispatchFacts(view),
+  },
+  {
+    provide: OFFER_EARNINGS,
+    inject: [EarningsQuote],
+    useFactory: (quote: EarningsQuote) => new PayoutsOfferEarnings(quote),
   },
 ];

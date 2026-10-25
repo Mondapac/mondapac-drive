@@ -18,6 +18,8 @@ export interface DispatchPanelProps {
   /** The vehicle the delivery was quoted for: the default of the assign form. */
   readonly quotedVehicle: Vehicle;
   readonly canDispatch: boolean;
+  /** The dispatch job card carries assign and reassign: this panel leaves its form out. */
+  readonly assignsOnJob?: boolean;
   readonly canCancel: boolean;
   readonly csrfToken: string;
 }
@@ -33,6 +35,7 @@ export function DispatchPanel({
   couriers,
   quotedVehicle,
   canDispatch,
+  assignsOnJob = false,
   canCancel,
   csrfToken,
 }: DispatchPanelProps) {
@@ -76,7 +79,7 @@ export function DispatchPanel({
   }
 
   const showsOpen = canDispatch && status === 'SCHEDULED';
-  const showsAssign = canDispatch && status === 'DISPATCHING';
+  const showsAssign = canDispatch && !assignsOnJob && status === 'DISPATCHING';
   const showsUnassign = canDispatch && (status === 'ASSIGNED' || status === 'AT_PICKUP');
   const showsCancel = canCancel && CANCELLABLE.has(status);
   if (!showsOpen && !showsAssign && !showsUnassign && !showsCancel) return null;

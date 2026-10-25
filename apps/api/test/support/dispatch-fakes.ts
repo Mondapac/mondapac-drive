@@ -4,6 +4,7 @@ import {
   type CallContext,
   type Id,
   type MarketContext,
+  type Money,
   type PendingEvent,
   type Result,
   type Temporal,
@@ -13,6 +14,8 @@ import type {
   DeliveryFacts,
   DeliveryForDispatch,
   DispatchJobRepository,
+  OfferEarnings,
+  OfferToPrice,
 } from '../../src/modules/dispatch/application/ports';
 import type { DispatchJob } from '../../src/modules/dispatch/domain/dispatch-job';
 import type { AuditWriter } from '../../src/platform/audit/audit-writer';
@@ -169,8 +172,14 @@ export class FakeDeliveryFacts implements DeliveryFacts {
     this.deliveries.set(deliveryId, {
       status: 'DISPATCHING',
       serviceAreaCode: 'area-1',
-      pickup: { address: '1 Pickup Street', postcode: '4000', point: geoPoint(-27.47, 153.02) },
-      dropoff: { address: '2 Dropoff Road', postcode: '4101', point: geoPoint(-27.5, 153.05) },
+      // The pickup's suburb comes from delivery's geocode; the drop-off has none (booked by its
+      // point, or delivery before handoff 34).
+      pickup: {
+        suburb: 'Pickup Vale',
+        postcode: '4000',
+        point: geoPoint(-27.47, 153.02),
+      },
+      dropoff: { postcode: '4101', point: geoPoint(-27.5, 153.05) },
       distanceMetres: 4200,
       weightGrams: 5000,
       volumeLitres: 20,
@@ -192,5 +201,17 @@ export class FakeCourierAccounts implements CourierAccounts {
 
   isActive(_context: CallContext, accountId: string) {
     return Promise.resolve(this.denied ? undefined : this.active.has(accountId));
+  }
+}
+
+/** Payouts' quote for an offer: a fixed amount, or null; it records what it was asked. */
+export class FakeOfferEarnings implements OfferEarnings {
+  readonly asked: { readonly courier: string | null; readonly offer: OfferToPrice }[] = [];
+  amount: Money | null = null;
+
+  forOffer(context: CallContext, offer: OfferToPrice) {
+    const { actor } = context;
+    this.asked.push({ courier: actor.kind === 'authenticated' ? actor.accountId : null, offer });
+    return Promise.resolve(this.amount);
   }
 }

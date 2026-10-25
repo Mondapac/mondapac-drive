@@ -120,7 +120,19 @@
     "today": "Today",
     "week": "This week",
     "deliveries": "{{count}} deliveries today",
-    "stubNotice": "Payouts are not live yet; figures are an estimate."
+    "balance": "Owed to you",
+    "balanceTax": "Includes {{tax}} tax",
+    "recent": "Recent activity",
+    "none": "No earnings yet. Completed deliveries show here.",
+    "refresh": "Refresh",
+    "kinds": {
+      "earning": "Delivery",
+      "tip": "Tip",
+      "adjustment": "Adjustment",
+      "reversal": "Reversal",
+      "payout": "Paid to your account",
+      "other": "Other"
+    }
   },
   "permissions": {
     "location": {
@@ -157,5 +169,120 @@
     "noProfile": "Your courier profile is not set up yet. Contact support.",
     "notEligible": "Your account cannot take shifts right now. Contact support.",
     "generic": "Something went wrong. Try again."
+  },
+  "onboarding": {
+    "title": "Set up your courier account",
+    "loading": "Checking your account…",
+    "unavailable": "Sign-up is not open in the app yet. Call support to finish setting up your account.",
+    "stepOf": "Step {{step}} of {{total}}",
+    "signOut": "Sign out",
+    "profile": {
+      "title": "About you",
+      "employmentType": "How do you work with us?",
+      "employee": "Employee",
+      "employeeHint": "You are employed by the operator and paid through payroll.",
+      "contractor": "Independent contractor",
+      "contractorHint": "You deliver under your own business and are paid to your bank account.",
+      "serviceArea": "Where will you deliver?",
+      "coldChain": "Can you carry chilled or frozen goods?",
+      "coldChainHint": "You need a cold box or a refrigerated vehicle, and a food handling certificate where the Market asks for one.",
+      "yes": "Yes",
+      "no": "No",
+      "submit": "Continue",
+      "incomplete": "Answer each question first."
+    },
+    "vehicle": {
+      "title": "Your vehicle",
+      "type": "Vehicle type",
+      "types": {
+        "bicycle": "Bicycle",
+        "motorbike": "Motorbike or scooter",
+        "car": "Car",
+        "van": "Van"
+      },
+      "capacity": "Carries up to {{kg}} kg and {{litres}} L. An operator can change this later.",
+      "plate": "Number plate",
+      "plateInvalid": "A plate has 1 to 10 letters or digits.",
+      "coldBox": "Cold box",
+      "coldBoxes": {
+        "none": "None",
+        "insulated": "Insulated box",
+        "refrigerated": "Refrigerated"
+      },
+      "submit": "Add vehicle",
+      "chooseType": "Choose a vehicle type."
+    },
+    "documents": {
+      "title": "Your documents",
+      "intro": "Upload each document below. An operator checks them before you can go online.",
+      "forVehicle": "For {{vehicle}}",
+      "add": "Add",
+      "replace": "Upload again",
+      "state": {
+        "missing": "Needed",
+        "submitted": "In review",
+        "verified": "Approved",
+        "rejected": "Not accepted: {{reason}}",
+        "revoked": "Withdrawn: {{reason}}",
+        "expired": "Expired"
+      },
+      "reasons": {
+        "illegible": "hard to read",
+        "expired": "expired",
+        "mismatch": "details do not match",
+        "incomplete": "incomplete",
+        "cancelled": "no longer valid",
+        "fraudulent": "could not be verified",
+        "other": "see the operator's note"
+      },
+      "types": {
+        "abn": "ABN",
+        "driver_licence": "Driver licence",
+        "vehicle_registration": "Vehicle registration",
+        "insurance": "Insurance certificate",
+        "police_check": "Police check",
+        "food_handling": "Food handling certificate"
+      }
+    },
+    "upload": {
+      "title": "Add {{document}}",
+      "takePhoto": "Take a photo",
+      "chooseFile": "Choose a file",
+      "capture": "Capture",
+      "fileReady": "{{name}} is ready to upload.",
+      "change": "Choose another",
+      "expiry": "Expiry date (YYYY-MM-DD)",
+      "expiryInvalid": "Enter the expiry date as YYYY-MM-DD.",
+      "expiryPast": "This document has expired. Upload a current one.",
+      "submit": "Upload",
+      "tooLarge": "The file is larger than 10 MB. Choose a smaller one or take a photo.",
+      "cameraDenied": "Camera access is off. Choose a file or allow the camera in Settings.",
+      "allowCamera": "Allow camera",
+      "required": "Add a photo or a file first."
+    },
+    "waiting": {
+      "title": "Waiting for approval",
+      "body": "Thanks. An operator is checking your details. You can go online once your account is approved.",
+      "refresh": "Check again",
+      "payouts": "Set up payouts",
+      "payoutsHint": "Contractors are paid to their own account. Set it up now so your first payout is not held.",
+      "payoutsUnavailable": "Payout set-up is not available right now. Try again later."
+    },
+    "blocked": {
+      "suspended": "Your account is suspended. Call support to find out why.",
+      "offboarded": "Your account is closed. Call support if you think this is a mistake."
+    },
+    "errors": {
+      "serviceArea": "This area is not open for couriers. Choose another.",
+      "typeNotOffered": "This vehicle type is not used in your area.",
+      "plateRequired": "Enter the number plate.",
+      "plateTaken": "This plate is already registered to another courier.",
+      "documentType": "This document is not one we ask for. Pull to refresh and try again.",
+      "expiryRequired": "Enter the expiry date.",
+      "documentExpired": "This document has expired. Upload a current one.",
+      "documentSize": "The file is larger than 10 MB.",
+      "documentMediaType": "Upload a PDF, JPEG or PNG.",
+      "storage": "Documents cannot be saved right now. Try again in a minute."
+    }
   }
 }

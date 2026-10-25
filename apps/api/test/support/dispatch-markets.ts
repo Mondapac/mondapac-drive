@@ -40,11 +40,11 @@ export function requirements(overrides: Partial<DispatchRequirements> = {}): Dis
   };
 }
 
-/** What an offer shows: two street addresses and the trip distance. */
+/** What an offer shows: the stops' suburbs (one unknown) and postcodes, and the trip distance. */
 export function stops(overrides: Partial<OfferStops> = {}): OfferStops {
   return {
-    pickupAddress: '1 Pickup Street',
-    dropoffAddress: '2 Dropoff Road',
+    pickupArea: { suburb: 'Pickup Vale', postcode: '4000' },
+    dropoffArea: { suburb: null, postcode: '4101' },
     dropoff: geoPoint(-27.5, 153.05),
     tripDistanceMetres: 4200,
     ...overrides,

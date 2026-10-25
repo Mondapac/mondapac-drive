@@ -12,3 +12,5 @@ apps/api/src/generated/
 *.rdb
 # Copied from maplibre-gl by apps/panel/scripts/copy-maplibre-worker.mjs.
 apps/panel/public/maplibre/
+# Local Market configuration and dev seed credentials (scripts/dev-config.mjs, pnpm dev:seed).
+.dev/

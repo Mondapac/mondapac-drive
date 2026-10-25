@@ -69,7 +69,7 @@ describe('role editor', () => {
     });
     mount();
     fireEvent.change(screen.getByLabelText('Role name'), { target: { value: '  Night shift ' } });
-    fireEvent.click(screen.getByLabelText('Invite'));
+    fireEvent.click(screen.getByLabelText('Invite admins'));
     fireEvent.click(screen.getByRole('button', { name: 'Create role' }));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(`/roles/${ID}`));
     expect(call).toHaveBeenCalledWith(
@@ -91,9 +91,9 @@ describe('role editor', () => {
       },
       initialKeys: ['delivery.delivery.dispatch'],
     });
-    const warning = /Dispatching needs “view couriers” too/;
+    const warning = /needs “View courier accounts” too/;
     expect(screen.getByText(warning)).toBeTruthy();
-    fireEvent.click(screen.getByLabelText('View'));
+    fireEvent.click(screen.getByLabelText('View courier accounts'));
     expect(screen.queryByText(warning)).toBeNull();
   });
 
@@ -120,8 +120,8 @@ describe('role editor', () => {
       body: { code: 'role.updated', roleId: ID },
     });
     mount({ role: custom, initialName: 'Night shift', initialKeys: custom.permissionKeys });
-    expect(screen.getByLabelText<HTMLInputElement>('View').checked).toBe(true);
-    fireEvent.click(screen.getByLabelText('Invite'));
+    expect(screen.getByLabelText<HTMLInputElement>('View the team').checked).toBe(true);
+    fireEvent.click(screen.getByLabelText('Invite admins'));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText(/Saved\./)).toBeTruthy();
     expect(call).toHaveBeenCalledWith(

@@ -189,6 +189,9 @@ export const queryKeys = {
   offer: ['offer'] as const,
   job: (id: string) => ['job', id] as const,
   earnings: ['earnings'] as const,
+  profile: ['profile'] as const,
+  onboardingRules: ['onboarding-rules'] as const,
+  balance: ['balance'] as const,
 };
 
 /** The courier's Market settings (currency, cold-chain limits, support phone) from the API. */

@@ -17,9 +17,10 @@ const GEOCODED = geoPoint(-27.49, 153.03);
 
 class RecordingDistances implements DistanceProvider {
   readonly calls: { from: GeoPoint; to: GeoPoint; vehicle: VehicleType }[] = [];
-  roadDistanceMetres(_m: MarketContext, from: GeoPoint, to: GeoPoint, vehicle: VehicleType) {
+  constructor(private readonly estimated = false) {}
+  distance(_m: MarketContext, from: GeoPoint, to: GeoPoint, vehicle: VehicleType) {
     this.calls.push({ from, to, vehicle });
-    return Promise.resolve(3000);
+    return Promise.resolve({ metres: 3000, estimated: this.estimated });
   }
 }
 
@@ -84,4 +85,18 @@ describe.each(TEST_MARKETS)('DeliveryPricing stop location (%s)', (code) => {
     const result = await pricing(new FakeGeocoder(GEOCODED)).price(market, input({ postcode }));
     expect(!result.ok && result.error.code).toBe('address.point-required');
   });
+
+  it.each([false, true])(
+    'carries whether the distance is estimated (%s) into the quote',
+    async (estimated) => {
+      const result = await pricing(
+        new FakeGeocoder(GEOCODED),
+        new RecordingDistances(estimated),
+      ).price(market, input({ postcode, point: GIVEN }));
+      expect(result.ok && result.value.quote).toMatchObject({
+        distanceMetres: 3000,
+        distanceEstimated: estimated,
+      });
+    },
+  );
 });

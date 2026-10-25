@@ -27,3 +27,23 @@ export function formatDistance(metres: number, unit: 'km' | 'mi', locale: string
   });
   return format.format(value);
 }
+
+/** An amount and the tax on it, as one figure; both carry the same currency and sign. */
+export function withTax(amount: Money, tax: Money): Money {
+  return {
+    amount: (BigInt(amount.amount) + BigInt(tax.amount)).toString(),
+    currency: amount.currency,
+  };
+}
+
+/** True for an amount of zero, whatever its currency. */
+export function isZero(money: Money): boolean {
+  return BigInt(money.amount) === 0n;
+}
+
+/** A moment from the API (ISO 8601) as the Market's locale writes a date and time. */
+export function formatDateTime(instant: string, locale: string): string {
+  const ms = Date.parse(instant);
+  if (Number.isNaN(ms)) return '';
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(ms);
+}

@@ -44,8 +44,10 @@ const SELECT_JOB = {
   assignmentMethod: true,
   assignedAt: true,
   excludedCourierIds: true,
-  pickupAddress: true,
-  dropoffAddress: true,
+  pickupSuburb: true,
+  pickupPostcode: true,
+  dropoffSuburb: true,
+  dropoffPostcode: true,
   dropoffLat: true,
   dropoffLng: true,
   tripDistanceMetres: true,
@@ -84,8 +86,10 @@ interface JobRow {
   readonly assignmentMethod: string | null;
   readonly assignedAt: Date | null;
   readonly excludedCourierIds: string[];
-  readonly pickupAddress: string | null;
-  readonly dropoffAddress: string | null;
+  readonly pickupSuburb: string | null;
+  readonly pickupPostcode: string | null;
+  readonly dropoffSuburb: string | null;
+  readonly dropoffPostcode: string | null;
   readonly dropoffLat: number | null;
   readonly dropoffLng: number | null;
   readonly tripDistanceMetres: number | null;
@@ -94,12 +98,15 @@ interface JobRow {
   readonly version: number;
 }
 
-/** The offer's stops, when the row still holds them (all five columns are set together). */
+/**
+ * The offer's stops, when the row still holds them (the postcodes, the drop-off point and the
+ * distance are set together; a suburb may be null within them).
+ */
 function readStops(row: JobRow): OfferStops | undefined {
-  const { pickupAddress, dropoffAddress, dropoffLat, dropoffLng, tripDistanceMetres } = row;
+  const { pickupPostcode, dropoffPostcode, dropoffLat, dropoffLng, tripDistanceMetres } = row;
   if (
-    pickupAddress === null ||
-    dropoffAddress === null ||
+    pickupPostcode === null ||
+    dropoffPostcode === null ||
     dropoffLat === null ||
     dropoffLng === null ||
     tripDistanceMetres === null
@@ -107,8 +114,8 @@ function readStops(row: JobRow): OfferStops | undefined {
     return undefined;
   }
   return {
-    pickupAddress,
-    dropoffAddress,
+    pickupArea: { suburb: row.pickupSuburb, postcode: pickupPostcode },
+    dropoffArea: { suburb: row.dropoffSuburb, postcode: dropoffPostcode },
     dropoff: geoPoint(dropoffLat, dropoffLng),
     tripDistanceMetres,
   };
@@ -190,8 +197,10 @@ function changingColumns(job: DispatchJob) {
     assignedAt: job.assignment === undefined ? null : toDate(job.assignment.at),
     excludedCourierIds: [...job.excludedCourierIds],
     opensAt: toDate(job.opensAt),
-    pickupAddress: job.stops?.pickupAddress ?? null,
-    dropoffAddress: job.stops?.dropoffAddress ?? null,
+    pickupSuburb: job.stops?.pickupArea.suburb ?? null,
+    pickupPostcode: job.stops?.pickupArea.postcode ?? null,
+    dropoffSuburb: job.stops?.dropoffArea.suburb ?? null,
+    dropoffPostcode: job.stops?.dropoffArea.postcode ?? null,
     dropoffLat: job.stops?.dropoff.lat ?? null,
     dropoffLng: job.stops?.dropoff.lng ?? null,
     tripDistanceMetres: job.stops?.tripDistanceMetres ?? null,
