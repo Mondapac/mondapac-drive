@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, space } from '../../ui/theme';
+import { makeStyles, radius, space, text } from '../../ui/theme';
 
 export interface ChoiceOption<T extends string> {
   readonly value: T;
@@ -16,6 +16,7 @@ interface Props<T extends string> {
 
 /** A labelled group of radio buttons, one tap target per option. */
 export function Choice<T extends string>({ label, options, value, onChange }: Props<T>) {
+  const styles = useStyles();
   return (
     <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.group}>
       <Text style={styles.label}>{label}</Text>
@@ -42,19 +43,22 @@ export function Choice<T extends string>({ label, options, value, onChange }: Pr
   );
 }
 
-const styles = StyleSheet.create({
-  group: { marginVertical: space.xs, gap: space.xs },
-  label: { color: colors.text, fontSize: 16, fontWeight: '600', marginBottom: space.xs },
-  option: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    padding: space.md,
-    justifyContent: 'center',
-  },
-  selected: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.surface },
-  optionLabel: { color: colors.text, fontSize: 17 },
-  selectedLabel: { color: colors.primary, fontWeight: '600' },
-  hint: { color: colors.muted, fontSize: 14, marginTop: space.xs },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    group: { gap: space.sm },
+    label: { color: c.text, fontSize: text.label, fontWeight: '800' },
+    option: {
+      minHeight: 56,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      borderRadius: radius.md,
+      padding: space.md,
+      justifyContent: 'center',
+    },
+    selected: { borderColor: c.primary, borderWidth: 2, backgroundColor: c.successSurface },
+    optionLabel: { color: c.text, fontSize: text.label, fontWeight: '600' },
+    selectedLabel: { color: c.primary, fontWeight: '800' },
+    hint: { color: c.muted, fontSize: text.small, marginTop: space.xs },
+  }),
+);

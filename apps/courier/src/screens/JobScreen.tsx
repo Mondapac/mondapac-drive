@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type JobEvent, type ProofInput } from '../api/client';
 import type { CourierSettings, FailureReason, Job, Stop } from '../api/schemas';
-import { checkReading } from '../domain/cold-chain';
+import { checkReading, needsColdChain } from '../domain/cold-chain';
 import { canReportFailure, currentStop, nextStep } from '../domain/job-flow';
 import { directionsUrl, webDirectionsUrl } from '../domain/navigation';
+import { ColdStrip } from '../components/ColdStrip';
 import { FailureForm } from '../components/FailureForm';
 import { ProofOfDelivery, proofReady, type ProofDraft } from '../components/ProofOfDelivery';
 import { TemperatureEntry } from '../components/TemperatureEntry';
@@ -16,7 +17,10 @@ import { Button } from '../ui/Button';
 import { errorMessage } from '../ui/errors';
 import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
-import { colors, space } from '../ui/theme';
+import { Card } from '../ui/Card';
+import { SlideToConfirm } from '../ui/SlideToConfirm';
+import { StepBar } from '../ui/StepBar';
+import { makeStyles, radius, space, text } from '../ui/theme';
 
 interface Props {
   readonly deliveryId: string;
@@ -42,7 +46,7 @@ export function JobScreen({ deliveryId, onDone }: Props) {
   if (!job.data || !settings) {
     return (
       <Screen title={t('job.title')}>
-        <Text>{t('common.loading')}</Text>
+        <Notice text={t('common.loading')} />
       </Screen>
     );
   }
@@ -64,6 +68,8 @@ function JobSteps({
   const [proof, setProof] = useState<ProofDraft>({ kind: 'pin', pin: '' });
   const [failing, setFailing] = useState<{ reason?: FailureReason } | null>(null);
   const [pinLocked, setPinLocked] = useState(false);
+  // The last box reading this phone recorded for the job, shown in the cold-chain strip.
+  const [lastReading, setLastReading] = useState<number | null>(null);
   // The photo already uploaded: a retry after a refused event sends its reference again, since
   // the file itself is deleted once it is on the server.
   const uploaded = useRef<{ readonly uri: string; readonly photoRef: string } | null>(null);
@@ -92,8 +98,11 @@ function JobSteps({
 
   const record = useMutation({
     mutationFn: async (event: JobEvent) => api.recordEvent(job.id, event),
-    onSuccess: (updated) => {
+    onSuccess: (updated, event) => {
       queryClient.setQueryData(queryKeys.job(job.id), updated);
+      if ('temperatureCelsius' in event && event.temperatureCelsius !== undefined) {
+        setLastReading(event.temperatureCelsius);
+      }
       setReading('');
       setFailing(null);
       if (updated.status === 'DELIVERED' || updated.status === 'DELIVERY_FAILED') {
@@ -149,15 +158,78 @@ function JobSteps({
 
   if (step === 'finished' || step === 'waiting') {
     return (
-      <Screen title={t(`job.status.${job.status}`)}>
-        <Notice text={t('job.finished')} />
-        <Button label={t('job.backHome')} onPress={onDone} />
+      <Screen
+        title={t(`job.status.${job.status}`)}
+        footer={<Button label={t('job.backHome')} onPress={onDone} />}
+      >
+        <Notice tone={job.status === 'DELIVERED' ? 'success' : 'info'} text={t('job.finished')} />
       </Screen>
     );
   }
 
+  const cold = needsColdChain(job.parcel.temperature) ? job.parcel.temperature : null;
+  const footer = failing ? null : (
+    <>
+      {step === 'arrive_at_pickup' && (
+        <SlideToConfirm
+          label={t('job.arrivedAtPickup')}
+          busy={busy}
+          onConfirm={() => record.mutate({ type: 'arrived_at_pickup' })}
+        />
+      )}
+      {step === 'pick_up' && (
+        <SlideToConfirm
+          label={t('job.pickedUp')}
+          busy={busy}
+          disabled={!readingOk}
+          onConfirm={() =>
+            record.mutate({
+              type: 'picked_up',
+              ...(temperatureCelsius === undefined ? {} : { temperatureCelsius }),
+            })
+          }
+        />
+      )}
+      {step === 'arrive_at_dropoff' && (
+        <SlideToConfirm
+          label={t('job.arrivedAtDropoff')}
+          busy={busy}
+          onConfirm={() => record.mutate({ type: 'arrived_at_dropoff' })}
+        />
+      )}
+      {step === 'deliver' && (
+        // The PIN or photo is the confirmation here, so a plain button completes the delivery.
+        <Button
+          label={t('job.deliver')}
+          busy={busy}
+          disabled={!readingOk || !proofReady(proof)}
+          onPress={() => deliver.mutate(temperatureCelsius)}
+        />
+      )}
+      {canReportFailure(job.status) && (
+        <Button
+          label={t('job.reportFailure')}
+          variant="quiet"
+          size="small"
+          disabled={busy}
+          onPress={() => setFailing(check.kind === 'breach' ? { reason: 'cold_chain_breach' } : {})}
+        />
+      )}
+    </>
+  );
+
   return (
-    <Screen title={t(`job.status.${job.status}`)}>
+    <Screen
+      title={t(`job.status.${job.status}`)}
+      eyebrow={t('job.progress', { step: STEP_NUMBER[step], total: STEPS })}
+      banner={
+        cold && (
+          <ColdStrip temperature={cold} limits={settings.coldChain} lastReading={lastReading} />
+        )
+      }
+      footer={footer}
+    >
+      <StepBar step={STEP_NUMBER[step]} total={STEPS} />
       {stop && <StopCard stop={stop} />}
       {error && <Notice tone="danger" text={errorMessage(error)} />}
 
@@ -172,91 +244,37 @@ function JobSteps({
         />
       ) : (
         <>
-          {step === 'arrive_at_pickup' && (
-            <Button
-              label={t('job.arrivedAtPickup')}
-              busy={busy}
-              onPress={() => record.mutate({ type: 'arrived_at_pickup' })}
+          {(step === 'pick_up' || step === 'deliver') && (
+            <TemperatureEntry
+              temperature={job.parcel.temperature}
+              limits={settings.coldChain}
+              stage={step === 'pick_up' ? 'pickup' : 'dropoff'}
+              value={reading}
+              onChange={setReading}
             />
           )}
-
-          {step === 'pick_up' && (
-            <>
-              <TemperatureEntry
-                temperature={job.parcel.temperature}
-                limits={settings.coldChain}
-                stage="pickup"
-                value={reading}
-                onChange={setReading}
-              />
-              <Button
-                label={t('job.pickedUp')}
-                busy={busy}
-                disabled={!readingOk}
-                onPress={() =>
-                  record.mutate({
-                    type: 'picked_up',
-                    ...(temperatureCelsius === undefined ? {} : { temperatureCelsius }),
-                  })
-                }
-              />
-              {check.kind === 'breach' && (
-                <Button
-                  label={t('common.callSupport')}
-                  variant="secondary"
-                  onPress={() => void Linking.openURL(`tel:${settings.supportPhone}`)}
-                />
-              )}
-            </>
-          )}
-
-          {step === 'arrive_at_dropoff' && (
+          {step === 'pick_up' && check.kind === 'breach' && (
             <Button
-              label={t('job.arrivedAtDropoff')}
-              busy={busy}
-              onPress={() => record.mutate({ type: 'arrived_at_dropoff' })}
+              label={t('common.callSupport')}
+              variant="secondary"
+              onPress={() => void Linking.openURL(`tel:${settings.supportPhone}`)}
             />
           )}
-
-          {step === 'deliver' && (
-            <>
-              <TemperatureEntry
-                temperature={job.parcel.temperature}
-                limits={settings.coldChain}
-                stage="dropoff"
-                value={reading}
-                onChange={setReading}
-              />
-              {check.kind !== 'breach' && (
-                <ProofOfDelivery draft={proof} onChange={changeProof} pinLocked={pinLocked} />
-              )}
-              {deliver.isPending && proof.kind === 'photo' && <Text>{t('proof.uploading')}</Text>}
-              <Button
-                label={t('job.deliver')}
-                busy={busy}
-                disabled={!readingOk || !proofReady(proof)}
-                onPress={() => deliver.mutate(temperatureCelsius)}
-              />
-            </>
+          {step === 'deliver' && check.kind !== 'breach' && (
+            <ProofOfDelivery draft={proof} onChange={changeProof} pinLocked={pinLocked} />
           )}
-
-          {canReportFailure(job.status) && (
-            <Button
-              label={t('job.reportFailure')}
-              variant="danger"
-              disabled={busy}
-              onPress={() =>
-                setFailing(check.kind === 'breach' ? { reason: 'cold_chain_breach' } : {})
-              }
-            />
-          )}
+          {deliver.isPending && proof.kind === 'photo' && <Notice text={t('proof.uploading')} />}
         </>
       )}
     </Screen>
   );
 }
 
+const STEPS = 4;
+const STEP_NUMBER = { arrive_at_pickup: 1, pick_up: 2, arrive_at_dropoff: 3, deliver: 4 } as const;
+
 function StopCard({ stop }: { readonly stop: Stop }) {
+  const styles = useStyles();
   const navigate = () => {
     const destination = stop.point ?? stop.address;
     Linking.openURL(directionsUrl(destination, Platform.OS)).catch(() =>
@@ -264,30 +282,37 @@ function StopCard({ stop }: { readonly stop: Stop }) {
     );
   };
   return (
-    <View style={styles.stop}>
+    <Card raised>
       <Text style={styles.address}>{stop.address}</Text>
       <Text style={styles.contact}>{stop.contactName}</Text>
       {stop.notes ? (
         <Text style={styles.notes}>{t('job.notes', { notes: stop.notes })}</Text>
       ) : null}
-      <Button label={t('job.navigate')} variant="secondary" onPress={navigate} />
-      <Button
-        label={t('job.callContact', { name: stop.contactName })}
-        variant="secondary"
-        onPress={() => void Linking.openURL(`tel:${stop.contactPhone}`)}
-      />
-    </View>
+      <View style={styles.actions}>
+        <Button label={t('job.navigate')} size="small" grow onPress={navigate} />
+        <Button
+          label={t('job.callContact', { name: stop.contactName })}
+          variant="secondary"
+          size="small"
+          grow
+          onPress={() => void Linking.openURL(`tel:${stop.contactPhone}`)}
+        />
+      </View>
+    </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  stop: {
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    padding: space.md,
-    gap: space.xs,
-  },
-  address: { fontSize: 18, fontWeight: '600', color: colors.text },
-  contact: { fontSize: 15, color: colors.muted },
-  notes: { fontSize: 15, color: colors.text },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    address: { fontSize: text.title, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
+    contact: { fontSize: text.body, color: c.muted },
+    notes: {
+      fontSize: text.body,
+      color: c.text,
+      backgroundColor: c.raised,
+      borderRadius: radius.sm,
+      padding: space.sm,
+    },
+    actions: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  }),
+);

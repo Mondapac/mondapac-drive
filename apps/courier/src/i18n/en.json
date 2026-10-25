@@ -32,14 +32,15 @@
     "activeJob": "Continue active delivery",
     "earnings": "Earnings",
     "signOut": "Sign out",
-    "needsLocation": "Location access is needed before you can go online."
+    "needsLocation": "Location access is needed before you can go online.",
+    "offlineHint": "Go online to get delivery offers near you.",
+    "todaySummary": "Today {{amount}} · {{count}} deliveries"
   },
   "offer": {
     "title": "New delivery offer",
     "pickup": "Pickup",
     "dropoff": "Drop-off",
     "distance": "Trip distance: {{distance}}",
-    "pay": "You earn about {{amount}}",
     "payUnavailable": "Pay unavailable for this offer",
     "expiresIn": "{{seconds}} s to respond",
     "expired": "This offer has expired.",
@@ -47,7 +48,8 @@
     "decline": "Decline",
     "coldChain": "Cold chain: {{temperature}}",
     "area": "{{suburb}} {{postcode}}",
-    "addressAfterAccept": "You see the full address once you accept."
+    "addressAfterAccept": "You see the full address once you accept.",
+    "payLabel": "Estimated pay"
   },
   "temperature": {
     "ambient": "Ambient",
@@ -78,7 +80,8 @@
     "reportFailure": "Can't deliver",
     "notes": "Notes: {{notes}}",
     "finished": "This delivery is finished.",
-    "backHome": "Back to home"
+    "backHome": "Back to home",
+    "progress": "Step {{step}} of {{total}}"
   },
   "coldChain": {
     "title": "Cold-chain reading",
@@ -87,7 +90,10 @@
     "outOfRange": "Enter a temperature between -40 and 60 °C.",
     "breach": "{{reading}} °C is above the {{max}} °C limit. Do not hand over the goods.",
     "breachAtPickup": "Do not pick up these goods. Call support so the merchant can be told.",
-    "breachAtDropoff": "Report the delivery as failed with the cold-chain reason."
+    "breachAtDropoff": "Report the delivery as failed with the cold-chain reason.",
+    "within": "Within the limit.",
+    "lower": "Lower by 0.5 °C",
+    "higher": "Higher by 0.5 °C"
   },
   "proof": {
     "title": "Proof of delivery",
@@ -290,5 +296,13 @@
   },
   "push": {
     "channel": "Delivery offers"
+  },
+  "slide": {
+    "hint": "Slide across to confirm."
+  },
+  "coldStrip": {
+    "limit": "{{temperature}} · at or below {{max}} °C",
+    "reading": "Last {{reading}} °C",
+    "noReading": "Check at pickup"
   }
 }

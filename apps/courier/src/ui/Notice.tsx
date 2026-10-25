@@ -1,21 +1,49 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, space } from './theme';
+import { makeStyles, radius, space, text } from './theme';
 
-type Tone = 'info' | 'warning' | 'danger';
+type Tone = 'info' | 'warning' | 'danger' | 'success';
 
-export function Notice({ text, tone = 'info' }: { readonly text: string; readonly tone?: Tone }) {
+export function Notice({
+  text: message,
+  tone = 'info',
+}: {
+  readonly text: string;
+  readonly tone?: Tone;
+}) {
+  const styles = useStyles();
   return (
-    <View accessibilityRole={tone === 'info' ? 'text' : 'alert'} style={[styles.box, styles[tone]]}>
-      <Text style={[styles.text, tone === 'danger' && styles.dangerText]}>{text}</Text>
+    <View
+      accessibilityRole={tone === 'warning' || tone === 'danger' ? 'alert' : 'text'}
+      style={[styles.box, styles[tone]]}
+    >
+      <View style={[styles.dot, styles[`${tone}Dot`]]} />
+      <Text style={[styles.text, styles[`${tone}Text`]]}>{message}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  box: { borderRadius: 10, padding: space.md, marginVertical: space.xs },
-  info: { backgroundColor: colors.surface },
-  warning: { backgroundColor: colors.warningSurface },
-  danger: { backgroundColor: colors.dangerSurface },
-  text: { color: colors.text, fontSize: 15, lineHeight: 21 },
-  dangerText: { color: colors.danger, fontWeight: '600' },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    box: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: space.sm,
+      borderRadius: radius.md,
+      padding: space.md,
+    },
+    dot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
+    info: { backgroundColor: c.raised },
+    warning: { backgroundColor: c.warningSurface },
+    danger: { backgroundColor: c.dangerSurface },
+    success: { backgroundColor: c.successSurface },
+    infoDot: { backgroundColor: c.muted },
+    warningDot: { backgroundColor: c.warning },
+    dangerDot: { backgroundColor: c.danger },
+    successDot: { backgroundColor: c.success },
+    text: { flex: 1, color: c.text, fontSize: text.body, lineHeight: 21 },
+    infoText: {},
+    warningText: { color: c.warning, fontWeight: '600' },
+    dangerText: { color: c.danger, fontWeight: '700' },
+    successText: { color: c.success, fontWeight: '700' },
+  }),
+);

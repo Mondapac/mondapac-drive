@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { createMockCourierApi } from '../src/api/mock/mock-client';
 import type { CourierSession, CourierSettings, OnboardingRules } from '../src/api/schemas';
@@ -96,4 +96,14 @@ export function settingsOf(market: MarketConfig): CourierSettings {
     offerAcceptSeconds: 30,
     coldChain: market.delivery.coldChain,
   };
+}
+
+/**
+ * Confirms a slide-to-confirm control the way a screen reader does (its activate action); a tap
+ * alone does not confirm it.
+ */
+export function slide(name: string) {
+  return fireEvent(screen.getByRole('button', { name }), 'accessibilityAction', {
+    nativeEvent: { actionName: 'activate' },
+  });
 }

@@ -6,7 +6,7 @@ import { Linking } from 'react-native';
 import { MOCK_PIN_ATTEMPTS } from '../src/api/mock/mock-client';
 import { JobScreen } from '../src/screens/JobScreen';
 import { MARKETS } from './markets';
-import { acceptNextOffer, createHarness, renderWith } from './render';
+import { acceptNextOffer, createHarness, renderWith, slide } from './render';
 
 const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
 const typeInto = (label: string, value: string) =>
@@ -34,27 +34,27 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
 
   async function reachDropoff() {
     const opened = await openJob();
-    await press('I have arrived at pickup');
+    await slide('I have arrived at pickup');
     await screen.findByText('At pickup');
     await typeInto(TEMPERATURE, String(max));
-    await press('Picked up');
+    await slide('Picked up');
     await screen.findByText('Head to drop-off');
-    await press('I have arrived at drop-off');
+    await slide('I have arrived at drop-off');
     await screen.findByText('At drop-off');
     return opened;
   }
 
   it('runs pickup to drop-off with cold-chain readings and the customer PIN', async () => {
     const { harness, onDone } = await openJob();
-    await press('I have arrived at pickup');
+    await slide('I have arrived at pickup');
     await screen.findByText('At pickup');
 
     expect(screen.getByRole('button', { name: 'Picked up' })).toBeDisabled();
     await typeInto(TEMPERATURE, String(max - 1));
-    await press('Picked up');
+    await slide('Picked up');
     await screen.findByText('Head to drop-off');
 
-    await press('I have arrived at drop-off');
+    await slide('I have arrived at drop-off');
     await screen.findByText('At drop-off');
     await typeInto(TEMPERATURE, String(max));
     expect(screen.getByRole('button', { name: 'Complete delivery' })).toBeDisabled();
@@ -81,7 +81,7 @@ describe.each(MARKETS)('active job in $marketId', (settings) => {
 
   it('warns above the Market limit at pickup and keeps the goods from being picked up', async () => {
     const { harness } = await openJob();
-    await press('I have arrived at pickup');
+    await slide('I have arrived at pickup');
     await screen.findByText('At pickup');
 
     await typeInto(TEMPERATURE, String(max + 1));

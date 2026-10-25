@@ -8,7 +8,8 @@ import { Button } from '../ui/Button';
 import { errorMessage } from '../ui/errors';
 import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
-import { colors, space } from '../ui/theme';
+import { Card } from '../ui/Card';
+import { makeStyles, radius, space, text } from '../ui/theme';
 
 /** How many ledger entries the screen lists. */
 export const RECENT_ENTRIES = 20;
@@ -31,92 +32,168 @@ export function EarningsScreen({ onBack }: { readonly onBack: () => void }) {
   const locale = settings?.locale;
   const error = earnings.error ?? balance.error;
 
+  const styles = useStyles();
   return (
-    <Screen title={t('earnings.title')}>
+    <Screen
+      title={t('earnings.title')}
+      footer={
+        <View style={styles.row}>
+          <Button
+            label={t('earnings.refresh')}
+            variant="secondary"
+            size="small"
+            grow
+            busy={earnings.isFetching || balance.isFetching}
+            onPress={() => {
+              void earnings.refetch();
+              void balance.refetch();
+            }}
+          />
+          <Button label={t('common.back')} variant="secondary" size="small" grow onPress={onBack} />
+        </View>
+      }
+    >
       {error && <Notice tone="danger" text={errorMessage(error)} />}
       {earnings.data && locale ? (
         <>
-          <View style={styles.row}>
-            <Text style={styles.label}>{t('earnings.today')}</Text>
-            <Text style={styles.amount}>{formatMoney(earnings.data.today, locale)}</Text>
+          <View style={styles.hero}>
+            <Text style={styles.heroLabel}>{t('earnings.week')}</Text>
+            <Text style={styles.heroAmount}>{formatMoney(earnings.data.week, locale)}</Text>
+            <Text style={styles.heroLabel}>
+              {t('earnings.deliveries', { count: earnings.data.deliveriesToday })}
+            </Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>{t('earnings.week')}</Text>
-            <Text style={styles.amount}>{formatMoney(earnings.data.week, locale)}</Text>
+            <Tile label={t('earnings.today')} value={formatMoney(earnings.data.today, locale)} />
+            {balance.data && (
+              <Tile
+                label={t('earnings.balance')}
+                value={formatMoney(balance.data.balance.total, locale)}
+                note={
+                  isZero(balance.data.balance.tax)
+                    ? undefined
+                    : t('earnings.balanceTax', {
+                        tax: formatMoney(balance.data.balance.tax, locale),
+                      })
+                }
+              />
+            )}
           </View>
-          <Text style={styles.label}>
-            {t('earnings.deliveries', { count: earnings.data.deliveriesToday })}
-          </Text>
         </>
       ) : (
-        !earnings.isError && <Text>{t('common.loading')}</Text>
+        !earnings.isError && <Notice text={t('common.loading')} />
       )}
 
       {balance.data && locale && (
         <>
-          <View style={styles.row}>
-            <Text style={styles.label}>{t('earnings.balance')}</Text>
-            <Text style={styles.amount}>{formatMoney(balance.data.balance.total, locale)}</Text>
-          </View>
-          {!isZero(balance.data.balance.tax) && (
-            <Text style={styles.note}>
-              {t('earnings.balanceTax', { tax: formatMoney(balance.data.balance.tax, locale) })}
-            </Text>
-          )}
           <Text accessibilityRole="header" style={styles.heading}>
             {t('earnings.recent')}
           </Text>
           {balance.data.entries.length === 0 ? (
             <Notice text={t('earnings.none')} />
           ) : (
-            balance.data.entries.map((entry) => (
-              <EntryRow key={entry.id} entry={entry} locale={locale} />
-            ))
+            <Card>
+              {balance.data.entries.map((entry, index) => (
+                <EntryRow key={entry.id} entry={entry} locale={locale} first={index === 0} />
+              ))}
+            </Card>
           )}
         </>
       )}
-
-      <Button
-        label={t('earnings.refresh')}
-        variant="secondary"
-        busy={earnings.isFetching || balance.isFetching}
-        onPress={() => {
-          void earnings.refetch();
-          void balance.refetch();
-        }}
-      />
-      <Button label={t('common.back')} variant="secondary" onPress={onBack} />
     </Screen>
   );
 }
 
-function EntryRow({ entry, locale }: { readonly entry: LedgerEntry; readonly locale: string }) {
-  const label = kindLabel(entry.kind);
-  const amount = formatMoney(withTax(entry.amount, entry.tax), locale);
-  const when = formatDateTime(entry.occurredAt, locale);
+function Tile({
+  label,
+  value,
+  note,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly note?: string | undefined;
+}) {
+  const styles = useStyles();
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${label}, ${when}, ${amount}`}>
-      <View>
-        <Text style={styles.entry}>{label}</Text>
-        <Text style={styles.note}>{when}</Text>
-      </View>
-      <Text style={styles.entry}>{amount}</Text>
+    <View style={styles.tile}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.amount}>{value}</Text>
+      {note && <Text style={styles.note}>{note}</Text>}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: space.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  label: { fontSize: 16, color: colors.muted },
-  amount: { fontSize: 18, fontWeight: '700', color: colors.text },
-  heading: { marginTop: space.md, fontSize: 18, fontWeight: '600', color: colors.text },
-  entry: { fontSize: 16, color: colors.text },
-  note: { fontSize: 13, color: colors.muted },
-});
+function EntryRow({
+  entry,
+  locale,
+  first,
+}: {
+  readonly entry: LedgerEntry;
+  readonly locale: string;
+  readonly first: boolean;
+}) {
+  const styles = useStyles();
+  const label = kindLabel(entry.kind);
+  const amount = formatMoney(withTax(entry.amount, entry.tax), locale);
+  const when = formatDateTime(entry.occurredAt, locale);
+  return (
+    <View
+      style={[styles.entryRow, !first && styles.divider]}
+      accessible
+      accessibilityLabel={`${label}, ${when}, ${amount}`}
+    >
+      <View style={styles.entryText}>
+        <Text style={styles.entry}>{label}</Text>
+        <Text style={styles.note}>{when}</Text>
+      </View>
+      <Text style={styles.entryAmount}>{amount}</Text>
+    </View>
+  );
+}
+
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    hero: { backgroundColor: c.hero, borderRadius: radius.lg, padding: space.lg, gap: space.xs },
+    heroLabel: { color: c.heroMuted, fontSize: text.body, fontWeight: '600' },
+    heroAmount: {
+      color: c.heroText,
+      fontSize: text.display,
+      fontWeight: '800',
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+    },
+    row: { flexDirection: 'row', gap: space.sm },
+    tile: {
+      flex: 1,
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      padding: space.md,
+      gap: 2,
+    },
+    label: { fontSize: text.small, color: c.muted, fontWeight: '600' },
+    amount: {
+      fontSize: text.title,
+      fontWeight: '800',
+      color: c.text,
+      fontVariant: ['tabular-nums'],
+    },
+    heading: { fontSize: text.label, fontWeight: '800', color: c.text },
+    entryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: space.sm,
+      paddingVertical: space.sm,
+    },
+    divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    entryText: { flex: 1 },
+    entry: { fontSize: text.label, color: c.text, fontWeight: '600' },
+    entryAmount: {
+      fontSize: text.label,
+      color: c.text,
+      fontWeight: '800',
+      fontVariant: ['tabular-nums'],
+    },
+    note: { fontSize: text.small, color: c.muted },
+  }),
+);

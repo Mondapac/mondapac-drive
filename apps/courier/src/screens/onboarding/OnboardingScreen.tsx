@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Linking, Text } from 'react-native';
+import { Linking } from 'react-native';
 import { t, type TranslationKey } from '../../i18n';
 import { queryKeys, useServices, useSession, useSettings } from '../../providers';
 import { Button } from '../../ui/Button';
 import { errorMessage } from '../../ui/errors';
 import { Notice } from '../../ui/Notice';
 import { Screen } from '../../ui/Screen';
+import { StepBar } from '../../ui/StepBar';
 import { DocumentForm } from './DocumentForm';
 import { DocumentList } from './DocumentList';
 import { purgeDocumentCache } from './document-file';
@@ -91,7 +92,7 @@ export function OnboardingScreen({ onReady }: Props) {
   if (!profile.isSuccess || rules.isPending || ready) {
     return (
       <Screen title={t('onboarding.title')}>
-        <Text>{t('onboarding.loading')}</Text>
+        <Notice text={t('onboarding.loading')} />
       </Screen>
     );
   }
@@ -131,12 +132,13 @@ export function OnboardingScreen({ onReady }: Props) {
 
   const index = STEPS.indexOf(step.kind);
   return (
-    <Screen title={t(TITLES[step.kind])}>
-      {index >= 0 && (
-        <Text accessibilityLiveRegion="polite">
-          {t('onboarding.stepOf', { step: index + 1, total: STEPS.length })}
-        </Text>
-      )}
+    <Screen
+      title={t(TITLES[step.kind])}
+      eyebrow={
+        index >= 0 ? t('onboarding.stepOf', { step: index + 1, total: STEPS.length }) : undefined
+      }
+    >
+      {index >= 0 && <StepBar step={index + 1} total={STEPS.length} />}
       {step.kind === 'profile' && <ProfileStep rules={rules.data!} />}
       {step.kind === 'vehicle' && profile.data && (
         <VehicleStep rules={rules.data!} profile={profile.data} />
