@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Clock, IdGenerator } from '@mondapac-drive/shared-kernel';
+import type { Clock, Id, IdGenerator } from '@mondapac-drive/shared-kernel';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Client } from 'pg';
 import request from 'supertest';
@@ -17,7 +17,10 @@ import {
   type PushTicket,
 } from '../../src/modules/notifications/application/ports';
 import type { ExpoPushToken, OfferPush } from '../../src/modules/notifications/domain/push-device';
+import { OFFER_PUSH_SUBSCRIBER } from '../../src/modules/notifications/presentation/subscribers/push.subscriptions';
 import { CLOCK } from '../../src/platform/clock/clock.module';
+import { SubscriptionRegistry } from '../../src/platform/events/event-subscriptions';
+import { issueDelivery } from '../../src/platform/persistence/outbox/delivery-ledger';
 import { testCallContext } from '@mondapac-drive/shared-kernel/testing';
 import { OUTBOX_RELAY, type OutboxRelay } from '../../src/platform/events/event-bus';
 import { OUTBOX_WRITER, type OutboxWriter } from '../../src/platform/events/outbox-writer';
@@ -140,7 +143,7 @@ describe('notifications push (database integration)', () => {
       ).rows;
 
     /** A job whose first wave offered the delivery to `couriers`, stored as dispatch stores it. */
-    async function offeredTo(...couriers: CourierActor[]) {
+    async function offeredTo(publish: boolean, ...couriers: CourierActor[]) {
       const ids = app.get<IdGenerator>(ID_GENERATOR, { strict: false });
       const clock = app.get<Clock>(CLOCK, { strict: false });
       const settings = app
@@ -176,10 +179,12 @@ describe('notifications push (database integration)', () => {
       await unit.run(market, async () => {
         await jobs.insert(market, opened);
         await jobs.update(market, wave.job);
-        await outbox.append(testCallContext(market, 'system', 'push-offer-0001'), wave.events);
+        if (publish) {
+          await outbox.append(testCallContext(market, 'system', 'push-offer-0001'), wave.events);
+        }
         return { ok: true as const, value: undefined };
       });
-      return wave.job;
+      return wave;
     }
 
     it('registers one sealed device per session and drops it on sign-out', async () => {
@@ -269,7 +274,7 @@ describe('notifications push (database integration)', () => {
       const token = expoToken();
       await put(code, ended.headers, { token, platform: 'ios' });
       await revoke(ended.accountId);
-      await offeredTo(ended);
+      await offeredTo(true, ended);
       await handleUntil(async () => (await rowsOf(ended.accountId)).length === 0);
       expect(await rowsOf(ended.accountId)).toEqual([]);
       expect(sender.sent.filter((sent) => sent.to.includes(token as never))).toEqual([]);
@@ -294,7 +299,7 @@ describe('notifications push (database integration)', () => {
       }
     });
 
-    it('pushes a sent offer to the courier once, with the offer id only, and drops a gone device', async () => {
+    it('pushes a sent offer to the courier with the offer id only, and drops a gone device', async () => {
       const pushed = await actors.courier();
       const gone = await actors.courier();
       const pushedToken = expoToken();
@@ -308,22 +313,62 @@ describe('notifications push (database integration)', () => {
         deviceGone: true,
       });
 
-      const job = await offeredTo(pushed, gone);
-      const to = (token: string) => sender.sent.filter((sent) => sent.to.includes(token as never));
-      await handleUntil(
-        async () => to(pushedToken).length > 0 && (await rowsOf(gone.accountId)).length === 0,
-      );
+      // Handed out in-process as the dispatcher hands a delivery out, so another spec file's
+      // dispatcher (whose push sender is the disabled one) never claims it.
+      const wave = await offeredTo(false, pushed, gone);
+      const subscriber = app.get(SubscriptionRegistry).get(OFFER_PUSH_SUBSCRIBER)!;
+      const clock = app.get<Clock>(CLOCK, { strict: false });
+      const system = testCallContext(market, 'system', `push-offer-${randomUUID()}`);
+      const sent = wave.events.filter((event) => event.type === 'dispatch.offer-sent.v1');
+      expect(sent).toHaveLength(2);
+      for (const event of sent) {
+        const envelope = {
+          ...event,
+          eventId: randomUUID() as Id,
+          occurredAt: clock.now(),
+          market,
+          correlationId: system.correlationId,
+          causationId: null,
+        };
+        await subscriber.handle(
+          envelope,
+          issueDelivery(
+            { eventId: envelope.eventId as Id<'event'>, subscriber: subscriber.name, attempt: 1 },
+            market,
+            () => clock.now(),
+          ),
+          system as Parameters<typeof subscriber.handle>[2],
+        );
+      }
 
+      const to = (token: string) => sender.sent.filter((s) => s.to.includes(token as never));
+      const offer = wave.job.offers.find((o) => o.courierId === (pushed.accountId as string))!;
+      expect(to(pushedToken)).toHaveLength(1);
       const [mine] = to(pushedToken);
-      const offer = job.offers.find((o) => o.courierId === (pushed.accountId as string))!;
       expect(mine!.push.data).toEqual({ kind: 'offer', offerId: offer.id });
       expect(mine!.push.body).not.toMatch(/Pickup|Dropoff|Street|Road/);
       expect(mine!.push.ttlSeconds).toBeGreaterThan(0);
+      expect(to(goneToken)).toHaveLength(1);
       expect(await rowsOf(gone.accountId)).toEqual([]);
       expect(await rowsOf(pushed.accountId)).toHaveLength(1);
+    });
 
-      await handleAll();
-      expect(to(pushedToken)).toHaveLength(1);
+    it('hands a sent offer from the outbox to the offer push subscriber', async () => {
+      const someone = await actors.courier();
+      const wave = await offeredTo(true, someone);
+      const offerId = wave.job.offers[0]!.id;
+      // Any process's dispatcher may claim it (the database is shared); the delivery settles.
+      const statusOf = async () =>
+        (
+          await sql.query<{ status: string }>(
+            `SELECT d.status FROM platform.event_delivery d
+               JOIN dispatch.outbox o ON o.event_id = d.event_id
+              WHERE o.market_id = $1 AND o.aggregate_id = $2 AND d.subscriber = $3`,
+            [market.marketId, offerId, OFFER_PUSH_SUBSCRIBER],
+          )
+        ).rows.map((row) => row.status);
+      await handleUntil(async () => (await statusOf()).includes('delivered'));
+      expect(await statusOf()).toEqual(['delivered']);
     });
   });
 });
