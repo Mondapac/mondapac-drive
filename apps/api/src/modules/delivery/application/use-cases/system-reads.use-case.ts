@@ -5,6 +5,7 @@ import type { DeliveryState } from '../../domain/delivery';
 import { isFinal, type DeliveryStatus } from '../../domain/delivery-status';
 import type { Temperature } from '../../domain/parcel';
 import type { VehicleType } from '../../domain/vehicle';
+import { waitingSecondsOf, type WaitingSeconds } from '../../domain/waiting-time';
 import type { DeliveryAccessDependencies } from '../deliveries';
 import type { DeliveryFailure } from '../failure';
 import type { RecipientPins } from '../ports';
@@ -21,6 +22,8 @@ const SYSTEM_ONLY: DeliveryFailure = Object.freeze({
 /** A stop as dispatch shows it to a courier: no contact name or phone. */
 export interface DispatchStop {
   readonly address: string;
+  /** The geocoder's suburb; null when the stop was booked with a point or none was named. */
+  readonly suburb: string | null;
   readonly postcode: string;
   readonly point: GeoPoint;
 }
@@ -37,6 +40,18 @@ export interface DeliveryForDispatch {
   readonly temperature: Temperature;
   readonly vehicle: VehicleType;
   readonly window: { readonly start: Temporal.Instant; readonly end: Temporal.Instant } | undefined;
+  /**
+   * Whole seconds spent at the pickup and the drop-off so far (an open stay counts up to the
+   * read): 0 until the courier reaches a stop.
+   */
+  readonly waitingSeconds: WaitingSeconds;
+}
+
+/** The merchant's reference of a delivery, for its webhook: nothing about the recipient. */
+export interface DeliveryReference {
+  readonly merchantId: string;
+  /** The merchant's own reference (the marketplace's sub-order id). */
+  readonly externalReference: string;
 }
 
 /** What notifications needs to tell the recipient and the merchant. */
@@ -53,7 +68,12 @@ export interface DeliveryForNotification {
 }
 
 function dispatchStop(stop: DeliveryState['pickup']): DispatchStop {
-  return { address: stop.address, postcode: stop.postcode, point: stop.point };
+  return {
+    address: stop.address,
+    suburb: stop.suburb ?? null,
+    postcode: stop.postcode,
+    point: stop.point,
+  };
 }
 
 /** One delivery read in a read-only unit, or undefined. */
@@ -120,6 +140,7 @@ export class DeliveryDispatchView extends UseCase<
       temperature: delivery.parcel.temperature,
       vehicle: delivery.quote.vehicle,
       window: delivery.window,
+      waitingSeconds: waitingSecondsOf(delivery.history, this.deps.clock.now()),
     });
   }
 }
@@ -173,5 +194,46 @@ export class DeliveryRecipients extends UseCase<
             this.deps.markets.get(context.market.marketId).proofOfDelivery.pinLength,
           ),
     });
+  }
+}
+
+/**
+ * Notifications' read of a delivery's merchant reference only (rule `system`): what a webhook to
+ * the merchant needs, without the recipient's phone or PIN, so the PIN is derived only for the
+ * SMS that carries it (Hassan, 25b).
+ */
+export class DeliveryReferences extends UseCase<
+  DeliveryRef,
+  DeliveryReference | undefined,
+  DeliveryFailure
+> {
+  static override readonly access: AccessDeclaration = {
+    name: 'delivery.view-reference',
+    rule: { kind: 'system' },
+  };
+
+  constructor(
+    gate: UseCaseGate,
+    private readonly deps: DeliveryAccessDependencies,
+  ) {
+    super(gate);
+  }
+
+  /** The merchant and its reference, or undefined when the Market has no such delivery. */
+  async referenceFor(
+    context: CallContext,
+    deliveryId: Id<'Delivery'>,
+  ): Promise<DeliveryReference | undefined> {
+    return unwrap(await this.execute(context, { deliveryId }));
+  }
+
+  protected async handle(
+    context: CallContext,
+    input: DeliveryRef,
+  ): Promise<Result<DeliveryReference | undefined, DeliveryFailure>> {
+    if (context.actor.kind !== 'system') return err(SYSTEM_ONLY);
+    const delivery = await find(this.deps, context, input.deliveryId);
+    if (delivery === undefined) return ok(undefined);
+    return ok({ merchantId: delivery.merchantId, externalReference: delivery.externalReference });
   }
 }

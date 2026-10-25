@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import type { MarketId } from '@mondapac-drive/shared-kernel';
+import type { Id, MarketId } from '@mondapac-drive/shared-kernel';
+import { testCallContext } from '@mondapac-drive/shared-kernel/testing';
+import { DeliveryDispatchView } from '../../src/modules/delivery';
 import request from 'supertest';
 import { SystemClock } from '../../src/platform/clock/system-clock';
 import { loadMarketConfigs } from '../../src/platform/market-config/market-config';
@@ -25,6 +27,7 @@ import {
   TEST_MARKETS,
 } from '../support/test-config';
 import { TestActors, type MerchantActor } from './actor-support';
+import { marketOf } from './persistence-support';
 import { testDatabaseUrl } from './test-database';
 
 // How fast the marketplace's two calls answer (handoff 34): the marketplace gives a quote or a
@@ -60,7 +63,12 @@ describe('delivery response time for the marketplace (database integration)', ()
       delayMs: latency() + stall.geocode,
       body: {
         status: 'OK',
-        results: [{ geometry: { location: { lat: -27.47 - (tick % 50) / 1000, lng: 153.02 } } }],
+        results: [
+          {
+            geometry: { location: { lat: -27.47 - (tick % 50) / 1000, lng: 153.02 } },
+            address_components: [{ long_name: 'Newstead', types: ['locality', 'political'] }],
+          },
+        ],
       },
     }));
     server.on(ROUTES_PATH, (): FakeAnswer => ({
@@ -171,6 +179,19 @@ describe('delivery response time for the marketplace (database integration)', ()
         samples.push(ms);
       }
       expect(p95(samples)).toBeLessThan(P95_BUDGET_MS);
+    });
+
+    it("stores the geocoder's suburb on the stops, for dispatch", async () => {
+      const { response } = await timed('/delivery/deliveries', bookingBody('5 Suburb St'));
+      expect(response.status).toBe(201);
+      const view = await app
+        .get(DeliveryDispatchView, { strict: false })
+        .forDispatch(
+          testCallContext(marketOf(code), 'system'),
+          (response.body as { id: string }).id as Id<'Delivery'>,
+        );
+      expect(view?.pickup.suburb).toBe('Newstead');
+      expect(view?.dropoff.suburb).toBe('Newstead');
     });
 
     it('answers a repeated address from the cache, without asking the provider', async () => {

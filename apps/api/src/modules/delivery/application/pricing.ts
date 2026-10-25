@@ -14,7 +14,7 @@ import { assertWindowAllowed, type DeliveryMode, type DeliveryWindow } from '../
 import type { ServiceArea } from '../domain/service-area';
 import type { VehicleType } from '../domain/vehicle';
 import { refusingBrokenRules, type DeliveryFailure } from './failure';
-import type { DistanceProvider, Geocoder, MarketSettingsProvider } from './ports';
+import type { DistanceProvider, Geocoder, LocatedStop, MarketSettingsProvider } from './ports';
 
 /** A stop as a request gives it: coordinates, or an address to geocode, or both. */
 export interface StopLocation {
@@ -42,6 +42,9 @@ export interface QuoteDeliveryResult {
   /** The stops' points: as given, or geocoded from the address. */
   readonly pickupPoint: GeoPoint;
   readonly dropoffPoint: GeoPoint;
+  /** The stops' suburbs, when they were geocoded from an address the geocoder found. */
+  readonly pickupSuburb?: string;
+  readonly dropoffSuburb?: string;
 }
 
 /** The ports {@link DeliveryPricing} reads. */
@@ -70,9 +73,11 @@ export class DeliveryPricing {
     this.clock = deps.clock;
   }
 
+  /** `merchantId` is the asking merchant's, which scopes its geocoded addresses. */
   price(
     market: MarketContext,
     input: QuoteDeliveryInput,
+    merchantId: string | null = null,
   ): Promise<Result<QuoteDeliveryResult, DeliveryFailure>> {
     return refusingBrokenRules(async () => {
       const settings = this.markets.get(market.marketId);
@@ -102,12 +107,14 @@ export class DeliveryPricing {
 
       // Both stops are located at once: a booking without coordinates waits for one geocoding
       // round trip, not two (the marketplace expects an answer within 2 s; handoff 09b).
-      const [pickupPoint, dropoffPoint] = await Promise.all([
-        this.pointOf(market, input.pickup, 'pickup'),
-        this.pointOf(market, input.dropoff, 'dropoff'),
+      const [pickup, dropoff] = await Promise.all([
+        this.locate(market, input.pickup, 'pickup', merchantId),
+        this.locate(market, input.dropoff, 'dropoff', merchantId),
       ]);
-      if (!('lat' in pickupPoint)) return err(pickupPoint);
-      if (!('lat' in dropoffPoint)) return err(dropoffPoint);
+      if ('code' in pickup) return err(pickup);
+      if ('code' in dropoff) return err(dropoff);
+      const pickupPoint = pickup.point;
+      const dropoffPoint = dropoff.point;
       const distance = await this.distances.distance(
         market,
         pickupPoint,
@@ -121,24 +128,35 @@ export class DeliveryPricing {
         mode: input.mode,
         vehicle: input.vehicle,
       });
-      return ok({ quote, serviceArea, settings, pickupPoint, dropoffPoint });
+      return ok({
+        quote,
+        serviceArea,
+        settings,
+        pickupPoint,
+        dropoffPoint,
+        ...(pickup.suburb === undefined ? {} : { pickupSuburb: pickup.suburb }),
+        ...(dropoff.suburb === undefined ? {} : { dropoffSuburb: dropoff.suburb }),
+      });
     });
   }
 
   /** The stop's point, geocoded from its address and postcode when the request gives none. */
-  private async pointOf(
+  private async locate(
     market: MarketContext,
     stop: StopLocation,
     which: 'pickup' | 'dropoff',
-  ): Promise<GeoPoint | DeliveryFailure> {
-    if (stop.point !== undefined) return stop.point;
+    merchantId: string | null,
+  ): Promise<LocatedStop | DeliveryFailure> {
+    if (stop.point !== undefined) return { point: stop.point };
     if (stop.address === undefined) {
       return {
         code: 'address.point-required',
         message: `The ${which} needs a point or an address`,
       };
     }
-    const located = await this.geocoder.locate(market, stop.address, stop.postcode);
+    const located = await this.geocoder.locate(market, stop.address, stop.postcode, {
+      merchantId,
+    });
     if (located === 'not-found') {
       return { code: 'address.not-found', message: `The ${which} address could not be found` };
     }

@@ -120,12 +120,28 @@ export const DISTANCE_PROVIDER = Symbol('DistanceProvider');
 /** What {@link Geocoder} answers for an address it cannot place. */
 export type GeocodeMiss = 'not-found' | 'unavailable';
 
+/** Where a geocoded stop is: its point, and its suburb when the address itself was found. */
+export interface LocatedStop {
+  readonly point: GeoPoint;
+  readonly suburb?: string;
+}
+
+/** Who asks for a lookup: the merchant, so one merchant cannot time another's cache entries. */
+export interface GeocodeAsker {
+  readonly merchantId: string | null;
+}
+
 /**
  * The point of a stop given by address and postcode, for a request without coordinates. The
  * point may be the postcode's centre when the address itself is not found.
  */
 export interface Geocoder {
-  locate(market: MarketContext, address: string, postcode: string): Promise<GeoPoint | GeocodeMiss>;
+  locate(
+    market: MarketContext,
+    address: string,
+    postcode: string,
+    asker?: GeocodeAsker,
+  ): Promise<LocatedStop | GeocodeMiss>;
 }
 export const GEOCODER = Symbol('Geocoder');
 

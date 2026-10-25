@@ -8,7 +8,7 @@ import { FixedClock, testMarketContext } from '@mondapac-drive/shared-kernel/tes
 import { markets } from '../../../../test/support/delivery-markets';
 import { TEST_MARKETS } from '../../../../test/support/test-config';
 import type { VehicleType } from '../domain/vehicle';
-import type { DistanceProvider, GeocodeMiss, Geocoder } from './ports';
+import type { DistanceProvider, GeocodeAsker, GeocodeMiss, Geocoder } from './ports';
 import { DeliveryPricing, type QuoteDeliveryInput } from './pricing';
 
 const POSTCODE: Readonly<Record<string, string>> = { AU: '4000', ZZ: '1000' };
@@ -25,11 +25,19 @@ class RecordingDistances implements DistanceProvider {
 }
 
 class FakeGeocoder implements Geocoder {
-  readonly calls: { address: string; postcode: string }[] = [];
-  constructor(private readonly answer: GeoPoint | GeocodeMiss) {}
-  locate(_m: MarketContext, address: string, postcode: string) {
-    this.calls.push({ address, postcode });
-    return Promise.resolve(this.answer);
+  readonly calls: { address: string; postcode: string; asker?: GeocodeAsker }[] = [];
+  constructor(
+    private readonly answer: GeoPoint | GeocodeMiss,
+    private readonly suburb?: string,
+  ) {}
+  locate(_m: MarketContext, address: string, postcode: string, asker?: GeocodeAsker) {
+    this.calls.push({ address, postcode, ...(asker === undefined ? {} : { asker }) });
+    const { answer, suburb } = this;
+    return Promise.resolve(
+      typeof answer === 'string'
+        ? answer
+        : { point: answer, ...(suburb === undefined ? {} : { suburb }) },
+    );
   }
 }
 
@@ -66,7 +74,9 @@ describe.each(TEST_MARKETS)('DeliveryPricing stop location (%s)', (code) => {
       input({ postcode, address: '1 Example Street' }),
     );
     expect(result.ok && result.value.pickupPoint).toEqual(GEOCODED);
-    expect(geocoder.calls).toEqual([{ address: '1 Example Street', postcode }]);
+    expect(geocoder.calls).toEqual([
+      { address: '1 Example Street', postcode, asker: { merchantId: null } },
+    ]);
     expect(distances.calls[0]!.from).toEqual(GEOCODED);
   });
 
@@ -99,4 +109,19 @@ describe.each(TEST_MARKETS)('DeliveryPricing stop location (%s)', (code) => {
       });
     },
   );
+
+  it("gives the geocoder the merchant and keeps a found address's suburb", async () => {
+    const geocoder = new FakeGeocoder(GEOCODED, 'Fortitude Valley');
+    const result = await pricing(geocoder).price(
+      market,
+      { ...input({ postcode, address: '1 Example Street' }) },
+      'merchant-1',
+    );
+    expect(result.ok && result.value).toMatchObject({
+      pickupPoint: GEOCODED,
+      pickupSuburb: 'Fortitude Valley',
+    });
+    expect(result.ok && 'dropoffSuburb' in result.value).toBe(false);
+    expect(geocoder.calls[0]!.asker).toEqual({ merchantId: 'merchant-1' });
+  });
 });

@@ -19,7 +19,7 @@ import type { DeliveryPricing, QuoteDeliveryInput } from '../pricing';
 import type { DeliveryRepository } from '../ports';
 
 /** A stop as booked: its point may be left out, then it is geocoded from the address. */
-export type BookedStop = Omit<Stop, 'point'> & { readonly point?: Stop['point'] };
+export type BookedStop = Omit<Stop, 'point' | 'suburb'> & { readonly point?: Stop['point'] };
 
 export interface BookDeliveryInput extends Omit<QuoteDeliveryInput, 'pickup' | 'dropoff'> {
   readonly externalReference: string;
@@ -27,6 +27,11 @@ export interface BookDeliveryInput extends Omit<QuoteDeliveryInput, 'pickup' | '
   readonly dropoff: BookedStop;
   /** The total the merchant accepted from a quote; booking fails if the price has changed. */
   readonly expectedTotal?: bigint;
+}
+
+/** The stop as stored: the request's, at its point, with the geocoder's suburb if any. */
+function stopOf(stop: BookedStop, point: Stop['point'], suburb: string | undefined): Stop {
+  return { ...stop, point, ...(suburb === undefined ? {} : { suburb }) };
 }
 
 export interface BookedDelivery {
@@ -74,9 +79,10 @@ export class BookDelivery extends UseCase<BookDeliveryInput, BookedDelivery, Del
     if (booked !== undefined) return ok({ delivery: booked, created: false });
 
     // Pricing reads no row, so it runs before the unit (marketplace persistence design 3.4).
-    const quoted = await this.deps.pricing.price(market, input);
+    const quoted = await this.deps.pricing.price(market, input, merchantId);
     if (!quoted.ok) return quoted;
-    const { quote, serviceArea, pickupPoint, dropoffPoint } = quoted.value;
+    const { quote, serviceArea, pickupPoint, dropoffPoint, pickupSuburb, dropoffSuburb } =
+      quoted.value;
     if (input.expectedTotal !== undefined && input.expectedTotal !== quote.total.amount) {
       return err({
         code: 'quote.price-changed',
@@ -91,8 +97,8 @@ export class BookDelivery extends UseCase<BookDeliveryInput, BookedDelivery, Del
         merchantId,
         externalReference: input.externalReference,
         serviceAreaCode: serviceArea.code,
-        pickup: { ...input.pickup, point: pickupPoint },
-        dropoff: { ...input.dropoff, point: dropoffPoint },
+        pickup: stopOf(input.pickup, pickupPoint, pickupSuburb),
+        dropoff: stopOf(input.dropoff, dropoffPoint, dropoffSuburb),
         parcel: input.parcel,
         mode: input.mode,
         window: input.window,
