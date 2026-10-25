@@ -10,10 +10,12 @@ import { PersistenceModule } from '../../platform/persistence/persistence.module
 import { registerJobsFrom } from '../../platform/scheduler/job-registry';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../platform/unit-of-work/unit-of-work';
 import { DeliveryModule } from '../delivery';
+import { IdentityModule } from '../identity';
 import { TrackingModule } from '../tracking';
 import {
   DELIVERY_CONTACTS,
   NOTIFICATION_SETTINGS,
+  COURIER_SESSIONS,
   OUTBOUND_REPOSITORY,
   PUSH_DEVICES,
   PUSH_SENDER,
@@ -22,6 +24,7 @@ import {
   WEBHOOK_SIGNER,
   WEBHOOK_SUBSCRIPTIONS,
   WEBHOOK_TRANSPORT,
+  type CourierSessions,
   type DeliveryContacts,
   type NotificationSettingsProvider,
   type OutboundRepository,
@@ -111,7 +114,7 @@ function subscriptionChange<U>(
  * operator re-sends a dead-lettered call. Webhook changes are audited.
  */
 @Module({
-  imports: [DeliveryModule, TrackingModule],
+  imports: [DeliveryModule, TrackingModule, IdentityModule],
   controllers: [MerchantWebhookController, AdminWebhookCallController, CourierPushDeviceController],
   providers: [
     registerPermissions('notifications', NOTIFICATIONS_PERMISSIONS),
@@ -298,6 +301,7 @@ function subscriptionChange<U>(
         USE_CASE_GATE,
         PUSH_DEVICES,
         PUSH_SENDER,
+        COURIER_SESSIONS,
         NOTIFICATION_SETTINGS,
         UNIT_OF_WORK,
         CLOCK,
@@ -306,10 +310,11 @@ function subscriptionChange<U>(
         gate: UseCaseGate,
         devices: PushDeviceRepository,
         sender: PushSender,
+        sessions: CourierSessions,
         settings: NotificationSettingsProvider,
         unitOfWork: UnitOfWork,
         clock: Clock,
-      ) => new SendOfferPush(gate, { devices, sender, settings, unitOfWork, clock }),
+      ) => new SendOfferPush(gate, { devices, sender, sessions, settings, unitOfWork, clock }),
     },
     registerSubscriptionsFrom(
       'notifications',

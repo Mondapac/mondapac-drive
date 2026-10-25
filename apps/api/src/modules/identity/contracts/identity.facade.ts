@@ -44,6 +44,16 @@ export interface IdentityFacade {
     context: CallContext,
     accountId: Id<'Account'>,
   ): Promise<Result<boolean, AccessDenied>>;
+
+  /**
+   * Which of `sessionIds` of `accountId` are live now (not revoked, expired or idle), for the
+   * `system` caller only: notifications pushes only to the device of a live courier session.
+   */
+  liveSessionsOf(
+    context: CallContext,
+    accountId: Id<'Account'>,
+    sessionIds: readonly string[],
+  ): Promise<Result<ReadonlySet<string>, AccessDenied>>;
 }
 
 /** Nest token of the {@link IdentityFacade}, provided and exported by `IdentityModule`. */

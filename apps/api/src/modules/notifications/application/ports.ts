@@ -190,6 +190,19 @@ export interface PushDeviceRepository {
 }
 export const PUSH_DEVICES = Symbol('PushDeviceRepository');
 
+/**
+ * Identity's answer of which courier sessions still live (revoked, expired and idle ones do
+ * not), asked as the Market's system actor; undefined when identity could not answer.
+ */
+export interface CourierSessions {
+  liveOf(
+    context: CallContext,
+    accountId: string,
+    sessionIds: readonly string[],
+  ): Promise<ReadonlySet<string> | undefined>;
+}
+export const COURIER_SESSIONS = Symbol('CourierSessions');
+
 /** The outcome of one push to one device. Never throws for a provider failure. */
 export type PushTicket =
   | { readonly ok: true }

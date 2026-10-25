@@ -25,7 +25,9 @@ describe('the push token seal', () => {
     expect(() => new PushTokenSeal(randomBytes(32)).open(sealed, ACCOUNT)).toThrow(
       PushTokenSealError,
     );
-    const flipped = sealed.slice(0, -2) + (sealed.endsWith('A') ? 'B' : 'A') + sealed.slice(-1);
+    const raw = Buffer.from(sealed.slice(3), 'base64url');
+    raw[raw.length - 1] = raw[raw.length - 1]! ^ 0x01;
+    const flipped = 'v1.' + raw.toString('base64url');
     expect(() => seal.open(flipped, ACCOUNT)).toThrow(PushTokenSealError);
     expect(() => seal.open('v2.' + sealed.slice(3), ACCOUNT)).toThrow(PushTokenSealError);
     expect(() => seal.open('v1.AAAA', ACCOUNT)).toThrow(PushTokenSealError);

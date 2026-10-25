@@ -8,6 +8,9 @@ const toDate = (instant: Temporal.Instant): Date => new Date(instant.epochMillis
 const toInstant = (date: Date): Temporal.Instant =>
   Temporal.Instant.fromEpochMilliseconds(date.getTime());
 
+/** What a sealed token is bound to: its Market and its account. */
+const boundTo = (market: MarketContext, accountId: string) => `${market.marketId}/${accountId}`;
+
 const scope = (market: MarketContext) => ({
   marketId: market.marketId,
   tenantId: market.tenantId,
@@ -15,7 +18,7 @@ const scope = (market: MarketContext) => ({
 
 /**
  * Courier push devices in `notifications.push_devices`. The token is stored sealed (AES-GCM,
- * bound to the account) next to its keyed digest, which is unique per Market so that one phone
+ * bound to the Market and the account) next to its keyed digest, which is unique per Market so that one phone
  * belongs to one session. A row that no longer opens (the notifications key was rotated) is
  * skipped as if absent; the app registers again.
  */
@@ -31,14 +34,16 @@ export class PrismaPushDeviceRepository implements PushDeviceRepository {
     await db.notificationsPushDevice.deleteMany({
       where: { ...scope(market), OR: [{ sessionId: device.sessionId }, { tokenLookup }] },
     });
-    await db.notificationsPushDevice.create({
+    // A concurrent registration of the same session or token may land first: its row stands.
+    await db.notificationsPushDevice.createMany({
+      skipDuplicates: true,
       data: {
         ...scope(market),
         id: device.id,
         accountId: device.accountId,
         sessionId: device.sessionId,
         platform: device.platform,
-        tokenSealed: this.seal.seal(device.token, device.accountId),
+        tokenSealed: this.seal.seal(device.token, boundTo(market, device.accountId)),
         tokenLookup,
         registeredAt: toDate(device.registeredAt),
         expiresAt: toDate(device.expiresAt),
@@ -78,7 +83,7 @@ export class PrismaPushDeviceRepository implements PushDeviceRepository {
     for (const row of rows) {
       let token;
       try {
-        token = this.seal.open(row.tokenSealed, row.accountId);
+        token = this.seal.open(row.tokenSealed, boundTo(market, row.accountId));
       } catch {
         continue;
       }

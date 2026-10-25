@@ -108,14 +108,26 @@ describe.each(TEST_MARKET_IDS)('courier push in %s', (marketId) => {
     } as unknown as UnitOfWork;
     const gate = openGate();
     const ids = new UuidV7IdGenerator(clock);
+    const ended = new Set<string>();
+    let identityDown = false;
+    const sessions = {
+      liveOf: (_c: unknown, _a: string, sessionIds: readonly string[]) =>
+        Promise.resolve(
+          identityDown ? undefined : new Set(sessionIds.filter((id) => !ended.has(id))),
+        ),
+    };
     return {
+      ended,
+      identityDown: (down: boolean) => {
+        identityDown = down;
+      },
       clock,
       devices,
       sender,
       register: new RegisterPushDevice(gate, { devices, settings, unitOfWork, ids, clock }),
       remove: new RemovePushDevice(gate, { devices, unitOfWork }),
       forget: new ForgetPushDevices(gate, { devices, unitOfWork }),
-      push: new SendOfferPush(gate, { devices, sender, settings, unitOfWork, clock }),
+      push: new SendOfferPush(gate, { devices, sender, sessions, settings, unitOfWork, clock }),
     };
   }
   let serial = 0;
@@ -279,6 +291,44 @@ describe.each(TEST_MARKET_IDS)('courier push in %s', (marketId) => {
     expect(devices.rows.map((row) => row.token)).toEqual([TOKEN_B]);
     sender.answers.delete(TOKEN_B);
     expect(await push.execute(system, input)).toEqual(ok({ pushed: 1, dropped: 0 }));
+  });
+
+  it('never pushes to the device of a session that ended without a sign-out, and drops it', async () => {
+    const { register, push, sender, devices, ended } = wired();
+    await register.execute(courier(1, 11), { token: TOKEN_A, platform: 'ios' });
+    await register.execute(courier(1, 12), { token: TOKEN_B, platform: 'android' });
+    ended.add(id(11));
+    const input = () => ({
+      delivery: delivery(),
+      offerId: OFFER,
+      courierId: id(1),
+      expiresAt: NOW.add({ seconds: 30 }),
+    });
+    expect(await push.execute(system, input())).toEqual(ok({ pushed: 1, dropped: 0 }));
+    expect(sender.sent.map((sent) => sent.to)).toEqual([[TOKEN_B]]);
+    expect(devices.rows.map((row) => row.sessionId)).toEqual([id(12)]);
+    ended.add(id(12));
+    expect(await push.execute(system, input())).toEqual(ok({ skipped: 'no-device' }));
+    expect(devices.rows).toEqual([]);
+    expect(sender.sent).toHaveLength(1);
+  });
+
+  it('retries while identity cannot say which sessions live', async () => {
+    const { register, push, sender, identityDown } = wired();
+    await register.execute(courier(1, 11), { token: TOKEN_A, platform: 'ios' });
+    identityDown(true);
+    expect(
+      await push.execute(system, {
+        delivery: delivery(),
+        offerId: OFFER,
+        courierId: id(1),
+        expiresAt: NOW.add({ seconds: 30 }),
+      }),
+    ).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: 'push.sessions-unavailable' }) as unknown,
+    });
+    expect(sender.sent).toEqual([]);
   });
 
   it('gives up on a failure that will not pass', async () => {

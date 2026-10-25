@@ -76,6 +76,7 @@ import { CompleteSecondFactorReplacement } from './application/use-cases/complet
 import { ConfirmSecondFactorEnrolment } from './application/use-cases/confirm-second-factor-enrolment.use-case';
 import { ContactEmailOf } from './application/use-cases/contact-email-of.use-case';
 import { IsActiveCourier } from './application/use-cases/is-active-courier.use-case';
+import { LiveSessionsOf } from './application/use-cases/live-sessions-of.use-case';
 import { CreateMerchant } from './application/use-cases/create-merchant.use-case';
 import { CreatePlatformRole } from './application/use-cases/create-platform-role.use-case';
 import { DeletePlatformRole } from './application/use-cases/delete-platform-role.use-case';
@@ -498,6 +499,11 @@ function useCaseProvider<D, U>(
       unitOfWork: true,
       accounts: true,
     }),
+    useCaseProvider(LiveSessionsOf, {
+      unitOfWork: true,
+      sessions: true,
+      clock: true,
+    }),
     useCaseProvider(IssueFirstAdminInvitation, {
       unitOfWork: true,
       accounts: true,
@@ -862,12 +868,19 @@ function useCaseProvider<D, U>(
     roleEditorProvider(DeletePlatformRole),
     {
       provide: IDENTITY_FACADE,
-      inject: [DescribeActor, ContactEmailOf, IsActiveCourier],
+      inject: [DescribeActor, ContactEmailOf, IsActiveCourier, LiveSessionsOf],
       useFactory: (
         describeActor: DescribeActor,
         contactEmailOf: ContactEmailOf,
         isActiveCourier: IsActiveCourier,
-      ) => new IdentityFacadeImplementation({ describeActor, contactEmailOf, isActiveCourier }),
+        liveSessionsOf: LiveSessionsOf,
+      ) =>
+        new IdentityFacadeImplementation({
+          describeActor,
+          contactEmailOf,
+          isActiveCourier,
+          liveSessionsOf,
+        }),
     },
     registerJobsFrom(
       'identity',

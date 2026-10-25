@@ -22,19 +22,25 @@ The courier app calls, with the courier's bearer session:
 
 ## How long a device lives
 
-A device never outlives the session that registered it:
+A device is pushed to only while the session that registered it lives:
 
-- `DELETE` on sign-out drops it.
-- It is never pushed to after `expires_at`, which is the registration time plus the Market's courier
-  session absolute lifetime (`identity.sessions.courier.absoluteLifetimeMinutes`).
+- At every push, notifications asks identity which of the devices' sessions are still live. This
+  uses `IdentityFacade.liveSessionsOf`, which has the system rule and checks for revoked, past the
+  absolute expiry, or idle sessions. A device of an ended session gets no push and is dropped. This
+  covers ends with no `DELETE` and no event: an idle timeout, the absolute expiry, a sign-out while
+  offline, and an uninstall.
+- `DELETE` on sign-out drops the device at once. The app calls it before identity's sign-out.
+- `expires_at` (registration plus the Market's courier session absolute lifetime,
+  `identity.sessions.courier.absoluteLifetimeMinutes`) bounds the row as a second line.
 - When identity ends an account's sessions, every device of that account is dropped. The events
   are `identity.account-disabled.v1`, `identity.account-password-changed.v1` and
   `identity.account-other-sessions-signed-out.v1`. The app of a session that is still alive gets
   its device back with the `PUT` at its next start.
 - A device Expo answers `DeviceNotRegistered` for is dropped.
-
-An idle-timed-out session keeps its device until one of the above happens. Identity has no event
-for an idle timeout. The push names nothing personal, and opening the offer needs a live session.
+- A token that another courier's session registers moves to that courier. This happens when two
+  couriers share a phone, and only the courier signed in on the phone receives its pushes. A
+  courier who copied another's token could take its pushes this way; that needs the other phone's
+  token, and the move is visible as the first courier missing pushes (Hassan L1, accepted).
 
 ## The push
 
@@ -62,12 +68,15 @@ the outcomes:
 - Any other failure is final for that push.
 - If the process crashes between the send and the inbox commit, the redelivered event pushes again.
   The app removes the duplicate by `offerId`.
+- If identity cannot answer the session check, the use case refuses and the event is retried.
+- If some devices took the push and others failed, the event is handled and the failed devices miss
+  this offer. The courier still sees it in the app (Hassan L3, accepted).
 
 ## Storage and keys
 
 `notifications.push_devices` stores the token sealed and never in clear:
 
-- `token_sealed`: AES-256-GCM, with the account id as associated data.
+- `token_sealed`: AES-256-GCM, with the Market and the account id as associated data.
 - `token_lookup`: the HMAC-SHA256 of the token, unique per Market.
 
 Both keys are derived with HKDF from `NOTIFICATIONS_WEBHOOK_KEY`. Rotating that key makes every
@@ -76,6 +85,10 @@ The application role may select, insert and delete rows, never update them.
 
 ## Environment
 
-- `EXPO_ACCESS_TOKEN`: Expo's access token. It is needed when the Expo project enforces push
-  security. When it is unset, no push is sent, and a warning `notifications.push.disabled` is logged
-  at start-up.
+- `EXPO_ACCESS_TOKEN`: Expo's access token, kept in the secrets store and never logged. Turn on
+  Expo's enhanced push security for the project so that only calls with this token are accepted.
+  When it is unset, no push is sent, and a warning `notifications.push.disabled` is logged at
+  start-up.
+
+Stored tokens are treated as personal data. They are never logged or answered, and they are
+dropped with the courier's sessions.

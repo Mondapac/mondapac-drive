@@ -22,6 +22,7 @@ import { testCallContext } from '@mondapac-drive/shared-kernel/testing';
 import { OUTBOX_RELAY, type OutboxRelay } from '../../src/platform/events/event-bus';
 import { OUTBOX_WRITER, type OutboxWriter } from '../../src/platform/events/outbox-writer';
 import { EVENT_DISPATCHER, type EventDispatcher } from '../../src/platform/events/event-delivery';
+import { IDENTITY_FACADE, type IdentityFacade } from '../../src/modules/identity';
 import { ID_GENERATOR } from '../../src/platform/ids/ids.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../src/platform/unit-of-work/unit-of-work';
 import { requirements, stops } from '../support/dispatch-markets';
@@ -208,6 +209,70 @@ describe('notifications push (database integration)', () => {
       expect((await del(code, again.headers)).status).toBe(204);
       expect((await del(code, again.headers)).status).toBe(204);
       expect(await rowsOf(again.accountId)).toEqual([]);
+    });
+
+    /** The session id of a courier's bearer session, as identity stores it. */
+    const sessionOf = async (accountId: string) =>
+      (
+        await sql.query<{ id: string }>(
+          `SELECT id FROM identity.sessions WHERE market_id = $1 AND account_id = $2`,
+          [market.marketId, accountId],
+        )
+      ).rows.map((row) => row.id);
+    const revoke = (accountId: string) =>
+      sql.query(
+        `UPDATE identity.sessions SET revoked_at = now(), revoked_reason = 'test.revoked'
+          WHERE market_id = $1 AND account_id = $2`,
+        [market.marketId, accountId],
+      );
+
+    it("moves a phone's token from one courier to another who signs in on it", async () => {
+      const first = await actors.courier();
+      const second = await actors.courier();
+      const token = expoToken();
+      await put(code, first.headers, { token, platform: 'ios' });
+      await put(code, second.headers, { token, platform: 'ios' });
+      expect(await rowsOf(first.accountId)).toEqual([]);
+      expect(await rowsOf(second.accountId)).toHaveLength(1);
+    });
+
+    it("tells notifications which of a courier's sessions live (identity's system read)", async () => {
+      const identity = app.get<IdentityFacade>(IDENTITY_FACADE, { strict: false });
+      const system = testCallContext(market, 'system', 'push-sessions-0001');
+      const alive = await actors.courier();
+      const other = await actors.courier();
+      const [aliveSession] = await sessionOf(alive.accountId);
+      const [otherSession] = await sessionOf(other.accountId);
+      const asked = [aliveSession!, otherSession!, '0195f000-0000-7000-8000-0000000000ff'];
+      expect(await identity.liveSessionsOf(system, alive.accountId, asked)).toEqual({
+        ok: true,
+        value: new Set([aliveSession]),
+      });
+      await revoke(alive.accountId);
+      expect(await identity.liveSessionsOf(system, alive.accountId, asked)).toEqual({
+        ok: true,
+        value: new Set(),
+      });
+      expect(
+        (
+          await identity.liveSessionsOf(
+            testCallContext(market, 'anonymous', 'push-anon-0001'),
+            alive.accountId,
+            asked,
+          )
+        ).ok,
+      ).toBe(false);
+    });
+
+    it('never pushes to the device of a session that ended without a sign-out, and drops it', async () => {
+      const ended = await actors.courier();
+      const token = expoToken();
+      await put(code, ended.headers, { token, platform: 'ios' });
+      await revoke(ended.accountId);
+      await offeredTo(ended);
+      await handleUntil(async () => (await rowsOf(ended.accountId)).length === 0);
+      expect(await rowsOf(ended.accountId)).toEqual([]);
+      expect(sender.sent.filter((sent) => sent.to.includes(token as never))).toEqual([]);
     });
 
     it('refuses a token that is not Expo, an unknown field, and any caller but a courier', async () => {

@@ -153,6 +153,7 @@ describe.each(TEST_MARKETS)('session use cases in market %s', (code) => {
         describeActor: describe,
         contactEmailOf: undefined as never,
         isActiveCourier: undefined as never,
+        liveSessionsOf: undefined as never,
       });
 
     it("answers the actor's ids, email and session times; the facade drops the email", async () => {

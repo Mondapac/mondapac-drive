@@ -4,8 +4,10 @@ import type { AppConfig } from '../../../platform/config/app-config';
 import { MarketRegistry } from '../../../platform/market-config/market-registry';
 import { PrismaService } from '../../../platform/persistence/prisma.service';
 import { DeliveryRecipients } from '../../delivery';
+import { IDENTITY_FACADE, type IdentityFacade } from '../../identity';
 import { IssueTrackingLink } from '../../tracking';
 import {
+  COURIER_SESSIONS,
   DELIVERY_CONTACTS,
   NOTIFICATION_SETTINGS,
   OUTBOUND_REPOSITORY,
@@ -23,6 +25,7 @@ import { HttpsWebhookTransport } from './https-webhook-transport';
 import { ExpoPushSender, DisabledPushSender } from './expo-push-sender';
 import { expoAccessToken, twilioCredentials, webhookKey } from './notifications-secrets';
 import { DeliveryRecipientContacts } from './delivery-contacts';
+import { IdentityCourierSessions } from './identity-courier-sessions';
 import {
   PrismaOutboundRepository,
   PrismaWebhookSubscriptionRepository,
@@ -67,6 +70,11 @@ export const notificationsProviders: Provider[] = [
     inject: [PrismaService, NOTIFICATIONS_KEY],
     useFactory: (prisma: PrismaService, key: Uint8Array) =>
       new PrismaPushDeviceRepository(prisma, new PushTokenSeal(key)),
+  },
+  {
+    provide: COURIER_SESSIONS,
+    inject: [IDENTITY_FACADE],
+    useFactory: (identity: IdentityFacade) => new IdentityCourierSessions(identity),
   },
   {
     provide: PUSH_SENDER,
