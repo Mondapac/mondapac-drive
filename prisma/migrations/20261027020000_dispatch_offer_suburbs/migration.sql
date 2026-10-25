@@ -35,6 +35,10 @@ ALTER TABLE "dispatch"."jobs"
   ),
   ADD CONSTRAINT "jobs_offer_stops_closed_check" CHECK (
     "status" = 'OFFERING' OR "pickup_postcode" IS NULL
+  ),
+  -- A suburb is unknown (null) or a name, never blank (the domain's rule).
+  ADD CONSTRAINT "jobs_offer_suburbs_check" CHECK (
+    btrim("pickup_suburb") <> '' AND btrim("dropoff_suburb") <> ''
   );
 
 -- Grants: the stops change with the job.

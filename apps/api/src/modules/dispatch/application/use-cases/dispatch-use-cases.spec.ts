@@ -123,7 +123,15 @@ describe.each([
         advancer,
       }),
       sweep: new AdvanceDispatchJobs(gate, { jobs, unitOfWork, clock, advancer }),
-      follow: new FollowDeliveryStatus(gate, { jobs, facts, outbox, unitOfWork, clock, advancer }),
+      follow: new FollowDeliveryStatus(gate, {
+        jobs,
+        facts,
+        settings: dispatchSettings,
+        outbox,
+        unitOfWork,
+        clock,
+        advancer,
+      }),
       cancel: new CancelDispatchJob(gate, { jobs, outbox, unitOfWork, clock }),
       offer: new ViewCurrentOffer(gate, { jobs, earnings, unitOfWork, clock }),
       answer: new AnswerOffer(gate, { jobs, outbox, unitOfWork, clock }),
@@ -247,7 +255,6 @@ describe.each([
       t.facts.book(deliveryId, {
         status: 'SCHEDULED',
         dropoff: {
-          address: '3 New Lane',
           suburb: 'New Town',
           postcode: '4102',
           point: geoPoint(-27.6, 153.1),
@@ -292,8 +299,6 @@ describe.each([
         tripDistanceMetres: 4200,
         temperature: 'chilled',
       });
-      // Security L3: before accepting, no street address of either stop.
-      expect(JSON.stringify(mine)).not.toMatch(/Pickup Street|Dropoff Road/);
       expect(await t.offer.execute(courierCall(2), {})).toEqual({ ok: true, value: null });
 
       t.clock.advance(Temporal.Duration.from(timeout));
@@ -504,7 +509,6 @@ describe.each([
       await assignedByOffer(t);
       t.facts.book(deliveryId, {
         dropoff: {
-          address: '3 New Lane',
           suburb: 'New Town',
           postcode: '4102',
           point: geoPoint(-27.6, 153.1),

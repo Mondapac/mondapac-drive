@@ -108,7 +108,7 @@ export class OpenDispatchJob extends UseCase<
             marketId: market.marketId,
             deliveryId: input.deliveryId,
             requirements: requirementsOf(delivery),
-            stops: stopsOf(delivery),
+            stops: stopsOf(delivery, settings),
             deliveryVersion: input.deliveryVersion,
             ...(delivery.window === undefined ? {} : { windowStart: delivery.window.start }),
           },

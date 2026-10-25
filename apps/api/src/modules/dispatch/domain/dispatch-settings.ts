@@ -18,4 +18,6 @@ export interface DispatchSettings {
   readonly searchRadiusMetres: number;
   /** The most nearby couriers considered for one wave. */
   readonly candidateLimit: number;
+  /** Decimal places of the drop-off point an offer shows before accept (a grid, not a house). */
+  readonly offerPointDecimals: number;
 }

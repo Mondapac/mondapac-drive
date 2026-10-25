@@ -30,7 +30,7 @@ import {
   type DispatchFailure,
 } from '../failure';
 import type { JobAdvancer } from '../job-advancer';
-import type { DeliveryFacts, DispatchJobRepository } from '../ports';
+import type { DeliveryFacts, DispatchJobRepository, DispatchSettingsProvider } from '../ports';
 import { stopsOf } from '../offer-stops';
 
 /** The reason delivery gives a step back to DISPATCHING that is half of a reassignment. */
@@ -53,6 +53,7 @@ export interface FollowDeliveryStatusInput {
 export interface FollowDeliveryStatusDependencies {
   readonly jobs: DispatchJobRepository;
   readonly facts: DeliveryFacts;
+  readonly settings: DispatchSettingsProvider;
   readonly outbox: OutboxWriter;
   readonly unitOfWork: UnitOfWork;
   readonly clock: Clock;
@@ -120,7 +121,7 @@ export class FollowDeliveryStatus extends UseCase<
     if (droppedCourier(input)) {
       const delivery = await facts.forDispatch(context, input.deliveryId);
       if (delivery === undefined) return err(deliveryNotFound());
-      stops = stopsOf(delivery);
+      stops = stopsOf(delivery, this.deps.settings.get(market.marketId));
     }
 
     const followed = await unitOfWork.runOnce(market, input.delivery, () =>

@@ -175,12 +175,11 @@ export class FakeDeliveryFacts implements DeliveryFacts {
       // The pickup's suburb comes from delivery's geocode; the drop-off has none (booked by its
       // point, or delivery before handoff 34).
       pickup: {
-        address: '1 Pickup Street',
         suburb: 'Pickup Vale',
         postcode: '4000',
         point: geoPoint(-27.47, 153.02),
       },
-      dropoff: { address: '2 Dropoff Road', postcode: '4101', point: geoPoint(-27.5, 153.05) },
+      dropoff: { postcode: '4101', point: geoPoint(-27.5, 153.05) },
       distanceMetres: 4200,
       weightGrams: 5000,
       volumeLitres: 20,
