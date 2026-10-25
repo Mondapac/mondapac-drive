@@ -45,6 +45,8 @@ interface StoredMoney {
 interface StoredQuote {
   readonly vehicle: VehicleType;
   readonly distanceMetres: number;
+  /** Absent on quotes stored before it existed: those were road distances. */
+  readonly distanceEstimated?: boolean;
   readonly breakdown: Record<keyof DeliveryQuote['breakdown'], StoredMoney>;
   readonly total: StoredMoney;
   readonly tax: StoredMoney;
@@ -70,6 +72,7 @@ function storedQuote(quote: DeliveryQuote): StoredQuote {
   return {
     vehicle: quote.vehicle,
     distanceMetres: quote.distanceMetres,
+    distanceEstimated: quote.distanceEstimated,
     breakdown: {
       base: storedMoney(quote.breakdown.base),
       distance: storedMoney(quote.breakdown.distance),
@@ -85,6 +88,7 @@ function readQuote(stored: StoredQuote): DeliveryQuote {
   return {
     vehicle: stored.vehicle,
     distanceMetres: stored.distanceMetres,
+    distanceEstimated: stored.distanceEstimated ?? false,
     breakdown: {
       base: readMoney(stored.breakdown.base),
       distance: readMoney(stored.breakdown.distance),

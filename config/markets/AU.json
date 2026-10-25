@@ -175,6 +175,12 @@
     "proofOfDelivery": {
       "pinLength": 4,
       "maxPinAttempts": 5
+    },
+    "responseBudget": {
+      "geocodeMs": 900,
+      "routeMs": 700,
+      "estimateRoadFactor": 1.3,
+      "geocodeCacheSeconds": 86400
     }
   },
   "routing": {
