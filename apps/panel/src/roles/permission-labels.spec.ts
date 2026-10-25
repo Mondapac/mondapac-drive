@@ -34,6 +34,7 @@ const ADMIN_KEYS = [
   'notifications.webhook-call.resend',
   'notifications.webhook.view',
   'notifications.webhook.manage',
+  'notifications.webhook-subscription.view',
   'payouts.ledger.view',
   'payouts.line.settle',
   'payouts.adjustment.record',

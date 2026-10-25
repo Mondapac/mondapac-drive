@@ -84,6 +84,9 @@ const ALLOWED_WITH_ID: Readonly<Record<string, readonly string[]>> = {
     // once every round lapsed (both audited; dispatch.job.assign).
     'dispatch/admin/deliveries/:id/assign',
     'dispatch/admin/deliveries/:id/redispatch',
+    // Drive notifications: send a dead-lettered webhook call again (audited; same body and
+    // event id; notifications.webhook-call.resend).
+    'notifications/admin/webhook-calls/:id/resend',
   ],
   PUT: [
     'identity/admin/roles/:id',

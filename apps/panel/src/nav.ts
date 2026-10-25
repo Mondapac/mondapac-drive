@@ -48,6 +48,13 @@ export const adminNav: NavConfig = {
       anyOf: ['identity.merchant.view'],
     },
     {
+      id: 'webhooks',
+      icon: 'bell',
+      labelKey: 'nav.webhooks',
+      href: '/webhooks',
+      anyOf: ['notifications.webhook-call.resend'],
+    },
+    {
       id: 'team',
       icon: 'key',
       labelKey: 'nav.team',
