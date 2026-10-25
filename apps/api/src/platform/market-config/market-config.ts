@@ -547,6 +547,29 @@ const deliverySchema = z.strictObject({
     pinLength: z.number().int().min(4).max(8),
     maxPinAttempts: z.number().int().min(1).max(10),
   }),
+  /**
+   * How long a quote or a booking may wait on the map provider (the marketplace gives Drive
+   * 2.5 s per attempt; Drive aims to answer within 2 s). Past `geocodeMs` an address answers
+   * `address.geocoding-unavailable` (the late answer still fills the cache, so a retry is
+   * quick); past `routeMs` the distance is the straight line times `estimateRoadFactor`, and the
+   * quote says it is estimated. Geocoded points are kept `geocodeCacheSeconds`.
+   */
+  responseBudget: z
+    .strictObject({
+      geocodeMs: z.number().int().min(100).max(1500),
+      routeMs: z.number().int().min(100).max(1500),
+      estimateRoadFactor: z.number().min(1).max(3),
+      geocodeCacheSeconds: z
+        .number()
+        .int()
+        .min(0)
+        .max(7 * 86_400),
+    })
+    // Both waits in a row must leave room for the database within the 2 s budget.
+    .refine((budget) => budget.geocodeMs + budget.routeMs <= 1900, {
+      message: 'geocodeMs + routeMs must be at most 1900',
+      path: ['routeMs'],
+    }),
 });
 
 /**

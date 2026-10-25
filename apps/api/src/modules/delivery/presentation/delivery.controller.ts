@@ -98,9 +98,23 @@ function parsed<T>(parse: () => T): T {
   }
 }
 
-function answer<T>(result: Result<T, DeliveryFailure | { readonly code: string }>): T {
+/**
+ * Seconds a client should wait before retrying a refusal that passes on its own. The marketplace
+ * honours `Retry-After` (carrier contract, docs/delivery/carrier-api.md); a geocoding lookup that
+ * timed out keeps running and fills the cache, so a short wait is enough.
+ */
+const RETRY_AFTER_SECONDS: Readonly<Record<string, number>> = Object.freeze({
+  'address.geocoding-unavailable': 2,
+});
+
+function answer<T>(
+  result: Result<T, DeliveryFailure | { readonly code: string }>,
+  res?: Response,
+): T {
   if (result.ok) return result.value;
   const { error } = result;
+  const retryAfter = RETRY_AFTER_SECONDS[error.code];
+  if (retryAfter !== undefined) res?.setHeader('Retry-After', String(retryAfter));
   const message = 'message' in error ? error.message : undefined;
   throw fail(STATUS[error.code] ?? 422, error.code, message ? { message } : undefined);
 }
@@ -127,6 +141,7 @@ function quoteBodyOf(quote: DeliveryQuote) {
   return {
     vehicle: quote.vehicle,
     distanceMetres: quote.distanceMetres,
+    distanceEstimated: quote.distanceEstimated,
     breakdown: {
       base: moneyBody(quote.breakdown.base),
       distance: moneyBody(quote.breakdown.distance),
@@ -228,9 +243,13 @@ export class MerchantDeliveryController {
   @HttpCode(200)
   @ReadsSession()
   @ApiOperation({ summary: 'Price a delivery without booking it' })
-  async quote(@Call() context: CallContext, @Body() body: unknown) {
+  async quote(
+    @Call() context: CallContext,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const input = parsed(() => quoteBody.parse(body));
-    const { quote, serviceArea } = answer(await this.quoteDelivery.execute(context, input));
+    const { quote, serviceArea } = answer(await this.quoteDelivery.execute(context, input), res);
     return { serviceArea: serviceArea.code, ...quoteBodyOf(quote) };
   }
 
@@ -248,7 +267,7 @@ export class MerchantDeliveryController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const input = parsed(() => createDeliveryBody.parse(body));
-    const { delivery, created } = answer(await this.bookDelivery.execute(context, input));
+    const { delivery, created } = answer(await this.bookDelivery.execute(context, input), res);
     res.status(created ? 201 : 200);
     return presentForMerchant(delivery);
   }

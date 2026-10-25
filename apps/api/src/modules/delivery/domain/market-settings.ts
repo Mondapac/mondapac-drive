@@ -39,4 +39,12 @@ export interface MarketDeliverySettings {
     /** Wrong PINs a delivery takes before only a photo proves the hand-over. */
     readonly maxPinAttempts: number;
   };
+  /** How long a quote or a booking waits on the map provider (config `delivery.responseBudget`). */
+  readonly responseBudget: {
+    readonly geocodeMs: number;
+    readonly routeMs: number;
+    /** Road distance over straight-line distance, for a distance estimated without a route. */
+    readonly estimateRoadFactor: number;
+    readonly geocodeCacheSeconds: number;
+  };
 }
