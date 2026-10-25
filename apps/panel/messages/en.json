@@ -34,7 +34,8 @@
     "merchants": "Merchants",
     "live-map": "Live map",
     "payouts": "Payouts",
-    "fleet": "Fleet"
+    "fleet": "Fleet",
+    "webhooks": "Webhooks"
   },
   "home": {
     "title": "Home",
@@ -46,7 +47,8 @@
     "team": "Admins, their roles and what each role may do.",
     "live-map": "See couriers on the road and the deliveries that need attention.",
     "payouts": "Courier payouts that are held or need a decision, and each courier's balance.",
-    "fleet": "Approve applicants, review courier documents and look after their vehicles."
+    "fleet": "Approve applicants, review courier documents and look after their vehicles.",
+    "webhooks": "Webhook calls to merchants that kept failing, and sending them again."
   },
   "showcase": {
     "title": "Every delivery of the Market, in one place.",
@@ -654,7 +656,8 @@
         "done": "The key “{label}” was revoked."
       },
       "suspended": "This merchant is suspended: reinstate it before issuing a key."
-    }
+    },
+    "deliveries-link": "See this merchant's deliveries"
   },
   "couriers": {
     "title": "Couriers",
@@ -1365,6 +1368,83 @@
         "unknown-courier": "This courier was not found.",
         "line-not-found": "This payout line was not found.",
         "currency-mismatch": "The amount must be in the courier's balance currency."
+      }
+    }
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "intro": "Calls to merchants' webhook endpoints that failed on every retry. Once the merchant's endpoint works again, send a call again: it carries the same body and event id, so the merchant can ignore a repeat.",
+    "no-access": {
+      "title": "You don't have access to webhooks",
+      "body": "Your role doesn't include it."
+    },
+    "event-id": "Event {id}",
+    "subscription-id": "Subscription {id}",
+    "label": {
+      "event": "Event",
+      "merchant": "Merchant",
+      "last-answer": "Last answer",
+      "attempts": "Attempts",
+      "dead-at": "Gave up",
+      "actions": "Actions",
+      "endpoint": "Endpoint",
+      "status": "Status",
+      "events": "Events",
+      "secret": "Signing secret",
+      "created": "Added"
+    },
+    "answer": {
+      "http": "HTTP {code}",
+      "none": "No answer",
+      "error": {
+        "webhook": {
+          "timeout": "Timed out",
+          "network": "Could not connect",
+          "tls": "Certificate problem"
+        },
+        "webhook-url": {
+          "private-host": "Address not allowed"
+        },
+        "webhook-subscription": {
+          "disabled": "Subscription disabled"
+        }
+      }
+    },
+    "dead": {
+      "caption": "Webhook calls that failed on every retry",
+      "empty": {
+        "title": "No failed webhook calls",
+        "body": "Every call reached its merchant."
+      },
+      "merchant-title": "Failed webhook calls",
+      "merchant-intro": "Calls to this merchant that failed on every retry. If the marketplace did not hear about an order, look here first."
+    },
+    "resend": {
+      "button": "Send again",
+      "done": "The {event} call is queued to be sent again."
+    },
+    "subscriptions": {
+      "title": "Webhook subscriptions",
+      "intro": "Where this merchant hears about its deliveries. The merchant manages them with its API key.",
+      "caption": "Webhook subscriptions of the merchant",
+      "empty": {
+        "title": "No webhook subscriptions",
+        "body": "This merchant hears about nothing until it subscribes an endpoint."
+      },
+      "unavailable": "The subscriptions could not be loaded."
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "secret": {
+      "version": "Version {version}",
+      "rotating": "Version {version}; the previous one works until {until}"
+    },
+    "error": {
+      "webhook-call": {
+        "not-found": "This call was not found. Reload the page.",
+        "changed": "This call changed at the same time. Reload and try again."
       }
     }
   }
