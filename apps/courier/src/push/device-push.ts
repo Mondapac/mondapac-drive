@@ -22,6 +22,8 @@ async function ensureChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync('default', {
     name: t('push.channel'),
     importance: Notifications.AndroidImportance.HIGH,
+    // The push names nobody, but the lock screen still shows only that an offer came in.
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
   });
 }
 
@@ -50,12 +52,17 @@ export const devicePush: PushService = {
       if (offerId) listener(offerId);
     };
     const received = Notifications.addNotificationReceivedListener(handle);
-    const tapped = Notifications.addNotificationResponseReceivedListener((response) =>
-      handle(response.notification),
-    );
-    // A tap that opened the app from the background or from closed.
+    const tapped = Notifications.addNotificationResponseReceivedListener((response) => {
+      Notifications.clearLastNotificationResponse();
+      handle(response.notification);
+    });
+    // A tap that opened the app from the background or from closed; cleared once handled, so a
+    // later return to the home screen does not replay it.
     const last = Notifications.getLastNotificationResponse();
-    if (last) handle(last.notification);
+    if (last) {
+      Notifications.clearLastNotificationResponse();
+      handle(last.notification);
+    }
     return () => {
       received.remove();
       tapped.remove();

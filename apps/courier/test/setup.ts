@@ -120,6 +120,7 @@ jest.mock('expo-camera', () => {
 // PushService; this only keeps the device adapter loadable).
 jest.mock('expo-notifications', () => ({
   AndroidImportance: { HIGH: 4 },
+  AndroidNotificationVisibility: { PRIVATE: 0 },
   setNotificationHandler: jest.fn(),
   setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
   getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false, canAskAgain: false })),
@@ -128,6 +129,7 @@ jest.mock('expo-notifications', () => ({
   addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
 }));
 
 // React Native's Jest preset answers AppState listeners with nothing; the home screen removes

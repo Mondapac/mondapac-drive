@@ -232,4 +232,13 @@ describe('the Expo adapter', () => {
     expect(listener.mock.calls).toEqual([['o-1'], ['o-2']]);
     unsubscribe();
   });
+
+  it('handles the tap that opened the app once, then clears it', () => {
+    const notification = { request: { content: { data: { kind: 'offer', offerId: 'o-9' } } } };
+    mocked.getLastNotificationResponse.mockReturnValueOnce({ notification } as never);
+    const listener = jest.fn();
+    devicePush.onOffer(listener)();
+    expect(listener).toHaveBeenCalledWith('o-9');
+    expect(mocked.clearLastNotificationResponse).toHaveBeenCalled();
+  });
 });
