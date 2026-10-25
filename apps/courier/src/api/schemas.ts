@@ -162,3 +162,117 @@ export interface LocationPing {
   readonly speedKmh?: number;
   readonly recordedAt: string;
 }
+
+// Onboarding (handoff 38): the courier's own fleet profile and the Market's onboarding rules.
+
+export const EMPLOYMENT_TYPES = ['employee', 'contractor'] as const;
+export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
+
+export const COURIER_STANDINGS = ['applicant', 'active', 'suspended', 'offboarded'] as const;
+export type CourierStanding = (typeof COURIER_STANDINGS)[number];
+
+export const COLD_BOXES = ['none', 'insulated', 'refrigerated'] as const;
+export type ColdBox = (typeof COLD_BOXES)[number];
+
+export type VehicleType = (typeof VEHICLE_TYPES)[number];
+
+export const DOCUMENT_STATUSES = ['submitted', 'verified', 'rejected', 'revoked'] as const;
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
+
+const profileVehicle = z.object({
+  id: z.string().min(1),
+  type: z.enum(VEHICLE_TYPES),
+  plate: z.string().nullable(),
+  maxWeightGrams: z.number().int().positive(),
+  maxVolumeLitres: z.number().int().positive(),
+  coldBox: z.enum(COLD_BOXES),
+  active: z.boolean(),
+});
+export type ProfileVehicle = z.infer<typeof profileVehicle>;
+
+const profileDocument = z.object({
+  id: z.string().min(1),
+  type: z.string().min(1),
+  vehicleId: z.string().nullable(),
+  expiresAt: z.iso.datetime({ offset: true }).nullable(),
+  status: z.enum(DOCUMENT_STATUSES),
+  rejectionReason: z.string().nullable(),
+});
+export type ProfileDocument = z.infer<typeof profileDocument>;
+
+/** The courier's fleet profile, as `GET /fleet/courier/me` and the fleet mutations answer it. */
+export const courierProfile = z.object({
+  id: z.string().min(1),
+  status: z.enum(COURIER_STANDINGS),
+  employmentType: z.enum(EMPLOYMENT_TYPES),
+  coldChainCapable: z.boolean(),
+  serviceAreaCode: z.string().min(1),
+  vehicles: z.array(profileVehicle),
+  documents: z.array(profileDocument),
+});
+export type CourierProfile = z.infer<typeof courierProfile>;
+
+export const courierMe = z.object({ profile: courierProfile });
+
+export const documentSubmitted = z.object({
+  documentId: z.string().min(1),
+  profile: courierProfile,
+});
+
+const documentRequirement = z.object({
+  type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/),
+  employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).optional(),
+  vehicleTypes: z.array(z.enum(VEHICLE_TYPES)).optional(),
+  coldChainOnly: z.boolean(),
+  perVehicle: z.boolean(),
+  expires: z.boolean(),
+});
+export type DocumentRequirement = z.infer<typeof documentRequirement>;
+
+/**
+ * What a Market asks of a new courier, from `GET /fleet/courier/me/settings`: its service areas,
+ * the vehicle types of its rate card (with their default capacity) and its required documents.
+ */
+export const onboardingRules = z.object({
+  serviceAreas: z.array(z.object({ code: z.string().min(1) })).min(1),
+  vehicleClasses: z
+    .array(
+      z.object({
+        type: z.enum(VEHICLE_TYPES),
+        maxWeightGrams: z.number().int().positive(),
+        maxVolumeLitres: z.number().int().positive(),
+        temperatures: z.array(z.enum(TEMPERATURES)),
+      }),
+    )
+    .min(1),
+  documents: z.array(documentRequirement),
+  businessIdDocumentType: z.string().nullable(),
+});
+export type OnboardingRules = z.infer<typeof onboardingRules>;
+export type VehicleClass = OnboardingRules['vehicleClasses'][number];
+
+/** Payouts' hosted onboarding page for a contractor (`POST /payouts/courier/me/onboarding-link`). */
+export const payoutOnboardingLink = z.object({
+  url: z.url({ protocol: /^https$/ }),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type PayoutOnboardingLink = z.infer<typeof payoutOnboardingLink>;
+
+export const applyInput = z.object({
+  employmentType: z.enum(EMPLOYMENT_TYPES),
+  serviceAreaCode: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
+  coldChainCapable: z.boolean(),
+});
+export type ApplyInput = z.infer<typeof applyInput>;
+
+/** A plate as fleet takes it: 1 to 10 letters or digits once spaces and dashes are dropped. */
+export const plateInput = z
+  .string()
+  .transform((value) => value.replaceAll(/[\s-]/g, '').toUpperCase())
+  .pipe(z.string().regex(/^[A-Z0-9]{1,10}$/));
+
+export interface VehicleInput {
+  readonly type: VehicleType;
+  readonly plate?: string;
+  readonly coldBox: ColdBox;
+}

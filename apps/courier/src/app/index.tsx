@@ -13,5 +13,5 @@ export default function Index() {
       </Screen>
     );
   }
-  return <Redirect href={session ? '/home' : '/sign-in'} />;
+  return <Redirect href={session ? '/onboarding' : '/sign-in'} />;
 }
