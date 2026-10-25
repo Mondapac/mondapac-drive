@@ -38,16 +38,25 @@ Two signals, both set up at go-live ([go-live.md](go-live.md)):
    ```sql
    SELECT event_id, subscriber, type, attempts, error_code
      FROM platform.event_delivery
-    WHERE status = 'dead' AND subscriber LIKE 'fleet.%' AND aggregate_id = '<delivery_id>';
+    WHERE status = 'dead' AND subscriber LIKE 'fleet.%' AND market_id = '<market>'
+      AND aggregate_id = '<delivery_id>';
+
+   -- Has the handler already run this event? A row here means yes.
+   SELECT 1 FROM fleet.inbox WHERE event_id = '<event_id>' AND handler = '<subscriber>';
 
    UPDATE platform.event_delivery
       SET status = 'pending', attempts = 0, next_attempt_at = now(), dead_at = NULL
-    WHERE status = 'dead' AND event_id = '<event_id>' AND subscriber = '<subscriber>';
+    WHERE status = 'dead' AND market_id = '<market>'
+      AND event_id = '<event_id>' AND subscriber = '<subscriber>';
    ```
 
-   The dispatcher hands it out again within a second. The handler is idempotent (inbox and
-   aggregate version), so a second run does nothing. If it dies again, read its `error_code` and
-   escalate to Hossein. Do not delete the job row by hand.
+   If the inbox check finds a row, the handler already ran: set `status = 'delivered'` instead
+   of `'pending'` and look elsewhere for why the job is open (escalate to Hossein). Otherwise the
+   dispatcher hands the event out again within a second, and the inbox row it writes keeps any
+   later re-drive from running twice. The inbox retention job (`platform.inbox-retention`) never
+   purges the inbox row of a dead delivery, so the check stays reliable however old the event
+   is. If it dies again, read its `error_code` and escalate to Hossein. Do not delete the job
+   row by hand.
 3. **If the delivery is still open** (the courier abandoned it, or the app lost it), a dispatcher
    unassigns the courier or reassigns the delivery: Deliveries → the delivery → Unassign, or
    `POST /delivery/admin/deliveries/:id/dispatch {type: courier_unassigned}`. The unassignment
@@ -55,5 +64,6 @@ Two signals, both set up at go-live ([go-live.md](go-live.md)):
 4. **Check.** `GET /fleet/admin/couriers/:id` shows `activeDeliveryId: null`, and the courier can
    go offline.
 
-Re-driving by SQL is a stop-gap until an operator command exists for it. Every re-drive is
-noted in the incident log with the event id.
+Re-driving by SQL as the migration role is a stop-gap. Follow-up (Hassan, #49): an operator
+command for re-drives, or a narrow role that may only update `platform.event_delivery`. Every
+re-drive is noted in the incident log with the Market and the event id.

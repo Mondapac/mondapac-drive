@@ -30,8 +30,9 @@ const logger = new Logger('platform.inbox-retention');
  * `platform.inbox-retention` (handoff 35; tracking 26b I2): every 6 hours, per Market, the inbox
  * rows of every module handled more than the Market's `events.inboxRetentionDays` ago. An inbox
  * row only guards a delivery against a second run while the dispatcher may still hand it out;
- * a delivered or dead `platform.event_delivery` row is never claimed again and the relay never
- * re-inserts one, so a row far past the last retry is dead weight. The Market's minimum (7 days)
+ * a delivered `platform.event_delivery` row is never claimed again and the relay never
+ * re-inserts one, so a row far past the last retry is dead weight. Rows of a `dead` delivery are
+ * kept, because an operator may re-drive a dead letter (the purger skips them). The Market's minimum (7 days)
  * keeps it well past every back-off. No module takes part: the inboxes come from the model map.
  * Logs counts only; safe to run twice and concurrently (each batch is one statement).
  */

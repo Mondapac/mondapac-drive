@@ -23,8 +23,8 @@ place. Those are marked **blocks start**.
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Recipient SMS (tracking link, delivery PIN) | Owner (Twilio account, AU sender) → Kazem | Both or neither. Unset: SMS are retried, then dead-lettered |
 | `NOTIFICATIONS_WEBHOOK_KEY` | Root key for every merchant webhook signing secret (base64, 32+ random bytes) | Kazem generates | **Blocks start.** Rotating it changes every merchant's secret |
 | `DELIVERY_PIN_KEY` | HMAC key for recipient proof-of-delivery PINs | Kazem generates | **Blocks start.** Rotating it invalidates the PINs of open deliveries |
-| `STRIPE_SECRET_KEY` | Stripe Connect: courier onboarding links and payouts | Owner (Stripe Connect platform account) → Kazem | Test-mode key for the pilot until the owner says live |
-| `STRIPE_WEBHOOK_SECRETS` | Signing secrets of Stripe's webhook to `payouts/AU/provider-webhook` (comma-separated, for rotation) | Kazem, from the Stripe dashboard | |
+| `STRIPE_SECRET_KEY` | Stripe Connect: courier onboarding links and payouts | Owner (Stripe Connect platform account) → Kazem | Test-mode key for the pilot until the owner says live. Both this and `STRIPE_WEBHOOK_SECRETS`, or neither |
+| `STRIPE_WEBHOOK_SECRETS` | Signing secrets of Stripe's webhook to `payouts/AU/provider-webhook` (comma-separated, for rotation) | Kazem, from the Stripe dashboard | Both or neither, with `STRIPE_SECRET_KEY` |
 | `EXPO_ACCESS_TOKEN` | Push notifications for courier offers (package 33) | Owner (Expo account) → Kazem | Only after package 33 merges |
 | `TRUSTED_BFF_CIDRS`, `CLIENT_ADDRESS_KEYS` | Let the panel's BFF pass the real client address (rate limits, sign-in throttles) | Kazem | Both or neither |
 | `MAIL_CATCHER_URL` | Local Mailpit only | — | **Must be unset**; refused in production |

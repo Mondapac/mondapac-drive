@@ -98,4 +98,28 @@ describe('PrismaInboxPurger (database integration)', () => {
     await purger.purgeHandled(marketOf('AU'), CUT_OFF, 1000);
     expect(await countOf(schema, handler)).toBe(0);
   });
+
+  it('keeps the inbox row of a dead delivery, which an operator may re-drive', async () => {
+    const { module, schema } = INBOXES[0]!;
+    const handler = `${module}.retention-spec-${randomUUID()}`;
+    const market = marketOf('ZZ');
+    const deadEvent = randomUUID();
+    await sql.query(
+      `INSERT INTO "${schema}"."inbox" (event_id, handler, market_id, tenant_id, processed_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [deadEvent, handler, market.marketId, market.tenantId, OLD],
+    );
+    await sql.query(
+      `INSERT INTO platform.event_delivery (event_id, subscriber, market_id, tenant_id, status,
+         attempts, next_attempt_at, type, occurred_at, aggregate_type, aggregate_id,
+         aggregate_version, correlation_id, payload, error_code, created_at, dead_at)
+       VALUES ($1, $2, $3, $4, 'dead', 10, $5, 'delivery.test-thing-recorded.v1', $5,
+         'test-thing', $6, 1, 'retention-spec', '{}', 'test.dead', $5, $5)`,
+      [deadEvent, handler, market.marketId, market.tenantId, OLD, randomUUID()],
+    );
+    await insert(schema, 'ZZ', handler, OLD, 2);
+
+    expect((await purger.purgeHandled(market, CUT_OFF, 1000))[module]).toBe(2);
+    expect(await countOf(schema, handler)).toBe(1);
+  });
 });

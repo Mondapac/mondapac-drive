@@ -8,7 +8,9 @@ const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 
 /**
  * The inbox purge of `platform.inbox-retention` (handoff 35): one bounded DELETE per module
- * inbox the model map names, for one Market and tenant. The identifiers come from the
+ * inbox the model map names, for one Market and tenant. A row whose delivery is `dead` is kept:
+ * an operator may re-drive a dead letter (docs/runbooks/stuck-courier.md), and a handler that
+ * committed after its delivery was marked dead must still be recognised (Hassan M, PR #49). The identifiers come from the
  * generated map (never from input) and are checked; every value is a bound parameter. Runs on
  * the base client outside any unit, like the relay; the application role holds DELETE on the
  * inboxes only (migration 20261027050000).
@@ -47,8 +49,12 @@ export class PrismaInboxPurger implements InboxPurger {
     for (const { module, table } of this.#inboxes) {
       deleted[module] = await this.root.$executeRawUnsafe(
         `DELETE FROM ${table} WHERE (event_id, handler) IN (
-           SELECT event_id, handler FROM ${table}
-            WHERE market_id = $1 AND tenant_id = $2 AND processed_at < $3
+           SELECT i.event_id, i.handler FROM ${table} i
+            WHERE i.market_id = $1 AND i.tenant_id = $2 AND i.processed_at < $3
+              AND NOT EXISTS (
+                SELECT 1 FROM "platform"."event_delivery" d
+                 WHERE d.event_id = i.event_id AND d.subscriber = i.handler
+                   AND d.status = 'dead')
             LIMIT $4)`,
         market.marketId,
         market.tenantId,
