@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
-import { colors, space } from './theme';
+import { makeStyles, radius, space, text, useTheme } from './theme';
 
 interface Props {
   readonly label: string;
@@ -9,34 +9,51 @@ interface Props {
   readonly secureTextEntry?: boolean;
   readonly maxLength?: number;
   readonly autoComplete?: 'email' | 'password' | 'off';
+  /** Large centred digits: a PIN or a temperature. */
+  readonly large?: boolean;
 }
 
-export function TextField({ label, ...input }: Props) {
+export function TextField({ label, large, ...input }: Props) {
+  const styles = useStyles();
+  const palette = useTheme();
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        style={styles.input}
+        style={[styles.input, large && styles.large]}
         autoCorrect={false}
         autoCapitalize="none"
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={palette.muted}
+        selectionColor={palette.primary}
+        keyboardAppearance={palette.scheme}
         {...input}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  field: { marginVertical: space.xs },
-  label: { color: colors.muted, fontSize: 14, marginBottom: space.xs },
-  input: {
-    minHeight: 50,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: space.md,
-    fontSize: 18,
-    color: colors.text,
-  },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    field: { gap: space.xs },
+    label: { color: c.muted, fontSize: text.small, fontWeight: '600' },
+    input: {
+      minHeight: 54,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      borderRadius: radius.md,
+      paddingHorizontal: space.md,
+      fontSize: 18,
+      color: c.text,
+    },
+    large: {
+      minHeight: 64,
+      fontSize: 30,
+      fontWeight: '800',
+      textAlign: 'center',
+      letterSpacing: 4,
+      fontVariant: ['tabular-nums'],
+    },
+  }),
+);

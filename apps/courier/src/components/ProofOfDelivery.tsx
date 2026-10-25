@@ -5,7 +5,8 @@ import { t } from '../i18n';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
 import { TextField } from '../ui/TextField';
-import { colors, space } from '../ui/theme';
+import { Card } from '../ui/Card';
+import { makeStyles, radius, space, text } from '../ui/theme';
 import { CameraCapture } from './CameraCapture';
 
 export type ProofDraft =
@@ -25,26 +26,27 @@ interface Props {
 }
 
 export function ProofOfDelivery({ draft, onChange, pinLocked = false }: Props) {
+  const styles = useStyles();
   return (
-    <View style={styles.box}>
+    <Card>
       <Text style={styles.title}>{t('proof.title')}</Text>
       <View style={styles.modes}>
         {!pinLocked && (
-          <View style={styles.mode}>
-            <Button
-              label={t('proof.byPin')}
-              variant={draft.kind === 'pin' ? 'primary' : 'secondary'}
-              onPress={() => onChange({ kind: 'pin', pin: '' })}
-            />
-          </View>
-        )}
-        <View style={styles.mode}>
           <Button
-            label={t('proof.byPhoto')}
-            variant={draft.kind === 'photo' ? 'primary' : 'secondary'}
-            onPress={() => onChange({ kind: 'photo', photo: null })}
+            label={t('proof.byPin')}
+            variant={draft.kind === 'pin' ? 'primary' : 'secondary'}
+            size="small"
+            grow
+            onPress={() => onChange({ kind: 'pin', pin: '' })}
           />
-        </View>
+        )}
+        <Button
+          label={t('proof.byPhoto')}
+          variant={draft.kind === 'photo' ? 'primary' : 'secondary'}
+          size="small"
+          grow
+          onPress={() => onChange({ kind: 'photo', photo: null })}
+        />
       </View>
       {draft.kind === 'pin' ? (
         <>
@@ -56,6 +58,7 @@ export function ProofOfDelivery({ draft, onChange, pinLocked = false }: Props) {
             secureTextEntry
             maxLength={8}
             autoComplete="off"
+            large
           />
           {draft.pin.length > 0 && !proofReady(draft) && (
             <Notice tone="warning" text={t('proof.pinInvalid')} />
@@ -67,13 +70,19 @@ export function ProofOfDelivery({ draft, onChange, pinLocked = false }: Props) {
           onCaptured={(photo) => onChange({ kind: 'photo', photo })}
         />
       )}
-    </View>
+    </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  box: { gap: space.xs, marginTop: space.sm },
-  title: { fontSize: 18, fontWeight: '700', color: colors.text },
-  modes: { flexDirection: 'row', gap: space.sm },
-  mode: { flex: 1 },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    title: { fontSize: text.label, fontWeight: '800', color: c.text },
+    modes: {
+      flexDirection: 'row',
+      gap: space.xs,
+      padding: space.xs,
+      borderRadius: radius.md + space.xs,
+      backgroundColor: c.raised,
+    },
+  }),
+);

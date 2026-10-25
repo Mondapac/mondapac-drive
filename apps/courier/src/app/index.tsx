@@ -1,9 +1,9 @@
 import { Redirect } from 'expo-router';
 import { useEffect } from 'react';
-import { Text } from 'react-native';
 import { t } from '../i18n';
 import { useSession } from '../providers';
 import { purgeDocumentCache } from '../screens/onboarding/document-file';
+import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
 
 export default function Index() {
@@ -13,7 +13,7 @@ export default function Index() {
   if (!ready) {
     return (
       <Screen title={t('app.name')}>
-        <Text>{t('common.loading')}</Text>
+        <Notice text={t('common.loading')} />
       </Screen>
     );
   }

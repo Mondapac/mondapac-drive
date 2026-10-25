@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { t } from '../../i18n';
 import { Button } from '../../ui/Button';
-import { colors, space } from '../../ui/theme';
+import { makeStyles, radius, space, text } from '../../ui/theme';
 import { documentLabel, reasonLabel, vehicleLabel } from './labels';
 import { needsUpload, type SlotStatus } from './onboarding-steps';
 
@@ -25,6 +25,7 @@ function stateText(slot: SlotStatus): string {
 
 /** Each document the Market asks of the courier, with where it stands. */
 export function DocumentList({ slots, onUpload }: Props) {
+  const styles = useStyles();
   return (
     <View style={styles.list}>
       {slots.map((slot) => {
@@ -59,16 +60,12 @@ export function DocumentList({ slots, onUpload }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  list: { gap: space.sm },
-  row: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    padding: space.md,
-    gap: space.xs,
-  },
-  name: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  detail: { color: colors.muted, fontSize: 15 },
-  attention: { color: colors.warning, fontWeight: '600' },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    list: { gap: space.sm },
+    row: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.md, gap: space.xs },
+    name: { color: c.text, fontSize: text.label, fontWeight: '800' },
+    detail: { color: c.muted, fontSize: text.body },
+    attention: { color: c.warning, fontWeight: '700' },
+  }),
+);

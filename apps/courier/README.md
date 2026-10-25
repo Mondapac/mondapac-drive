@@ -61,6 +61,22 @@ It records a real delivery, so it refuses a non-local `SMOKE_API_URL` unless
 - `src/i18n/en.json`: every piece of copy, including the native permission texts that
   `app.config.ts` reads.
 
+## Look and feel
+
+The "Night Drive" design the owner chose on 2026-10-25 (direction A, with the always-visible
+cold-chain strip of direction C).
+
+- `src/ui/theme.ts` holds a light and a dark palette with the same keys; the app follows the
+  phone's light or dark setting. Screens read colours through `makeStyles` or `useTheme`, never
+  as literals. `test/ui-kit.spec.tsx` keeps every text colour at WCAG AA contrast in both.
+- Steps that cannot be taken back (accept an offer, arrived at pickup, picked up, arrived at
+  drop-off) use `SlideToConfirm`, so a tap in a moving car does not record them. Screen readers
+  confirm with the activate action; tests use `slide()` from `test/render.tsx`.
+- A chilled or frozen job shows `ColdStrip` at the top: the limit and the last reading this phone
+  recorded.
+- The main action of a screen sits in the `Screen` footer, within thumb reach.
+- Next: a live map behind the home and job screens (needs the Google Maps key).
+
 ## Languages
 
 The app speaks the device's language when it has it, and English otherwise (`src/i18n`). The

@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../src/api/client';
 import { HomeScreen } from '../src/screens/HomeScreen';
 import { MARKETS } from './markets';
-import { createHarness, renderWith, type Harness } from './render';
+import { createHarness, renderWith, slide, type Harness } from './render';
 
 const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
 
@@ -26,9 +26,8 @@ describe.each(MARKETS)('home in $marketId', (settings) => {
       currency: settings.currency,
     });
     expect(offer!.earnings!.currency).toBe(settings.currency);
-    expect(screen.getByText(/^You earn about /).props.children).toContain(
-      pay.format(settings.currency === 'JPY' ? 950 : 9.5),
-    );
+    expect(screen.getByText('Estimated pay')).toBeOnTheScreen();
+    expect(screen.getByText(pay.format(settings.currency === 'JPY' ? 950 : 9.5))).toBeOnTheScreen();
     expect(screen.getByText('30 s to respond')).toBeOnTheScreen();
   });
 
@@ -56,7 +55,7 @@ it('says pay is unavailable when the offer has none, and shows the postcode with
   await screen.findByText('You are offline');
   await press('Go online');
   await screen.findByText('New delivery offer');
-  expect(screen.queryByText(/^You earn /)).toBeNull();
+  expect(screen.queryByText('Estimated pay')).toBeNull();
   expect(screen.getByText('Pay unavailable for this offer')).toBeOnTheScreen();
   expect(screen.getByText('4151')).toBeOnTheScreen();
   expect(screen.getByText('Woolloongabba 4102')).toBeOnTheScreen();
@@ -68,7 +67,7 @@ it('accepts an offer and opens its job', async () => {
   await screen.findByText('You are offline');
   await press('Go online');
   await screen.findByText('New delivery offer');
-  await press('Accept');
+  await slide('Accept');
   await waitFor(() => expect(handlers.onOpenJob).toHaveBeenCalledWith('mock-delivery-1'));
   await screen.findByText('Continue active delivery');
 });
