@@ -10,12 +10,13 @@ import type { Prisma } from '../../../generated/prisma/client';
 import type { PrismaService } from '../../../platform/persistence/prisma.service';
 import { StaleAggregateError } from '../../../platform/unit-of-work/errors';
 import type { DeliveryListFilter, DeliveryRepository, DeliverySummary } from '../application/ports';
-import type {
-  DeliveryException,
-  DeliveryHistoryEntry,
-  DeliveryState,
-  ProofOfDelivery,
-  Stop,
+import {
+  ATTENTION_STATUSES,
+  type DeliveryException,
+  type DeliveryHistoryEntry,
+  type DeliveryState,
+  type ProofOfDelivery,
+  type Stop,
 } from '../domain/delivery';
 import type { DeliveryEventType, DeliveryStatus } from '../domain/delivery-status';
 import type { Temperature } from '../domain/parcel';
@@ -310,6 +311,9 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
         ...(filter.statuses === undefined ? {} : { status: { in: [...filter.statuses] } }),
         ...(filter.merchantId === undefined ? {} : { merchantId: filter.merchantId }),
         ...(filter.courierId === undefined ? {} : { courierId: filter.courierId }),
+        ...(filter.attention === true
+          ? { OR: [{ exception: { not: null } }, { status: { in: [...ATTENTION_STATUSES] } }] }
+          : {}),
         ...(filter.before === undefined ? {} : { id: { lt: filter.before } }),
       },
       select: {

@@ -125,7 +125,8 @@ const queryText = (max: number) => z.string().min(1).max(max);
 
 /**
  * The operations panel's delivery list query: `status` (comma-separated, each a status),
- * `merchantId`, `courierId`, `before` (the `next` of the previous page) and `limit`. A query
+ * `merchantId`, `courierId`, `attention` (`true`: only the deliveries with an exception or a
+ * failure), `before` (the `next` of the previous page) and `limit`. A query
  * value arrives as text; a repeated key arrives as an array and is refused.
  */
 export const deliveryListQuery = z.strictObject({
@@ -135,6 +136,10 @@ export const deliveryListQuery = z.strictObject({
     .optional(),
   merchantId: queryText(64).regex(UUID).optional(),
   courierId: queryText(64).regex(UUID).optional(),
+  attention: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   before: queryText(36).regex(UUID).optional(),
   limit: queryText(3)
     .regex(/^[1-9][0-9]{0,2}$/)

@@ -163,7 +163,14 @@ describe('operations panel lists (database integration)', () => {
     });
 
     it('refuses a malformed query with the fields at fault (400)', async () => {
-      for (const query of ['?status=LOST', '?limit=0', '?limit=101', '?before=x', '?colour=red']) {
+      for (const query of [
+        '?status=LOST',
+        '?limit=0',
+        '?limit=101',
+        '?before=x',
+        '?colour=red',
+        '?attention=yes',
+      ]) {
         const response = await get(code, `/delivery/admin/deliveries${query}`, admin.headers);
         expect([query, response.status]).toEqual([query, 400]);
         expect(response.body).toMatchObject({ code: 'validation.failed' });

@@ -833,7 +833,7 @@
       "apply": "Apply",
       "merchant": "Deliveries of {name}",
       "all-merchants": "Every merchant",
-      "attention-help": "Deliveries whose dispatch rounds all lapsed, whose cold chain was breached, or that failed at the door. Each page looks through up to {rows} deliveries; older ones are on the next page."
+      "attention-help": "Deliveries whose dispatch rounds all lapsed, whose cold chain was breached, or that failed at the door."
     },
     "label": {
       "reference": "Reference",

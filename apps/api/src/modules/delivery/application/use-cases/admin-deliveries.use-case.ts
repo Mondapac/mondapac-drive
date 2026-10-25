@@ -43,6 +43,8 @@ export interface ListDeliveriesInput {
   readonly statuses?: readonly DeliveryStatus[];
   readonly merchantId?: string;
   readonly courierId?: string;
+  /** Only the deliveries that need a dispatcher's attention (exception or failed). */
+  readonly attention?: boolean;
   /** `next` of the previous page; absent for the first page. */
   readonly before?: Id<'Delivery'>;
   readonly limit: number;
@@ -56,7 +58,7 @@ export interface DeliveryPage {
 }
 
 /**
- * The deliveries of the Market, newest first, filtered by status, merchant or courier, for the
+ * The deliveries of the Market, newest first, filtered by status, merchant, courier or attention, for the
  * operations panel's list. Rule `permissions [delivery.delivery.view]`. Summaries only: the
  * stops' addresses and contacts are read on one delivery's detail.
  */

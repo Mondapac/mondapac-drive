@@ -388,12 +388,13 @@ export class AdminDeliveryController {
     summary: 'The deliveries of the Market, newest first',
     description:
       "Summaries without the stops' addresses or contacts. Filters: `status` (comma-separated), " +
-      '`merchantId`, `courierId`; paged with `before` (the `next` of the previous page) and ' +
+      '`merchantId`, `courierId`, `attention=true` (an exception flag or a failed delivery); paged with `before` (the `next` of the previous page) and ' +
       `\`limit\` (1 to 100, default ${DEFAULT_DELIVERY_PAGE}). Not cached.`,
   })
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'merchantId', required: false })
   @ApiQuery({ name: 'courierId', required: false })
+  @ApiQuery({ name: 'attention', required: false, enum: ['true', 'false'] })
   @ApiQuery({ name: 'before', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async list(
@@ -401,7 +402,7 @@ export class AdminDeliveryController {
     @Query() query: unknown,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { status, merchantId, courierId, before, limit } = parsed(() =>
+    const { status, merchantId, courierId, attention, before, limit } = parsed(() =>
       deliveryListQuery.parse(query),
     );
     const page = answer(
@@ -409,6 +410,7 @@ export class AdminDeliveryController {
         ...(status === undefined ? {} : { statuses: status }),
         ...(merchantId === undefined ? {} : { merchantId: merchantId.toLowerCase() }),
         ...(courierId === undefined ? {} : { courierId: courierId.toLowerCase() }),
+        ...(attention === true ? { attention } : {}),
         ...(before === undefined ? {} : { before: cursorOf(before) }),
         limit: limit ?? DEFAULT_DELIVERY_PAGE,
       }),

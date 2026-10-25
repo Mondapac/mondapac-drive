@@ -2,14 +2,13 @@
 // `show` (a tab), `status` (one status of that tab) and `merchant` (one merchant's deliveries).
 // Every value comes from a closed set or is a UUID; anything else reads as no filter.
 
-import {
-  DELIVERY_STATUSES,
-  UUID,
-  type DeliveryStatus,
-  type DeliverySummary,
-} from '../ops/types.ts';
+import { DELIVERY_STATUSES, type DeliveryStatus, UUID } from '../ops/types.ts';
 
-/** The tabs and the statuses each one asks the API for; an empty list asks for every status. */
+/**
+ * The tabs and the statuses each one asks the API for; an empty list asks for every status.
+ * "Needs attention" asks the API for `attention=true`: a delivery whose dispatch rounds all
+ * lapsed, whose cold chain was breached (the flag stays after drop-off), or that failed.
+ */
 export const LIST_TABS = {
   all: [],
   attention: [],
@@ -72,16 +71,9 @@ export function apiQuery(filter: ListFilter, before: string | null, limit?: numb
     filter.status !== null ? [filter.status] : LIST_TABS[filter.show];
   if (statuses.length > 0) query.set('status', statuses.join(','));
   if (filter.merchantId !== null) query.set('merchantId', filter.merchantId);
+  if (filter.show === 'attention') query.set('attention', 'true');
   if (before !== null) query.set('before', before);
   if (limit !== undefined) query.set('limit', String(limit));
   const text = query.toString();
   return text === '' ? '' : `?${text}`;
-}
-
-/**
- * A delivery a dispatcher must look at: its dispatch rounds all lapsed, its cold chain was
- * breached (the flag stays after drop-off), or it failed at the door.
- */
-export function needsAttention(row: DeliverySummary): boolean {
-  return row.status === 'DELIVERY_FAILED' || (row.exception ?? null) !== null;
 }

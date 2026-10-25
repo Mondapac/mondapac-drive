@@ -64,6 +64,8 @@ export interface DeliveryListFilter {
   readonly statuses?: readonly DeliveryStatus[];
   readonly merchantId?: string;
   readonly courierId?: string;
+  /** Only the deliveries that need attention: an exception, or one of ATTENTION_STATUSES. */
+  readonly attention?: boolean;
   readonly before?: Id<'Delivery'>;
   readonly limit: number;
 }

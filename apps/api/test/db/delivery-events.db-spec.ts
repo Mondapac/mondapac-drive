@@ -403,6 +403,52 @@ describe('delivery events (database integration)', () => {
       expect(await listed()).toMatchObject({ exception: null });
     });
 
+    it('lists only the deliveries that need attention with attention=true', async () => {
+      const plain = await book();
+      const exhausted = await book();
+      await fromDispatch(
+        code,
+        DISPATCH_JOB_EXHAUSTED.record({
+          aggregateId: app.get<IdGenerator>(ID_GENERATOR).next(),
+          aggregateVersion: 3,
+          occurredAt: OCCURRED_AT,
+          payload: { deliveryId: exhausted.id as Id, rounds: 3 },
+        }),
+      );
+      const failed = await book();
+      await dispatch(failed.id, {
+        type: 'courier_assigned',
+        courierId: courier.accountId,
+        vehicle: failed.quote.vehicle,
+      });
+      for (const type of ['arrived_at_pickup', 'picked_up']) {
+        expect((await report(failed.id, { type })).status).toBe(200);
+      }
+      expect(
+        (await report(failed.id, { type: 'delivery_failed', reason: 'Nobody home' })).status,
+      ).toBe(200);
+      const ids = async (query: string) => {
+        const page = await get(
+          code,
+          `/delivery/admin/deliveries?merchantId=${merchant.merchantId}&limit=100${query}`,
+          admin.headers,
+        );
+        expect(page.status).toBe(200);
+        return (page.body as { items: { id: string }[] }).items.map((item) => item.id);
+      };
+
+      const attention = await ids('&attention=true');
+      expect(attention).toEqual(expect.arrayContaining([exhausted.id, failed.id]));
+      expect(attention).not.toContain(plain.id);
+      expect(attention.indexOf(failed.id)).toBeLessThan(attention.indexOf(exhausted.id));
+      expect(await ids('&attention=false')).toEqual(
+        expect.arrayContaining([plain.id, exhausted.id, failed.id]),
+      );
+      const failedOnly = await ids('&attention=true&status=DELIVERY_FAILED');
+      expect(failedOnly).toContain(failed.id);
+      expect(failedOnly).not.toContain(exhausted.id);
+    });
+
     it('answers the system reads in the system context only', async () => {
       const { id, merchantId } = await book();
       const system = testCallContext(marketOf(code), 'system');
