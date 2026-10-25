@@ -2,8 +2,9 @@ import type { CourierState } from '../domain/courier';
 import type { CourierDocument } from '../domain/documents';
 import type { Vehicle } from '../domain/vehicle';
 
-// The response shapes of a courier: never the identity account id (`actorId`) and never a
-// document's object-store key (`fileKey`); instants as ISO strings.
+// The response shapes of a courier: never a document's object-store key (`fileKey`); instants as
+// ISO strings. The identity account id (`actorId`) goes only to operators, as `accountId`, so the
+// panel can link fleet, payouts and delivery pages and show the name from identity (handoff 31).
 
 const vehicleBody = (vehicle: Vehicle) => ({
   id: vehicle.id,
@@ -58,4 +59,20 @@ export function courierSummaryBody(courier: CourierState) {
     activeVehicles: courier.vehicles.filter((v) => v.active).length,
     documentsToReview: courier.documents.filter((d) => d.status === 'submitted').length,
   };
+}
+
+/** What operators see besides: the identity account id and the delivery the courier carries. */
+const operatorFields = (courier: CourierState) => ({
+  accountId: courier.actorId,
+  activeDeliveryId: courier.activeDeliveryId ?? null,
+});
+
+/** A courier as the panel shows it. */
+export function adminCourierBody(courier: CourierState) {
+  return { ...courierBody(courier), ...operatorFields(courier) };
+}
+
+/** A row of the panel's courier list. */
+export function adminCourierSummaryBody(courier: CourierState) {
+  return { ...courierSummaryBody(courier), ...operatorFields(courier) };
 }

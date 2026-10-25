@@ -6,6 +6,7 @@ import {
   type JobEvent,
   type PhotoFile,
   type SessionSource,
+  type DocumentUpload,
 } from './client';
 import {
   apiError,
@@ -21,6 +22,11 @@ import {
   proofPhoto,
   type CourierStatus,
   type Job,
+  courierMe,
+  documentSubmitted,
+  courierProfile,
+  onboardingRules,
+  payoutOnboardingLink,
 } from './schemas';
 
 /** Statuses after which the courier has nothing left to do on a delivery. */
@@ -53,6 +59,10 @@ export const ROUTES = {
   proofPhotos: (id: string) => `/delivery/courier/deliveries/${segment(id)}/proof-photos`,
   pings: '/tracking/courier/pings',
   earnings: '/payouts/courier/me/summary',
+  profile: '/fleet/courier/me',
+  vehicles: '/fleet/courier/me/vehicles',
+  documents: '/fleet/courier/me/documents',
+  payoutOnboarding: '/payouts/courier/me/onboarding-link',
   balance: (limit: number) => `/payouts/courier/me/balance?limit=${Math.trunc(limit)}`,
 } as const;
 
@@ -208,6 +218,33 @@ export function createHttpCourierApi(options: Options): CourierApi {
     },
     sendPings: (pings) => call('POST', ROUTES.pings, null, { pings }),
     earnings: () => call('GET', ROUTES.earnings, earningsSummary),
+    profile: async () => {
+      try {
+        return (await call('GET', ROUTES.profile, courierMe)).profile;
+      } catch (error) {
+        // Before the courier applies, fleet has no profile for the account.
+        if (error instanceof ApiError && error.code === 'fleet.courier.not-found') return null;
+        throw error;
+      }
+    },
+    // The settings answer carries the rules once fleet sends them; until then there are none.
+    onboardingRules: () => call('GET', ROUTES.settings, onboardingRules.nullable().catch(null)),
+    applyAsCourier: (input) => call('POST', ROUTES.profile, courierProfile, input),
+    addVehicle: (input) => call('POST', ROUTES.vehicles, courierProfile, input),
+    submitDocument: async (upload: DocumentUpload) => {
+      const form = new FormData();
+      form.append('type', upload.type);
+      if (upload.vehicleId !== undefined) form.append('vehicleId', segment(upload.vehicleId));
+      if (upload.expiresAt !== undefined) form.append('expiresAt', upload.expiresAt);
+      // React Native's FormData takes a file as { uri, name, type }.
+      form.append('file', {
+        uri: upload.file.uri,
+        name: upload.file.name,
+        type: upload.file.mimeType,
+      } as unknown as Blob);
+      return (await call('POST', ROUTES.documents, documentSubmitted, form)).profile;
+    },
+    payoutOnboardingLink: () => call('POST', ROUTES.payoutOnboarding, payoutOnboardingLink, {}),
     balance: (limit) => call('GET', () => ROUTES.balance(limit), earningsBalance),
   };
 }

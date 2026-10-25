@@ -48,6 +48,35 @@
     "payouts": "Courier payouts that are held or need a decision, and each courier's balance.",
     "fleet": "Approve applicants, review courier documents and look after their vehicles."
   },
+  "home-now": {
+    "title": "Needs you now",
+    "all-clear": "Nothing is waiting for you right now.",
+    "error": "Could not load this figure. Reload the page to try again.",
+    "deliveries-attention": {
+      "label": "Deliveries needing attention",
+      "scope": "Failed, cold chain breached or no courier found, among the latest 100"
+    },
+    "deliveries-waiting": {
+      "label": "Deliveries waiting for a courier",
+      "scope": "Dispatch open, no courier yet"
+    },
+    "fleet-applicants": {
+      "label": "Couriers waiting for approval",
+      "scope": "Applicants, oldest first"
+    },
+    "fleet-documents": {
+      "label": "Courier documents to review",
+      "scope": "Submitted, not yet verified or rejected"
+    },
+    "payout-lines": {
+      "label": "Payout lines held or unresolved",
+      "scope": "Need a decision before they pay"
+    },
+    "dead-webhooks": {
+      "label": "Dead webhook calls",
+      "scope": "Gave up after every retry; send again or fix"
+    }
+  },
   "showcase": {
     "title": "Every delivery of the Market, in one place.",
     "cards": {

@@ -4,5 +4,5 @@ import { SignInScreen } from '../screens/SignInScreen';
 
 export default function SignInRoute() {
   const { session } = useSession();
-  return session ? <Redirect href="/home" /> : <SignInScreen />;
+  return session ? <Redirect href="/onboarding" /> : <SignInScreen />;
 }

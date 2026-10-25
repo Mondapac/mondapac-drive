@@ -52,5 +52,67 @@
       },
       "parcel": { "weightGrams": 6000, "volumeLitres": 30 }
     }
-  ]
+  ],
+  "onboarding": {
+    "serviceAreas": [{ "code": "greater-brisbane" }],
+    "vehicleClasses": [
+      {
+        "type": "bicycle",
+        "maxWeightGrams": 8000,
+        "maxVolumeLitres": 40,
+        "temperatures": ["ambient", "chilled"]
+      },
+      {
+        "type": "motorbike",
+        "maxWeightGrams": 15000,
+        "maxVolumeLitres": 60,
+        "temperatures": ["ambient", "chilled"]
+      },
+      {
+        "type": "car",
+        "maxWeightGrams": 50000,
+        "maxVolumeLitres": 300,
+        "temperatures": ["ambient", "chilled", "frozen"]
+      },
+      {
+        "type": "van",
+        "maxWeightGrams": 500000,
+        "maxVolumeLitres": 3000,
+        "temperatures": ["ambient", "chilled", "frozen"]
+      }
+    ],
+    "documents": [
+      {
+        "type": "abn",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": false
+      },
+      {
+        "type": "driver_licence",
+        "vehicleTypes": ["motorbike", "car", "van"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      {
+        "type": "vehicle_registration",
+        "vehicleTypes": ["motorbike", "car", "van"],
+        "coldChainOnly": false,
+        "perVehicle": true,
+        "expires": true
+      },
+      {
+        "type": "insurance",
+        "employmentTypes": ["contractor"],
+        "coldChainOnly": false,
+        "perVehicle": false,
+        "expires": true
+      },
+      { "type": "police_check", "coldChainOnly": false, "perVehicle": false, "expires": true },
+      { "type": "food_handling", "coldChainOnly": true, "perVehicle": false, "expires": false }
+    ],
+    "businessIdDocumentType": "abn"
+  }
 }
