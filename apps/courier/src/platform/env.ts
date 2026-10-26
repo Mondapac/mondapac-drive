@@ -9,12 +9,15 @@ export interface AppEnv {
   readonly apiUrl: string | undefined;
   /** The Market this build serves (EXPO_PUBLIC_MARKET_ID); sign-in is scoped to it. */
   readonly marketId: string | undefined;
+  /** A demo build (EXPO_PUBLIC_DEMO=1): sample data only, shown as such on every screen. */
+  readonly demo: boolean;
 }
 
 /**
  * A release build refuses to start without an https API: the mock would accept every
  * delivery locally and nothing would reach the server. The mock and plain-http local addresses
- * are for development builds only.
+ * are for development builds only. A demo build is the exception: it runs on the mock on
+ * purpose, takes no API URL, and every screen says it is a demo.
  */
 export function readEnv(
   source: Readonly<Record<string, string | undefined>>,
@@ -22,8 +25,12 @@ export function readEnv(
 ): AppEnv {
   const apiUrl = source.EXPO_PUBLIC_API_URL?.trim() || undefined;
   const requested = source.EXPO_PUBLIC_API_MODE;
-  const apiMode: ApiMode = requested === 'mock' || !apiUrl ? 'mock' : 'http';
-  if (!development && apiMode === 'mock') {
+  const demo = source.EXPO_PUBLIC_DEMO === '1';
+  if (demo && apiUrl) {
+    throw new Error('A demo build runs on sample data and takes no EXPO_PUBLIC_API_URL');
+  }
+  const apiMode: ApiMode = demo || requested === 'mock' || !apiUrl ? 'mock' : 'http';
+  if (!development && apiMode === 'mock' && !demo) {
     throw new Error('A release build needs EXPO_PUBLIC_API_URL and cannot use the mock API');
   }
   if (apiUrl && apiMode === 'http' && !/^https:\/\//.test(apiUrl)) {
@@ -38,7 +45,7 @@ export function readEnv(
   if (apiMode === 'http' && !marketId) {
     throw new Error('EXPO_PUBLIC_MARKET_ID is needed with EXPO_PUBLIC_API_URL');
   }
-  return { apiMode, apiUrl, marketId };
+  return { apiMode, apiUrl, marketId, demo };
 }
 
 function isLocal(url: string): boolean {
@@ -50,6 +57,7 @@ export const env: AppEnv = readEnv(
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_API_MODE: process.env.EXPO_PUBLIC_API_MODE,
     EXPO_PUBLIC_MARKET_ID: process.env.EXPO_PUBLIC_MARKET_ID,
+    EXPO_PUBLIC_DEMO: process.env.EXPO_PUBLIC_DEMO,
   },
   __DEV__,
 );

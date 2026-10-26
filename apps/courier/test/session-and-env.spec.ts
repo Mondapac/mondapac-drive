@@ -67,7 +67,12 @@ describe('build settings', () => {
   const RELEASE = false;
 
   it('runs on the mock without an API URL in a development build', () => {
-    expect(readEnv({}, DEV)).toEqual({ apiMode: 'mock', apiUrl: undefined, marketId: undefined });
+    expect(readEnv({}, DEV)).toEqual({
+      apiMode: 'mock',
+      apiUrl: undefined,
+      marketId: undefined,
+      demo: false,
+    });
     expect(
       readEnv(
         { EXPO_PUBLIC_API_URL: 'https://api.example.test', EXPO_PUBLIC_API_MODE: 'mock' },

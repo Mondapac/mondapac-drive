@@ -10,14 +10,22 @@ production build that would start on the mock, on plain http, or for a Market wi
 | development | `development` (dev client) | `com.mondapac.drive.courier.development` | developers | mock or any |
 | preview | `preview` (internal, APK) | `com.mondapac.drive.courier.preview` | internal testers | the pilot API |
 | production | `production` (store) | `com.mondapac.drive.courier` | couriers | the Market's API |
+| demo | CI only (APK) | `com.mondapac.drive.courier.demo` | anyone trying the screens | none: the bundled sample data |
 
-The three install side by side; the home-screen name says "(Dev)" or "(Preview)".
+The four install side by side; the home-screen name says "(Dev)", "(Preview)" or "(Demo)".
+
+The demo build (`APP_VARIANT=demo EXPO_PUBLIC_DEMO=1`, no API URL or Market) runs on the in-app
+mock with sample earnings history, so every screen can be tried without an account or server.
+Every screen shows a "Demo" strip, and sign-in explains the sample logins and the delivery PIN.
+Nothing it does reaches a server. It never goes to a store, and the config refuses the demo
+switch on any other variant.
 
 ## Build environment
 
 | Variable | Where it is set | Meaning |
 | --- | --- | --- |
-| `APP_VARIANT` | `eas.json` profile, or the CI job | `development` (default), `preview`, `production` |
+| `APP_VARIANT` | `eas.json` profile, or the CI job | `development` (default), `preview`, `production`, `demo` |
+| `EXPO_PUBLIC_DEMO` | the CI job, demo only | `1` runs a release build on the sample data; refused on every other variant |
 | `EXPO_PUBLIC_API_URL` | EAS environment variables (per environment), or the CI variable `COURIER_PREVIEW_API_URL` | the API this binary talks to; https |
 | `EXPO_PUBLIC_MARKET_ID` | EAS environment variables, or the CI variable `COURIER_PREVIEW_MARKET_ID` | the Market this binary serves |
 | `APP_VERSION` | CI, from the tag `courier-vX.Y.Z` | marketing version; the package version otherwise |
@@ -30,7 +38,7 @@ environment values (or a second store app), never a code change.
 
 ## Preview builds in CI
 
-`.github/workflows/courier-preview.yml` builds an Android preview APK with `expo prebuild` and
+`.github/workflows/courier-preview.yml` builds an Android preview APK and a demo APK with `expo prebuild` and
 Gradle on every push to main that touches the app, on pull requests that change the build
 files, on release tags, and on demand (Actions > Courier app builds > Run workflow). The APK is a
 workflow artefact for 30 days. It is signed with the debug key: testers install it directly

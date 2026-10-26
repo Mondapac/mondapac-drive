@@ -33,6 +33,11 @@ interface MockOptions {
   readonly onboardingRules?: OnboardingRules | null;
   /** Start as a courier who has not applied yet (an email starting `new` at sign-in does too). */
   readonly newCourier?: boolean;
+  /**
+   * Start with the fixture's earlier ledger entries, so the earnings screen has something to
+   * show before the first delivery: the demo build does this.
+   */
+  readonly sampleHistory?: boolean;
 }
 
 /** Which event may follow which status, as the delivery API enforces it. */
@@ -127,10 +132,25 @@ export function createMockCourierApi(options: MockOptions) {
       ),
     };
   }
-  const ledger: LedgerEntry[] = [];
   let device: PushDevice | null = null;
 
   const money = (amount: bigint) => ({ amount: amount.toString(), currency: settings.currency });
+  const ledger: LedgerEntry[] = options.sampleHistory
+    ? fixture.sampleHistory
+        .map((entry, index) => ({
+          id: `mock-sample-${index + 1}`,
+          kind: entry.kind,
+          amount: money(BigInt(entry.amount)),
+          tax: money(0n),
+          deliveryId: entry.delivery ?? undefined,
+          occurredAt: new Date(clock.now() - entry.hoursAgo * 3_600_000).toISOString(),
+        }))
+        .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+    : [];
+  /** What the sample entries earned (payouts leave earnings as they were). */
+  const earnedBefore = ledger
+    .filter((entry) => entry.kind !== 'payout')
+    .reduce((sum, entry) => sum + BigInt(entry.amount.amount), 0n);
 
   function requireSession(): void {
     if (!signedIn) throw new ApiError(401, 'session.missing');
@@ -311,7 +331,7 @@ export function createMockCourierApi(options: MockOptions) {
       requireSession();
       return Promise.resolve({
         today: money(earnedToday),
-        week: money(earnedToday),
+        week: money(earnedBefore + earnedToday),
         deliveriesToday,
       });
     },

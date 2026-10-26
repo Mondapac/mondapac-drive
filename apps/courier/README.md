@@ -15,6 +15,8 @@ Without `EXPO_PUBLIC_API_URL` the app always uses the mock (`src/api/mock`). The
 email and password (except `wrong-password`), offers the two fixture jobs in turn and takes the
 delivery PIN `1234`. With a real API, `EXPO_PUBLIC_MARKET_ID` names the Market the build serves:
 sign-in is scoped to it (`x-market-id`) and the session carries it afterwards.
+The demo build (RELEASE.md) is the one release build that runs on the mock, with sample earnings
+history and a "Demo" strip on every screen.
 A release build refuses to start on the mock or without an https `EXPO_PUBLIC_API_URL`; plain
 http to localhost and LAN addresses works in development builds only.
 

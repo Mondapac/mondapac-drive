@@ -14,7 +14,7 @@ export function createCourierApi(appEnv: AppEnv, session: SessionSource, clock: 
       activeJob: activeJobMemory,
     });
   }
-  return createMockCourierApi({ clock }).api;
+  return createMockCourierApi({ clock, sampleHistory: appEnv.demo }).api;
 }
 
 let shared: CourierApi | null = null;
