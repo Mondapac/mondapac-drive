@@ -44,6 +44,10 @@ files, on release tags, and on demand (Actions > Courier app builds > Run workfl
 workflow artefact for 30 days. It is signed with the debug key: testers install it directly
 (allow installs from unknown sources); it can never be uploaded to Play.
 
+After a main build, the demo APK also replaces `mondapac-courier-demo.apk` on the public
+`courier-demo` prerelease, so the latest demo has a fixed link that needs no GitHub account:
+https://github.com/Mondapac/mondapac-drive/releases/download/courier-demo/mondapac-courier-demo.apk
+
 Locally: `APP_VARIANT=preview EXPO_PUBLIC_API_URL=https://… EXPO_PUBLIC_MARKET_ID=<code>
 pnpm --filter @mondapac-drive/courier prebuild:android`, then `./gradlew assembleRelease` in
 `apps/courier/android` (needs JDK 17 and the Android SDK). iOS needs a Mac or EAS.
