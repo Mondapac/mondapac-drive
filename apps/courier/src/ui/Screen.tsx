@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { DemoRibbon } from './DemoRibbon';
 import { makeStyles, space, text } from './theme';
 
 interface Props {
@@ -18,6 +19,7 @@ export function Screen({ title, eyebrow, banner, footer, children }: Props) {
   const styles = useStyles();
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <DemoRibbon />
       {banner}
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.head}>

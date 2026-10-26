@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { ApiError } from '../api/client';
 import { signInInput } from '../api/schemas';
 import { t, type TranslationKey } from '../i18n';
+import { env } from '../platform/env';
 import { useSession } from '../providers';
 import { Button } from '../ui/Button';
 import { errorMessage } from '../ui/errors';
 import { Notice } from '../ui/Notice';
 import { Screen } from '../ui/Screen';
 import { TextField } from '../ui/TextField';
+import fixture from '../api/mock/mock-market.json';
 
 /** Identity's refusals of a sign-in, in the courier's words. */
 const REFUSALS: Readonly<Record<string, TranslationKey>> = {
@@ -23,7 +25,7 @@ function refusal(error: unknown): string {
 }
 
 /** Courier sign-in with the email and password of the account an operator invited. */
-export function SignInScreen() {
+export function SignInScreen({ demo = env.demo }: { readonly demo?: boolean } = {}) {
   const { signIn } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,6 +41,7 @@ export function SignInScreen() {
 
   return (
     <Screen title={t('signIn.title')}>
+      {demo ? <Notice text={t('demo.signInHint', { pin: fixture.deliveryPin })} /> : null}
       <TextField
         label={t('signIn.email')}
         value={email}

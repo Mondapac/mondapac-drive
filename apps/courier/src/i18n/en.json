@@ -309,5 +309,9 @@
     "label": "Map of where you are and your stops",
     "pickup": "Pickup: {{place}}",
     "dropoff": "Drop-off: {{place}}"
+  },
+  "demo": {
+    "ribbon": "Demo · sample data, nothing is sent",
+    "signInHint": "This is a demo. Any email and password sign you in. Start the email with \"new\" (new@demo.test) to see courier sign-up. The customer's delivery PIN is {{pin}}."
   }
 }

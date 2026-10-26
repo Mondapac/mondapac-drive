@@ -33,17 +33,24 @@ permissions:
 
 jobs:
   android-preview:
-    name: Android preview APK
+    name: Android ${{ matrix.variant }} APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # preview: the testers' build against the preview API. demo: the sample-data build that
+        # talks to no API and says so on every screen (apps/courier/RELEASE.md).
+        variant: [preview, demo]
     env:
-      APP_VARIANT: preview
+      APP_VARIANT: ${{ matrix.variant }}
       APP_BUILD_NUMBER: ${{ github.run_number }}
       # The preview API and Market are repository variables (Settings > Variables). Until the
       # owner sets them the APK is built against a placeholder host: it installs and opens,
-      # and sign-in fails. The build itself is what this job proves.
-      EXPO_PUBLIC_API_URL: ${{ vars.COURIER_PREVIEW_API_URL || 'https://preview-api.invalid' }}
-      EXPO_PUBLIC_MARKET_ID: ${{ vars.COURIER_PREVIEW_MARKET_ID || 'AU' }}
+      # and sign-in fails. The build itself is what this job proves. The demo takes neither.
+      EXPO_PUBLIC_API_URL: ${{ matrix.variant == 'preview' && (vars.COURIER_PREVIEW_API_URL || 'https://preview-api.invalid') || '' }}
+      EXPO_PUBLIC_MARKET_ID: ${{ matrix.variant == 'preview' && (vars.COURIER_PREVIEW_MARKET_ID || 'AU') || '' }}
+      EXPO_PUBLIC_DEMO: ${{ matrix.variant == 'demo' && '1' || '' }}
       EXPO_NO_TELEMETRY: '1'
     steps:
       - uses: actions/checkout@v4
@@ -96,7 +103,7 @@ jobs:
         working-directory: apps/courier
         run: |
           version=$(node -p "require('./package.json').version")
-          echo "file=courier-preview-${APP_VERSION:-v$version}-${APP_BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "file=courier-${APP_VARIANT}-${APP_VERSION:-v$version}-${APP_BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:

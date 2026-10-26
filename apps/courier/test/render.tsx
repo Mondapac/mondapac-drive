@@ -15,6 +15,7 @@ export async function createHarness(
     access?: LocationAccess;
     onboardingRules?: OnboardingRules | null;
     newCourier?: boolean;
+    sampleHistory?: boolean;
   } = {},
 ) {
   const clock = fakeClock(START);
@@ -23,6 +24,7 @@ export async function createHarness(
     ...(options.settings ? { settings: options.settings } : {}),
     ...(options.onboardingRules === undefined ? {} : { onboardingRules: options.onboardingRules }),
     ...(options.newCourier ? { newCourier: true } : {}),
+    ...(options.sampleHistory ? { sampleHistory: true } : {}),
   });
   const session = await mock.api.signIn({ email: 'courier@example.test', password: 'secret-1' });
   let stored: CourierSession | null = session;
