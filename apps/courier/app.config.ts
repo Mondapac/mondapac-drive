@@ -1,4 +1,5 @@
 import type { ExpoConfig } from 'expo/config';
+import { withGradleProperties, type ConfigPlugin } from 'expo/config-plugins';
 import pkg from './package.json';
 import { resolveRelease } from './release/release-config.ts';
 import en from './src/i18n/en.json';
@@ -88,4 +89,20 @@ const config: ExpoConfig = {
   ...(process.env.EAS_OWNER?.trim() ? { owner: process.env.EAS_OWNER.trim() } : {}),
 };
 
-export default config;
+/**
+ * Expo's Android template turns on R8 for release builds, and R8 broke the WorkManager database
+ * that androidx.startup creates before any app code runs: every release APK closed at once.
+ * Release builds stay unminified; the emulator launch check in courier-preview.yml proves each
+ * APK opens.
+ */
+const withoutReleaseMinify: ConfigPlugin = (base) =>
+  withGradleProperties(base, (mod) => {
+    const key = 'android.enableMinifyInReleaseBuilds';
+    mod.modResults = mod.modResults.filter(
+      (item) => !(item.type === 'property' && item.key === key),
+    );
+    mod.modResults.push({ type: 'property', key, value: 'false' });
+    return mod;
+  });
+
+export default withoutReleaseMinify(config);

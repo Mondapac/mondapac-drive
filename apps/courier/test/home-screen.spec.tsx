@@ -4,7 +4,15 @@ import { HomeScreen } from '../src/screens/HomeScreen';
 import { MARKETS } from './markets';
 import { createHarness, renderWith, slide, type Harness } from './render';
 
-const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
+/**
+ * Presses a button once it is enabled: the shift button waits for the courier's status, and on
+ * a busy CI runner the "offline" copy can show before the status arrives.
+ */
+async function press(name: string) {
+  const button = screen.getByRole('button', { name });
+  await waitFor(() => expect(button).toBeEnabled());
+  await fireEvent.press(button);
+}
 
 async function renderHome(harness: Harness) {
   const handlers = { onOpenJob: jest.fn(), onOpenEarnings: jest.fn(), onNeedLocation: jest.fn() };

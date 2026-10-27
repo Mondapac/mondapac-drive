@@ -1,5 +1,10 @@
+import { configure } from '@testing-library/react-native';
 import type * as ReactModule from 'react';
 import type * as ReactNative from 'react-native';
+
+// findBy* and waitFor give up after 1 s by default; the first screen test on a cold CI runner
+// (Babel cache empty, several suites in parallel) can take longer than that to settle.
+configure({ asyncUtilTimeout: 5_000 });
 
 // Native modules have no implementation under Jest; each is replaced by a small fake.
 
